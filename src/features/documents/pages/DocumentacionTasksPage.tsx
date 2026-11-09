@@ -3734,9 +3734,9 @@ Muchas gracias.`;
                                 <Plus className="h-4 w-4" />
                                 Gerar Contrato
                             </Button>
-                            <DialogContent className={`${generationSuccess ? 'max-w-7xl h-[88vh]' : selectedContractType === 'contrato_fijo_discontinuo' ? 'max-w-3xl max-h-[92vh]' : 'max-w-md'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
+                            <DialogContent className={`${generationSuccess ? 'sm:max-w-7xl max-w-7xl w-[95vw] h-[88vh]' : selectedContractType === 'contrato_fijo_discontinuo' ? 'sm:max-w-4xl max-w-4xl w-[92vw] max-h-[92vh]' : 'sm:max-w-2xl max-w-2xl w-[90vw]'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader>
-                                    <DialogTitle>Gerar Novo Contrato</DialogTitle>
+                                    <DialogTitle className="text-xl font-bold">Gerar Novo Contrato</DialogTitle>
                                     <DialogDescription>
                                         Selecione o trabalhador e o modelo de contrato. O sistema gerará o arquivo automaticamente com validade eIDAS (incluindo o modelo oficial SEPE Fijo-Discontinuo em PDF para a Hexagon).
                                     </DialogDescription>
@@ -3744,9 +3744,9 @@ Muchas gracias.`;
 
                                 {!generationSuccess ? (
                                     <form onSubmit={handleGenerate} className="space-y-4 pt-2 overflow-y-auto pr-1">
-                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                            <div className="space-y-1.5 md:col-span-1">
-                                                <Label>Selecionar Trabalhador</Label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                            <div className="flex flex-col justify-end space-y-1.5 md:col-span-1">
+                                                <Label className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 block truncate">Selecionar Trabalhador</Label>
                                                 <Combobox
                                                     options={workersList}
                                                     value={selectedWorkerId || ''}
@@ -3800,8 +3800,8 @@ Muchas gracias.`;
                                                 />
                                             </div>
 
-                                            <div className="space-y-1.5">
-                                                <Label>Empresa Contratante</Label>
+                                            <div className="flex flex-col justify-end space-y-1.5">
+                                                <Label className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 block truncate">Empresa Contratante</Label>
                                                 <Select
                                                     value={selectedContratante || undefined}
                                                     onValueChange={(val) => {
@@ -3828,8 +3828,8 @@ Muchas gracias.`;
                                                 </Select>
                                             </div>
 
-                                            <div className="space-y-1.5">
-                                                <Label>Modelo de Contrato</Label>
+                                            <div className="flex flex-col justify-end space-y-1.5">
+                                                <Label className="text-xs font-bold uppercase tracking-wide text-slate-600 dark:text-slate-300 block truncate">Modelo de Contrato</Label>
                                                 <Select
                                                     value={selectedContractType || undefined}
                                                     onValueChange={(val) => {
@@ -3853,136 +3853,160 @@ Muchas gracias.`;
                                         </div>
 
                                         {selectedContractType === 'contrato_fijo_discontinuo' && (
-                                            <div className="p-4 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-3">
-                                                <div className="flex items-center justify-between border-b border-indigo-200 dark:border-indigo-800/80 pb-2">
+                                            <div className="p-5 rounded-xl border border-indigo-200 dark:border-indigo-800/80 bg-indigo-50/40 dark:bg-indigo-950/20 space-y-4">
+                                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200 dark:border-indigo-800/80 pb-3">
                                                     <div>
                                                         <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
                                                             🇪🇸 Dados Oficiais SEPE — Contrato Indefinido Fijo-Discontinuo (Código 300)
                                                         </h4>
-                                                        <p className="text-[11px] text-slate-500 mt-0.5">
+                                                        <p className="text-xs text-slate-500 mt-0.5">
                                                             Pré-preenchido com os dados da obra/alocação, cargo do trabalhador e configurações da Hexagon. Ajuste se necessário antes de emitir o PDF.
                                                         </p>
                                                     </div>
-                                                    <Badge variant="outline" className="font-mono text-[10px] border-indigo-300 text-indigo-700 dark:text-indigo-300">
+                                                    <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 shrink-0 border-indigo-300 text-indigo-700 dark:text-indigo-300 bg-white/80 dark:bg-slate-900/80">
                                                         7 Páginas Oficiais + eIDAS
                                                     </Badge>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Nº Afiliación Seg. Social (NUSS - 12 dígitos)</Label>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Nº Afiliación Seg. Social (NUSS - 12 dígitos)">
+                                                            Nº Afiliación Seg. Social (NUSS - 12 dígitos)
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.nuss}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, nuss: e.target.value }))}
                                                             placeholder="Ex: 081234567890"
-                                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Município Domicílio do Trabalhador</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Município Domicílio do Trabalhador">
+                                                            Município Domicílio do Trabalhador
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.municipio_domicilio}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, municipio_domicilio: e.target.value }))}
                                                             placeholder="Ex: BARCELONA"
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Código Postal (CP Domicílio)</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Código Postal (CP Domicílio)">
+                                                            Código Postal (CP Domicílio)
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.codigo_postal}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, codigo_postal: e.target.value }))}
                                                             placeholder="Ex: 08028"
-                                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Puesto de Trabajo (Primera Cláusula)</Label>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                            Puesto de Trabajo (Primera Cláusula)
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.puesto}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, puesto: e.target.value }))}
                                                             placeholder="Ex: OFICIAL MONTADOR DE ESTRUCTURAS METÁLICAS"
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900 font-semibold"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900 font-semibold"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Grupo Profesional</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                            Grupo Profesional
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.grupo_profesional}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, grupo_profesional: e.target.value }))}
                                                             placeholder="Ex: GRUPO 5 / OFICIALES DE PRIMERA Y SEGUNDA"
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
                                                 </div>
 
-                                                <div className="space-y-1">
-                                                    <Label className="text-xs font-semibold">Funciones que va a desarrollar</Label>
+                                                <div className="flex flex-col justify-end space-y-1.5">
+                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                        Funciones que va a desarrollar
+                                                    </Label>
                                                     <Input
                                                         value={sepeForm.funciones}
                                                         onChange={(e) => setSepeForm(p => ({ ...p, funciones: e.target.value }))}
                                                         placeholder="Ex: Montaje, ensamblaje y fijación de estructuras metálicas en obra"
-                                                        className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                        className="h-10 text-xs bg-white dark:bg-slate-900"
                                                     />
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Centro de Trabajo (Obra / Calle)</Label>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                            Centro de Trabajo (Obra / Calle)
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.centro_trabajo_calle}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_calle: e.target.value }))}
                                                             placeholder="Ex: Obra Camp Nou, Av. d'Arístides Maillol"
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Município da Obra</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                            Município da Obra
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.centro_trabajo_municipio}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_municipio: e.target.value }))}
                                                             placeholder="Ex: BARCELONA"
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">CP da Obra</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
+                                                            CP da Obra
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.centro_trabajo_cp}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_cp: e.target.value }))}
                                                             placeholder="Ex: 08028"
-                                                            className="h-9 text-xs font-mono bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Fecha de Inicio (Quinta Cláusula)</Label>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Fecha de Inicio (Quinta Cláusula)">
+                                                            Fecha de Inicio (Quinta Cláusula)
+                                                        </Label>
                                                         <Input
                                                             type="date"
                                                             value={sepeForm.fecha_inicio}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, fecha_inicio: e.target.value }))}
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900 font-semibold"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900 font-semibold"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Período de Prueba</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Período de Prueba">
+                                                            Período de Prueba
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.periodo_prueba}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, periodo_prueba: e.target.value }))}
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
-                                                    <div className="space-y-1">
-                                                        <Label className="text-xs font-semibold">Retribución Total (Sexta Cláusula)</Label>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Retribución Total (Sexta Cláusula)">
+                                                            Retribución Total (Sexta Cláusula)
+                                                        </Label>
                                                         <Input
                                                             value={sepeForm.retribucion_total}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, retribucion_total: e.target.value }))}
-                                                            className="h-9 text-xs bg-white dark:bg-slate-900"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
                                                 </div>
@@ -4248,7 +4272,7 @@ Muchas gracias.`;
                                                 </div>
                                             )}
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                                 <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                                         Pasaporte / Documento ID
@@ -4326,7 +4350,7 @@ Muchas gracias.`;
                                                 </div>
                                             </div>
 
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                                 <div className="space-y-1.5">
                                                     <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                                                         Data da Solicitação / Carta
@@ -6178,7 +6202,7 @@ Muchas gracias.`;
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                                         1. Representante Legal da Empresa (Quadro "Datos de la Empresa" + Assinatura Bilateral OTP)
                                     </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                         <div className="space-y-1">
                                             <Label className="text-xs font-semibold">D./Dña. (Nome do Representante)</Label>
                                             <Input
@@ -6224,7 +6248,7 @@ Muchas gracias.`;
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                                         2. Dados da Empresa, Conta de Cotização (CCC) & Atividade Econômica (CNAE)
                                     </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                         <div className="space-y-1">
                                             <Label className="text-xs font-semibold">CIF / NIF da Empresa</Label>
                                             <Input
@@ -6254,7 +6278,7 @@ Muchas gracias.`;
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-1">
+                                    <div className="grid grid-cols-2 md:grid-cols-6 gap-3 pt-1 items-end">
                                         <div className="space-y-1">
                                             <Label className="text-xs font-semibold">Município Sede</Label>
                                             <Input
@@ -6301,7 +6325,7 @@ Muchas gracias.`;
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1">
+                                    <div className="grid grid-cols-1 md:grid-cols-4 gap-3 pt-1 items-end">
                                         <div className="space-y-1">
                                             <Label className="text-xs font-semibold">Cód. CNAE</Label>
                                             <Input
@@ -6337,7 +6361,7 @@ Muchas gracias.`;
                                     <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-600 dark:text-indigo-400">
                                         3. Condições Laborais Padrão (Cláusulas 1ª a 9ª e Fijo-Discontinuo)
                                     </h4>
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                         <div className="space-y-1 md:col-span-2">
                                             <Label className="text-xs font-semibold">Convenio Colectivo Aplicável (Cláusula 8ª / Pág. 6)</Label>
                                             <Input
@@ -6356,7 +6380,7 @@ Muchas gracias.`;
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                         <div className="space-y-1">
                                             <Label className="text-xs font-semibold">Retribución Total Padrão (Cláusula 6ª)</Label>
                                             <Input
@@ -7967,7 +7991,7 @@ Muchas gracias.`;
 
             {/* Modal de Assinatura Eletrônica da Empresa (Representante Legal — Bilateral OTP + eIDAS) */}
             <Dialog open={companySignDialogOpen} onOpenChange={setCompanySignDialogOpen}>
-                <DialogContent className="max-w-2xl bg-white dark:bg-slate-900">
+                <DialogContent className="sm:max-w-2xl max-w-2xl w-[92vw] bg-white dark:bg-slate-900">
                     <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold text-emerald-700 dark:text-emerald-400">
                             <PenTool className="h-5 w-5" />
