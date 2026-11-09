@@ -4694,53 +4694,73 @@ Muchas gracias.`;
                                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                             <TableRow>
                                                 <TableHead 
-                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                                                     onClick={() => handleRequestSort('worker')}
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        Trabalhador
-                                                        {sortFieldRequests === 'worker' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Trabalhador</span>
+                                                        {sortFieldRequests === 'worker' ? (
+                                                            sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
+                                                        )}
                                                     </div>
                                                 </TableHead>
                                                 <TableHead 
-                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                                                     onClick={() => handleRequestSort('empresa')}
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        Empresa
-                                                        {sortFieldRequests === 'empresa' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Empresa</span>
+                                                        {sortFieldRequests === 'empresa' ? (
+                                                            sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
+                                                        )}
                                                     </div>
                                                 </TableHead>
                                                 <TableHead 
-                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                                                     onClick={() => handleRequestSort('client')}
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        Cliente
-                                                        {sortFieldRequests === 'client' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Cliente / Pedido</span>
+                                                        {sortFieldRequests === 'client' ? (
+                                                            sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
+                                                        )}
                                                     </div>
                                                 </TableHead>
                                                 <TableHead 
-                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                                                     onClick={() => handleRequestSort('planned_start_date')}
                                                 >
-                                                    <div className="flex items-center gap-1 flex-row">
-                                                        Início Previsto
-                                                        {sortFieldRequests === 'planned_start_date' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Início Previsto</span>
+                                                        {sortFieldRequests === 'planned_start_date' ? (
+                                                            sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
+                                                        )}
                                                     </div>
                                                 </TableHead>
-                                                <TableHead>Status</TableHead>
+                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Status</TableHead>
                                                 <TableHead 
-                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none"
+                                                    className="cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors select-none whitespace-nowrap"
                                                     onClick={() => handleRequestSort('created_at')}
                                                 >
-                                                    <div className="flex items-center gap-1">
-                                                        Criado Em
-                                                        {sortFieldRequests === 'created_at' ? (sortDirectionRequests === 'asc' ? ' ↑' : ' ↓') : ' ⇅'}
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Criado Em</span>
+                                                        {sortFieldRequests === 'created_at' ? (
+                                                            sortDirectionRequests === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
+                                                        ) : (
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
+                                                        )}
                                                     </div>
                                                 </TableHead>
-                                                <TableHead>Expira Em</TableHead>
-                                                <TableHead className="text-right">Ações</TableHead>
+                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Expira Em</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Ações</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -4783,67 +4803,73 @@ Muchas gracias.`;
 
                                                 return (
                                                     <TableRow key={req.id}>
-                                                        <TableCell>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5 flex-wrap">
-                                                                <span>{req.worker?.nome}</span>
+                                                        <TableCell className="py-3">
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap leading-snug">
+                                                                {req.worker?.nome}
+                                                            </div>
+                                                            <div className="mt-1 flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
                                                                 {workerCode && (
-                                                                    <span className="text-xs font-mono font-semibold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-700">
-                                                                        ({workerCode})
+                                                                    <span className="text-[11px] font-mono font-semibold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-1.5 py-0.2 rounded border border-slate-200 dark:border-slate-700">
+                                                                        {workerCode}
                                                                     </span>
                                                                 )}
+                                                                <span className="truncate max-w-[220px]" title={req.worker?.email || req.worker?.movil || 'Sem contato'}>
+                                                                    {req.worker?.email || req.worker?.movil || 'Sem contato'}
+                                                                </span>
                                                             </div>
-                                                            <div className="text-xs text-muted-foreground">{req.worker?.email || req.worker?.movil || 'Sem contato'}</div>
                                                         </TableCell>
-                                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                                        <TableCell className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                                             {empresaName}
                                                         </TableCell>
-                                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                                                            <div className="flex items-center gap-1.5 flex-wrap">
-                                                                {clientCode && (
-                                                                    <span className="text-xs font-mono font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 px-1.5 py-0.5 rounded">
-                                                                        [{clientCode}]
-                                                                    </span>
-                                                                )}
-                                                                <span>{clientName}</span>
+                                                        <TableCell className="py-3">
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap leading-snug" title={clientName}>
+                                                                {clientName}
                                                             </div>
-                                                            {req.pedido_codigo && (
-                                                                <div className="mt-1 flex items-center gap-1 flex-wrap">
-                                                                    <Badge 
-                                                                        variant="outline" 
-                                                                        className={`font-mono text-[11px] px-1.5 py-0.5 gap-1 ${
-                                                                            req.solicitud_tipo === 'replacement' || req.pedido_codigo?.startsWith('R-')
-                                                                                ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
-                                                                                : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
-                                                                        }`}
-                                                                    >
-                                                                        <Package className="w-3 h-3" />
-                                                                        {req.pedido_codigo}
-                                                                        {req.solicitud_tipo === 'replacement' && !req.pedido_codigo?.startsWith('R-') && (
-                                                                            <span className="text-[10px] opacity-80">(Reemplazo)</span>
-                                                                        )}
-                                                                    </Badge>
+                                                            {(clientCode || req.pedido_codigo) && (
+                                                                <div className="mt-1 flex items-center gap-1.5 flex-nowrap whitespace-nowrap">
+                                                                    {clientCode && (
+                                                                        <span className="text-[11px] font-mono font-semibold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800/40 px-1.5 py-0.2 rounded">
+                                                                            {clientCode}
+                                                                        </span>
+                                                                    )}
+                                                                    {req.pedido_codigo && (
+                                                                        <Badge 
+                                                                            variant="outline" 
+                                                                            className={`font-mono text-[11px] px-1.5 py-0 gap-1 whitespace-nowrap ${
+                                                                                req.solicitud_tipo === 'replacement' || req.pedido_codigo?.startsWith('R-')
+                                                                                    ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
+                                                                                    : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
+                                                                            }`}
+                                                                        >
+                                                                            <Package className="w-3 h-3 shrink-0" />
+                                                                            {req.pedido_codigo}
+                                                                            {req.solicitud_tipo === 'replacement' && !req.pedido_codigo?.startsWith('R-') && (
+                                                                                <span className="text-[10px] opacity-80">(Reemplazo)</span>
+                                                                            )}
+                                                                        </Badge>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell className="font-medium text-slate-800 dark:text-slate-200">
+                                                        <TableCell className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                                             {formatDisplayDate(plannedStartDate)}
                                                         </TableCell>
-                                                        <TableCell>
-                                                            <Badge className={
-                                                                req.status === 'verified' ? 'bg-emerald-500/10 text-emerald-500 hover:bg-emerald-500/10 border-emerald-500/20' :
-                                                                req.status === 'submitted' ? 'bg-indigo-500/10 text-indigo-500 hover:bg-indigo-500/10 border-indigo-500/20' :
-                                                                isExpired ? 'bg-red-500/10 text-red-500 hover:bg-red-500/10 border-red-500/20' :
-                                                                'bg-amber-500/10 text-amber-500 hover:bg-amber-500/10'
-                                                            }>
+                                                        <TableCell className="whitespace-nowrap">
+                                                            <Badge className={`whitespace-nowrap ${
+                                                                req.status === 'verified' ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/15 border-emerald-500/25' :
+                                                                req.status === 'submitted' ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/15 border-indigo-500/25' :
+                                                                isExpired ? 'bg-red-500/10 text-red-600 dark:text-red-400 hover:bg-red-500/15 border-red-500/25' :
+                                                                'bg-amber-500/10 text-amber-600 dark:text-amber-400 hover:bg-amber-500/15 border-amber-500/25'
+                                                            }`}>
                                                                 {req.status === 'verified' ? 'Cadastro Validado' :
                                                                  req.status === 'submitted' ? 'Recebido - Analisar' :
                                                                  isExpired ? 'Expirado' : 'Aguardando Envio'}
                                                             </Badge>
                                                         </TableCell>
-                                                        <TableCell className="text-slate-500 text-sm">
+                                                        <TableCell className="text-slate-500 text-sm whitespace-nowrap">
                                                             {new Date(req.created_at).toLocaleDateString('pt-PT')}
                                                         </TableCell>
-                                                        <TableCell className="text-slate-500 text-sm">
+                                                        <TableCell className="text-slate-500 text-sm whitespace-nowrap">
                                                             {new Date(req.expires_at).toLocaleDateString('pt-PT')}
                                                         </TableCell>
                                                         <TableCell className="text-right space-x-1 whitespace-nowrap">
@@ -5082,74 +5108,74 @@ Muchas gracias.`;
                                     <Table>
                                         <TableHeader className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10">
                                             <TableRow>
-                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('worker')}>
-                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                                                        Trabalhador
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('worker')}>
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Trabalhador</span>
                                                         {sortFieldContracts === 'worker' ? (
-                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
-                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
                                                         )}
                                                     </div>
                                                 </TableHead>
 
-                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('empresa')}>
-                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                                                        Empresa
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('empresa')}>
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Empresa</span>
                                                         {sortFieldContracts === 'empresa' ? (
-                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
-                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
                                                         )}
                                                     </div>
                                                 </TableHead>
 
-                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('client')}>
-                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                                                        Cliente
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('client')}>
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Cliente / Pedido</span>
                                                         {sortFieldContracts === 'client' ? (
-                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
-                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
                                                         )}
                                                     </div>
                                                 </TableHead>
 
-                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('type')}>
-                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                                                        Tipo
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('type')}>
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Tipo</span>
                                                         {sortFieldContracts === 'type' ? (
-                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
-                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
                                                         )}
                                                     </div>
                                                 </TableHead>
 
-                                                <TableHead>OTP Código</TableHead>
+                                                <TableHead className="whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">OTP Código</TableHead>
 
-                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('status')}>
-                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                                                        Status
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('status')}>
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Status</span>
                                                         {sortFieldContracts === 'status' ? (
-                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
-                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
                                                         )}
                                                     </div>
                                                 </TableHead>
 
-                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors" onClick={() => handleContractSort('created_at')}>
-                                                    <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200">
-                                                        Data de Geração
+                                                <TableHead className="cursor-pointer select-none hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors whitespace-nowrap" onClick={() => handleContractSort('created_at')}>
+                                                    <div className="inline-flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">
+                                                        <span>Data de Geração</span>
                                                         {sortFieldContracts === 'created_at' ? (
-                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600" />
+                                                            sortDirectionContracts === 'asc' ? <ArrowUp className="h-3.5 w-3.5 text-indigo-600 shrink-0" /> : <ArrowDown className="h-3.5 w-3.5 text-indigo-600 shrink-0" />
                                                         ) : (
-                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60" />
+                                                            <ArrowUpDown className="h-3 w-3 text-slate-400 opacity-60 shrink-0" />
                                                         )}
                                                     </div>
                                                 </TableHead>
-                                                <TableHead className="text-right">Ações</TableHead>
+                                                <TableHead className="text-right whitespace-nowrap font-semibold text-slate-700 dark:text-slate-200">Ações</TableHead>
                                             </TableRow>
                                         </TableHeader>
                                         <TableBody>
@@ -5159,30 +5185,30 @@ Muchas gracias.`;
                                                 
                                                 return (
                                                     <TableRow key={contract.id}>
-                                                        <TableCell>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-200">
+                                                        <TableCell className="py-3">
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap leading-snug">
                                                                 {contract.worker?.nome}
                                                             </div>
-                                                            <div className="text-xs text-muted-foreground">
+                                                            <div className="mt-0.5 text-xs text-muted-foreground whitespace-nowrap">
                                                                 {contract.worker?.email || 'E-mail não cadastrado'}
                                                             </div>
                                                         </TableCell>
-                                                        <TableCell className="font-medium">
+                                                        <TableCell className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap">
                                                             {contract.contratante}
                                                         </TableCell>
-                                                        <TableCell className="font-medium">
-                                                            <div>{clientName}</div>
+                                                        <TableCell className="py-3">
+                                                            <div className="font-semibold text-slate-800 dark:text-slate-200 whitespace-nowrap leading-snug">{clientName}</div>
                                                             {contract.pedido_codigo && (
-                                                                <div className="mt-1 flex items-center gap-1 flex-wrap">
+                                                                <div className="mt-1 flex items-center gap-1.5 whitespace-nowrap">
                                                                     <Badge 
                                                                         variant="outline" 
-                                                                        className={`font-mono text-[11px] px-1.5 py-0.5 gap-1 ${
+                                                                        className={`font-mono text-[11px] px-1.5 py-0 gap-1 whitespace-nowrap ${
                                                                             contract.solicitud_tipo === 'replacement' || contract.pedido_codigo?.startsWith('R-')
                                                                                 ? 'bg-amber-50 dark:bg-amber-950/30 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-800'
                                                                                 : 'bg-indigo-50 dark:bg-indigo-950/30 text-indigo-700 dark:text-indigo-300 border-indigo-200 dark:border-indigo-800'
                                                                         }`}
                                                                     >
-                                                                        <Package className="w-3 h-3" />
+                                                                        <Package className="w-3 h-3 shrink-0" />
                                                                         {contract.pedido_codigo}
                                                                         {contract.solicitud_tipo === 'replacement' && !contract.pedido_codigo?.startsWith('R-') && (
                                                                             <span className="text-[10px] opacity-80">(Reemplazo)</span>
@@ -5191,8 +5217,8 @@ Muchas gracias.`;
                                                                 </div>
                                                             )}
                                                         </TableCell>
-                                                        <TableCell>
-                                                            <Badge variant="outline" className="capitalize">
+                                                        <TableCell className="whitespace-nowrap">
+                                                            <Badge variant="outline" className="capitalize whitespace-nowrap">
                                                                 {contract.contract_type === 'contrato_fijo_discontinuo'
                                                                     ? '🇪🇸 SEPE Fijo-Discontinuo (.PDF)'
                                                                     : contract.contract_type.replace(/_/g, ' ')}
