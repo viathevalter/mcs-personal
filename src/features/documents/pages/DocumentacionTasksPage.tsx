@@ -2029,11 +2029,11 @@ Muchas gracias.`;
         setSignedContractFile(null);
         setSignedContractSignedBy('both');
         setArchiveUploadedContract(true);
-        const repName = contract.metadata?.representante_nombre || hexagonSettings?.representante_nombre || 'MARCOS DIVINO DE ALMEIDA JUNIOR';
-        const repDoc = contract.metadata?.representante_nif || hexagonSettings?.representante_nif || 'Z4103479P';
-        const repCargo = contract.metadata?.representante_cargo || hexagonSettings?.representante_cargo || 'ADMINISTRADOR';
+        const repName = contract.metadata?.company_signer_name || contract.metadata?.representante_nombre || hexagonSettings?.representante_nombre || 'MARCOS DIVINO DE ALMEIDA JUNIOR';
+        const repDoc = contract.metadata?.company_signer_nif || contract.metadata?.representante_nif || hexagonSettings?.representante_nif || 'Z4103479P';
+        const repCargo = contract.metadata?.company_signer_cargo || contract.metadata?.representante_cargo || hexagonSettings?.representante_cargo || 'ADMINISTRADOR';
         const repEmail = hexagonSettings?.representante_email || '';
-        const otpDefault = contract.metadata?.company_otp_code || '';
+        const otpDefault = contract.metadata?.company_otp_code || contract.metadata?.company_otp || contract.otp_code || '';
 
         setCompanySignerName(repName);
         setCompanySignerDocument(repDoc);
@@ -2253,8 +2253,10 @@ Muchas gracias.`;
             const res = await signContractAsCompany({
                 contract_id: companySigningContract.id,
                 otp_code: companyOtpInput.trim(),
+                signature_image: signatureBase64,
                 signature_base64: signatureBase64,
                 signer_name: companySignerName.trim(),
+                signer_nif: companySignerDocument.trim(),
                 signer_document: companySignerDocument.trim(),
                 signer_cargo: companySignerCargo.trim(),
             });

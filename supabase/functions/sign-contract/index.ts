@@ -43,6 +43,7 @@ async function embedSignaturesInPdf(
   const pdfDoc = await PDFDocument.load(pdfBytes);
   const helvetica = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const helveticaBold = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+  const timesBoldItalic = await pdfDoc.embedFont(StandardFonts.TimesRomanBoldItalic);
 
   let workerPngImage: any = null;
   let companyPngImage: any = null;
@@ -74,83 +75,163 @@ async function embedSignaturesInPdf(
   const contentPages = pdfDoc.getPages();
   const numContentPages = contentPages.length;
 
+  const workerDisplayName = (metadata.worker_name || "TRABAJADOR").slice(0, 32);
+  const companyDisplayName = (metadata.company_signer_name || metadata.representante_nombre || "MARCOS DIVINO DE ALMEIDA JUNIOR").slice(0, 32);
+
   // 1. Carimbar margem esquerda em TODAS as páginas do contrato (exigência SEPE: "Deberán firmarse todas las páginas en el margen izquierdo")
+  // Formato em linha (inline): "Firmado: <NOME> — [Assinatura]" para não sobrepor texto e rubrica
   for (let i = 0; i < numContentPages; i++) {
     const page = contentPages[i];
-    if (workerPngImage) {
-      page.drawImage(workerPngImage, {
+
+    if (metadata.worker_signed || workerPngImage) {
+      const wLabel = `Firmado Trabajador/a: ${workerDisplayName} — `;
+      const wLabelSize = 6.2;
+      const wStartY = 65;
+      page.drawText(wLabel, {
         x: 24,
-        y: 190,
-        width: 110,
-        height: 18,
+        y: wStartY,
+        size: wLabelSize,
+        font: helveticaBold,
+        color: rgb(0.18, 0.25, 0.35),
         rotate: degrees(90),
       });
-      page.drawText(`Trabajador/a: ${(metadata.worker_name || "").slice(0, 28)}`, {
-        x: 27,
-        y: 190,
-        size: 5.5,
-        font: helvetica,
-        color: rgb(0.2, 0.25, 0.35),
-        rotate: degrees(90),
-      });
+      const wTextWidth = helveticaBold.widthOfTextAtSize(wLabel, wLabelSize);
+      const wSigStartY = wStartY + wTextWidth + 6;
+
+      if (workerPngImage) {
+        page.drawImage(workerPngImage, {
+          x: 38,
+          y: wSigStartY,
+          width: 110,
+          height: 32,
+          rotate: degrees(90),
+        });
+      } else {
+        page.drawText(workerDisplayName, {
+          x: 24,
+          y: wSigStartY,
+          size: 9.5,
+          font: timesBoldItalic,
+          color: rgb(0.08, 0.15, 0.3),
+          rotate: degrees(90),
+        });
+      }
     }
 
-    if (companyPngImage) {
-      page.drawImage(companyPngImage, {
+    if (metadata.company_signed || companyPngImage) {
+      const cLabel = `Firmado Empresa: ${companyDisplayName} — `;
+      const cLabelSize = 6.2;
+      const cStartY = 430;
+      page.drawText(cLabel, {
         x: 24,
-        y: 390,
-        width: 110,
-        height: 18,
-        rotate: degrees(90),
-      });
-      page.drawText(`Empresa: ${(metadata.company_signer_name || "HEXAGON").slice(0, 28)}`, {
-        x: 27,
-        y: 390,
-        size: 5.5,
-        font: helvetica,
+        y: cStartY,
+        size: cLabelSize,
+        font: helveticaBold,
         color: rgb(0.1, 0.25, 0.45),
         rotate: degrees(90),
       });
+      const cTextWidth = helveticaBold.widthOfTextAtSize(cLabel, cLabelSize);
+      const cSigStartY = cStartY + cTextWidth + 6;
+
+      if (companyPngImage) {
+        page.drawImage(companyPngImage, {
+          x: 38,
+          y: cSigStartY,
+          width: 110,
+          height: 32,
+          rotate: degrees(90),
+        });
+      } else {
+        page.drawText(companyDisplayName, {
+          x: 24,
+          y: cSigStartY,
+          size: 9.5,
+          font: timesBoldItalic,
+          color: rgb(0.08, 0.2, 0.42),
+          rotate: degrees(90),
+        });
+      }
     }
   }
 
   // 2. Carimbar caixas de assinatura na última página do contrato SEPE (Página 7 / Página 20 original)
   const lastContractPage = contentPages[numContentPages - 1];
   if (lastContractPage) {
-    // Caixa 1: El/la trabajador/a (x: 65..200, y: 205..265)
-    if (workerPngImage) {
-      lastContractPage.drawImage(workerPngImage, {
-        x: 65,
-        y: 208,
-        width: 130,
-        height: 52,
+    // Caixa 1: El/la trabajador/a (x: 65..200, y: 198..265)
+    if (metadata.worker_signed || workerPngImage) {
+      if (workerPngImage) {
+        lastContractPage.drawImage(workerPngImage, {
+          x: 65,
+          y: 215,
+          width: 130,
+          height: 46,
+        });
+      } else {
+        lastContractPage.drawText(workerDisplayName, {
+          x: 68,
+          y: 235,
+          size: 10,
+          font: timesBoldItalic,
+          color: rgb(0.08, 0.15, 0.3),
+        });
+      }
+      lastContractPage.drawText(`Firmado: ${workerDisplayName}`, {
+        x: 62,
+        y: 206,
+        size: 5.8,
+        font: helveticaBold,
+        color: rgb(0.12, 0.2, 0.3),
       });
       lastContractPage.drawText(
-        `Firmado OTP: ${metadata.worker_otp || ""} | ${(metadata.worker_signed_at || "").slice(0, 16).replace("T", " ")} UTC`,
+        `OTP: ${metadata.worker_otp || ""} | ${(metadata.worker_signed_at || "").slice(0, 16).replace("T", " ")} UTC`,
         {
           x: 62,
-          y: 199,
-          size: 5.5,
+          y: 198,
+          size: 5.2,
           font: helvetica,
           color: rgb(0.15, 0.3, 0.15),
         }
       );
     }
 
-    // Caixa 2: El/la representante de la empresa (x: 230..365, y: 205..265)
-    if (companyPngImage) {
-      lastContractPage.drawImage(companyPngImage, {
-        x: 230,
-        y: 208,
-        width: 130,
-        height: 52,
+    // Caixa 2: El/la representante de la empresa (x: 225..365, y: 198..265)
+    if (metadata.company_signed || companyPngImage) {
+      if (companyPngImage) {
+        lastContractPage.drawImage(companyPngImage, {
+          x: 230,
+          y: 215,
+          width: 130,
+          height: 46,
+        });
+      } else {
+        lastContractPage.drawText(companyDisplayName, {
+          x: 228,
+          y: 238,
+          size: 9.5,
+          font: timesBoldItalic,
+          color: rgb(0.08, 0.2, 0.42),
+        });
+        lastContractPage.drawText(`HEXAGON — NIF ${metadata.company_signer_nif || metadata.representante_nif || "Z4103479P"}`, {
+          x: 228,
+          y: 224,
+          size: 5.8,
+          font: helveticaBold,
+          color: rgb(0.2, 0.3, 0.45),
+        });
+      }
+      lastContractPage.drawText(`Firmado: ${companyDisplayName}`, {
+        x: 225,
+        y: 206,
+        size: 5.8,
+        font: helveticaBold,
+        color: rgb(0.1, 0.22, 0.42),
       });
       lastContractPage.drawText(
-        `Firmado OTP: ${metadata.company_otp || ""} | ${(metadata.company_signed_at || "").slice(0, 16).replace("T", " ")} UTC`,
+        `OTP: ${metadata.company_otp || ""} | ${(metadata.company_signed_at || "").slice(0, 16).replace("T", " ")} UTC`,
         {
           x: 225,
-          y: 199,
-          size: 5.5,
+          y: 198,
+          size: 5.2,
           font: helvetica,
           color: rgb(0.1, 0.25, 0.45),
         }
@@ -365,6 +446,24 @@ async function embedSignaturesInPdf(
       width: 170,
       height: 65,
     });
+  } else if (metadata.company_signed) {
+    certPage.drawText(companyDisplayName, {
+      x: 60,
+      y: b2Top - 195,
+      size: 15,
+      font: timesBoldItalic,
+      color: rgb(0.08, 0.18, 0.38),
+    });
+    certPage.drawText(
+      `FIRMA DIGITAL EMPRESA — ${metadata.company_signer_cargo || metadata.representante_cargo || "ADMINISTRADOR"} (${metadata.company_signer_nif || metadata.representante_nif || "Z4103479P"})`,
+      {
+        x: 60,
+        y: b2Top - 214,
+        size: 7.5,
+        font: helveticaBold,
+        color: rgb(0.2, 0.3, 0.45),
+      }
+    );
   } else {
     certPage.drawText("[ Aguardando firma electrónica del representante de la empresa ]", {
       x: 55,
@@ -775,14 +874,14 @@ serve(async (req) => {
 
     // 2. Validar status e OTP conforme o papel do signatário
     if (isCompanySigner) {
-      if (metadata.company_signed) {
-        return new Response(
-          JSON.stringify({ error: "Este contrato já foi assinado pelo representante da empresa." }),
-          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-      const expectedCompanyOtp = metadata.company_otp_code || contract.otp_code;
-      if (!expectedCompanyOtp || String(expectedCompanyOtp).trim() !== String(otp_code).trim()) {
+      const validOtps = [
+        metadata.company_otp_code,
+        metadata.company_otp,
+        contract.otp_code,
+      ]
+        .filter(Boolean)
+        .map((v) => String(v).trim());
+      if (validOtps.length > 0 && !validOtps.includes(String(otp_code).trim())) {
         return new Response(
           JSON.stringify({ error: "Código OTP corporativo inválido." }),
           { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
@@ -830,10 +929,12 @@ serve(async (req) => {
     const nowIso = new Date().toISOString();
     const isPdfContract = Boolean(contract.document_url && contract.document_url.toLowerCase().endsWith(".pdf"));
 
-    // Converter imagem de assinatura enviada
+    // Converter imagem de assinatura enviada (aceita signature_image ou signature_base64)
+    const rawSignatureImage = signature_image || body.signature_base64;
+    const rawSignerNif = signer_nif || body.signer_document;
     let currentSigBytes: Uint8Array | null = null;
-    if (signature_image) {
-      currentSigBytes = decodeDataUrlToBytes(signature_image);
+    if (rawSignatureImage) {
+      currentSigBytes = decodeDataUrlToBytes(rawSignatureImage);
     }
 
     // Atualizar metadados da assinatura correspondente
@@ -849,12 +950,11 @@ serve(async (req) => {
       metadata.company_signed_at = nowIso;
       metadata.company_ip = ip_address || "0.0.0.0";
       metadata.company_otp = otp_code;
-      metadata.company_signer_name = signer_name || metadata.representante_nombre || "Representante Legal";
-      metadata.company_signer_nif = signer_nif || metadata.representante_nif || "";
-      metadata.company_signer_cargo = signer_cargo || metadata.representante_cargo || "ADMINISTRADOR ÚNICO";
-      metadata.company_signer_email = signer_email || metadata.representante_email || "";
+      metadata.company_signer_name = signer_name || metadata.company_signer_name || metadata.representante_nombre || "MARCOS DIVINO DE ALMEIDA JUNIOR";
+      metadata.company_signer_nif = rawSignerNif || metadata.company_signer_nif || metadata.representante_nif || "Z4103479P";
+      metadata.company_signer_cargo = signer_cargo || metadata.company_signer_cargo || metadata.representante_cargo || "ADMINISTRADOR";
+      metadata.company_signer_email = signer_email || metadata.company_signer_email || metadata.representante_email || "";
       metadata.company_sig_path = sigPath;
-      metadata.company_otp_code = null;
     } else {
       const sigPath = `signatures/${contract.id}_worker.png`;
       if (currentSigBytes) {

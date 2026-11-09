@@ -1332,9 +1332,11 @@ export async function consolidateNoticeDiscountToPayroll(
 export interface SignContractAsCompanyPayload {
     contract_id: string;
     otp_code: string;
-    signature_image: string;
+    signature_image?: string;
+    signature_base64?: string;
     signer_name?: string;
     signer_nif?: string;
+    signer_document?: string;
     signer_cargo?: string;
     signer_email?: string;
     ip_address?: string;
@@ -1350,9 +1352,15 @@ export async function signContractAsCompany(
     worker_signed?: boolean;
     company_signed?: boolean;
 }> {
+    const resolvedSig = payload.signature_image || payload.signature_base64 || '';
+    const resolvedNif = payload.signer_nif || payload.signer_document || '';
     const { data, error } = await supabase.functions.invoke('sign-contract', {
         body: {
             ...payload,
+            signature_image: resolvedSig,
+            signature_base64: resolvedSig,
+            signer_nif: resolvedNif,
+            signer_document: resolvedNif,
             signer_role: 'company',
         },
     });
