@@ -354,72 +354,84 @@ export function DocumentacionTasksPage() {
     const [loadingPreview, setLoadingPreview] = useState(false);
     const previewContainerRef = useRef<HTMLDivElement>(null);
 
-    // States SEPE Hexagon (Contrato Indefinido Fijo-Discontinuo Cód. 300)
+    // States SEPE Hexagon (Contrato Indefinido Fijo-Discontinuo Cód. 300 / Indefinido Cód. 100)
     const [sepeForm, setSepeForm] = useState({
+        sepe_codigo: '300',
         puesto: '',
-        grupo_profesional: '',
+        grupo_profesional: '5',
         funciones: '',
-        centro_trabajo_calle: '',
-        centro_trabajo_cp: '',
-        centro_trabajo_municipio: '',
+        centro_trabajo_calle: 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON',
+        centro_trabajo_cp: '16400',
+        centro_trabajo_municipio: 'TARANCON',
         fecha_inicio: new Date().toISOString().split('T')[0],
-        periodo_prueba: 'Según Convenio Colectivo aplicable',
-        retribucion_total: 'Según Convenio Colectivo aplicable',
-        convenio_colectivo: 'Convenio Colectivo del Sector de la Industria Siderometalúrgica / Construcción',
-        lugar_firma: 'Barcelona',
+        periodo_prueba: '2 MESES',
+        retribucion_total: 'SEGUN CONVENIO',
+        convenio_colectivo: 'METAL DE CUENCA',
+        lugar_firma: 'TARANCON',
         nuss: '',
-        codigo_postal: '',
-        municipio_domicilio: '',
+        codigo_postal: '16400',
+        municipio_domicilio: 'TARANCON',
+        nivel_formativo: 'FORMACION PROFESIONAL',
         clausulas_adicionales: ''
     });
 
     // Configurações SEPE da Hexagon (salvas em core_common.empresas.contract_settings)
     const [hexagonSettings, setHexagonSettings] = useState<any>({
-        cif: 'B19394493',
-        razon_social: 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
-        domicilio_social: '',
+        cif: 'B05688197',
+        razon_social: 'HEXAGON MONTAJES INDUSTRIALES S.L.',
+        domicilio_social: 'CALLE ARCHIVERO DIMAS PEREZ 2',
         pais_empresa: 'ESPAÑA',
         pais_cod_empresa: '724',
-        municipio_empresa: 'BARCELONA',
-        municipio_cod_empresa: '08019',
-        cp_empresa: '08028',
-        representante_nombre: '',
-        representante_nif: '',
-        representante_cargo: 'ADMINISTRADOR ÚNICO',
+        municipio_empresa: 'TARANCON',
+        municipio_cod_empresa: '',
+        cp_empresa: '16400',
+        representante_nombre: 'MARCOS DIVINO DE ALMEIDA JUNIOR',
+        representante_nif: 'Z4103479P',
+        representante_cargo: 'ADMINISTRADOR',
         representante_email: '',
         ccc_regimen: '0111',
-        ccc_numero: '',
-        cnae_cod: '43',
-        cnae_texto: 'CONSTRUCCIÓN / MONTAJES INDUSTRIALES',
-        municipio_ct_cod: '08019',
+        ccc_numero: '16106973470',
+        cnae_cod: '',
+        cnae_texto: 'INSTALACIONES DE MAQUINAS Y EQUIPOS INDUSTRIALES',
+        centro_trabajo_calle: 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON',
+        centro_trabajo_municipio: 'TARANCON',
+        municipio_ct_cod: '16203',
+        centro_trabajo_cp: '16400',
         horas_semanales: '40',
-        horario_jornada: 'LUNES A VIERNES DE 08:00 A 17:00',
-        periodo_prueba_default: 'Según Convenio Colectivo aplicable',
-        vacaciones: '30 días naturales por año trabajado',
-        convenio_colectivo: 'Convenio Colectivo del Sector de la Industria Siderometalúrgica / Construcción',
-        retribucion_default: 'Según Convenio Colectivo aplicable',
-        conceptos_salariales: 'Salario base + complementos según Convenio Colectivo',
-        sepe_municipio: 'BARCELONA',
-        lugar_firma: 'Barcelona',
-        actividad_fijo_discontinuo: 'Montaje y mantenimiento de estructuras metálicas e instalaciones industriales según pedidos y obras de clientes',
+        horario_jornada: '',
+        periodo_prueba_default: '2 MESES',
+        vacaciones: '30 DIAS NATURALES',
+        convenio_colectivo: 'METAL DE CUENCA',
+        retribucion_default: 'SEGUN CONVENIO',
+        conceptos_salariales: 'SEGUN CONVENIO',
+        sepe_municipio: 'SERVICIOS TELEMATICOS DEL SEPE',
+        lugar_firma: 'TARANCON',
+        sepe_codigo_default: '300',
+        actividad_fijo_discontinuo: 'INSTALACIONES Y MONTAJES INDUSTRIALES EN OBRAS',
         cargos_mapeamento: {
             'ENCARGADO DE OBRA': {
                 puesto: 'ENCARGADO DE OBRA',
-                grupo_profesional: 'GRUPO 3 / ENCARGADOS Y JEFES DE EQUIPO',
-                funciones: 'Coordinación, supervisión de montaje de estructura metálica y seguridad en obra',
-                periodo_prueba: 'Según Convenio Colectivo'
+                grupo_profesional: '3',
+                funciones: 'ENCARGADO DE OBRA',
+                periodo_prueba: '2 MESES'
             },
             'MONTADOR DE ESTRUCTURA METÁLICA (OBRA)': {
-                puesto: 'OFICIAL MONTADOR DE ESTRUCTURAS METÁLICAS',
-                grupo_profesional: 'GRUPO 5 / OFICIALES DE PRIMERA Y SEGUNDA',
-                funciones: 'Montaje, ensamblaje y fijación de estructuras metálicas en obra',
-                periodo_prueba: 'Según Convenio Colectivo'
+                puesto: 'MONTADOR DE ESTRUCTURA METALICA',
+                grupo_profesional: '5',
+                funciones: 'MONTADOR DE ESTRUCTURA METALICA',
+                periodo_prueba: '2 MESES'
             },
             'AYUDANTE': {
-                puesto: 'AYUDANTE / PEÓN ESPECIALISTA DE MONTAJE',
-                grupo_profesional: 'GRUPO 6 / AYUDANTES Y PEONES ESPECIALISTAS',
-                funciones: 'Apoyo en tareas de montaje de estructuras metálicas, acopio y preparación de materiales',
-                periodo_prueba: 'Según Convenio Colectivo'
+                puesto: 'AYUDANTE',
+                grupo_profesional: '7',
+                funciones: 'AYUDANTE',
+                periodo_prueba: '2 MESES'
+            },
+            'AUXILIAR ADMINISTRATIVO': {
+                puesto: 'AUXILIAR ADMINISTRATIVO',
+                grupo_profesional: '7',
+                funciones: 'AUXILIAR ADMINISTRATIVO',
+                periodo_prueba: '2 MESES'
             }
         }
     });
@@ -1556,26 +1568,25 @@ Muchas gracias.`;
                 if (matchedKey) roleCfg = cargosMap[matchedKey];
             }
 
-            const site = (wa as any)?.site;
-            const client = (wa as any)?.client;
-            const ctCalle = site?.address_line || site?.name || client?.address_line || client?.trade_name || 'SEGÚN OBRA ASIGNADA';
-            const ctCp = site?.postal_code || cfg?.cp_empresa || '08028';
-            const ctMun = site?.city || client?.city || cfg?.municipio_empresa || 'BARCELONA';
+            const ctCalle = 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON';
+            const ctCp = cfg?.cp_empresa || '16400';
+            const ctMun = cfg?.municipio_empresa || 'TARANCON';
             const startDate = ((wa as any)?.planned_start_date || (wa as any)?.start_date || ed?.start_date || new Date().toISOString()).substring(0, 10);
 
             setSepeForm(prev => ({
                 ...prev,
-                puesto: roleCfg?.puesto || rawFunc || 'OPERARIO DE MONTAJE',
-                grupo_profesional: roleCfg?.grupo_profesional || 'OFICIALES / AYUDANTES SEGÚN CONVENIO',
-                funciones: roleCfg?.funciones || `Trabajos propios de la categoría de ${rawFunc} en obra`,
+                puesto: roleCfg?.puesto || rawFunc || 'OPERARIO',
+                grupo_profesional: roleCfg?.grupo_profesional || '5',
+                funciones: roleCfg?.funciones || roleCfg?.puesto || rawFunc || 'OPERARIO',
                 centro_trabajo_calle: ctCalle,
                 centro_trabajo_cp: ctCp,
                 centro_trabajo_municipio: ctMun,
                 fecha_inicio: startDate,
-                periodo_prueba: roleCfg?.periodo_prueba || cfg?.periodo_prueba_default || 'Según Convenio Colectivo aplicable',
-                retribucion_total: cfg?.retribucion_default || 'Según Convenio Colectivo aplicable',
-                convenio_colectivo: cfg?.convenio_colectivo || 'Convenio Colectivo del Sector de la Industria Siderometalúrgica / Construcción',
-                lugar_firma: cfg?.lugar_firma || 'Barcelona',
+                periodo_prueba: roleCfg?.periodo_prueba || cfg?.periodo_prueba_default || '2 MESES',
+                retribucion_total: cfg?.retribucion_default || 'SEGUN CONVENIO',
+                convenio_colectivo: cfg?.convenio_colectivo || 'METAL DE CUENCA',
+                lugar_firma: cfg?.lugar_firma || 'TARANCON',
+                sepe_codigo: cfg?.sepe_codigo || '300',
                 nuss: w?.nuss || ed?.nuss || w?.niss || ed?.niss || '',
                 codigo_postal: w?.codigo_postal || ed?.codigo_postal || '',
                 municipio_domicilio: w?.municipio_domicilio || ed?.municipio_domicilio || w?.location || ed?.ubicacion_actual || ctMun,
@@ -1986,9 +1997,9 @@ Muchas gracias.`;
     // 4.1 Modal de Assinatura Eletrônica da Empresa (Representante Legal — Bilateral OTP)
     const handleOpenCompanySignModal = (contract: Contract) => {
         setCompanySigningContract(contract);
-        const repName = contract.metadata?.representante_nombre || hexagonSettings?.representante_nombre || 'REPRESENTANTE LEGAL HEXAGON';
-        const repDoc = contract.metadata?.representante_nif || hexagonSettings?.representante_nif || hexagonSettings?.cif || 'B19394493';
-        const repCargo = contract.metadata?.representante_cargo || hexagonSettings?.representante_cargo || 'ADMINISTRADOR ÚNICO';
+        const repName = contract.metadata?.representante_nombre || hexagonSettings?.representante_nombre || 'MARCOS DIVINO DE ALMEIDA JUNIOR';
+        const repDoc = contract.metadata?.representante_nif || hexagonSettings?.representante_nif || 'Z4103479P';
+        const repCargo = contract.metadata?.representante_cargo || hexagonSettings?.representante_cargo || 'ADMINISTRADOR';
         const repEmail = hexagonSettings?.representante_email || '';
         const otpDefault = contract.metadata?.company_otp_code || '';
 
@@ -2075,7 +2086,7 @@ Muchas gracias.`;
             ctx.fillText(nameText.trim(), offCanvas.width / 2, offCanvas.height / 2 - 10, 440);
             ctx.font = 'bold 12px Helvetica, Arial, sans-serif';
             ctx.fillStyle = '#334155';
-            ctx.fillText(`FIRMA DIGITAL EMPRESA — ${companySignerDocument || 'B19394493'}`, offCanvas.width / 2, offCanvas.height / 2 + 28);
+            ctx.fillText(`FIRMA DIGITAL EMPRESA — ${companySignerDocument || 'Z4103479P'}`, offCanvas.width / 2, offCanvas.height / 2 + 28);
         }
         return offCanvas.toDataURL('image/png');
     };
@@ -3857,15 +3868,27 @@ Muchas gracias.`;
                                                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-indigo-200 dark:border-indigo-800/80 pb-3">
                                                     <div>
                                                         <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
-                                                            🇪🇸 Dados Oficiais SEPE — Contrato Indefinido Fijo-Discontinuo (Código 300)
+                                                            🇪🇸 Dados Oficiais SEPE — Modelo Oficial Gestoría Hexagon (Código {sepeForm.sepe_codigo || '300'})
                                                         </h4>
                                                         <p className="text-xs text-slate-500 mt-0.5">
-                                                            Pré-preenchido com os dados da obra/alocação, cargo do trabalhador e configurações da Hexagon. Ajuste se necessário antes de emitir o PDF.
+                                                            Pré-preenchido com os dados oficiais da Gestoría (Tarancón / Convenio Metal de Cuenca / CCC 0111-16106973470). Ajuste se necessário antes de emitir o PDF.
                                                         </p>
                                                     </div>
-                                                    <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 shrink-0 border-indigo-300 text-indigo-700 dark:text-indigo-300 bg-white/80 dark:bg-slate-900/80">
-                                                        7 Páginas Oficiais + eIDAS
-                                                    </Badge>
+                                                    <div className="flex items-center gap-2 shrink-0">
+                                                        <select
+                                                            value={sepeForm.sepe_codigo || '300'}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, sepe_codigo: e.target.value }))}
+                                                            className="h-8 rounded-md border border-indigo-300 dark:border-indigo-700 bg-white dark:bg-slate-900 px-2 text-xs font-semibold text-indigo-700 dark:text-indigo-300"
+                                                            title="Modalidade SEPE na Página 5/6"
+                                                        >
+                                                            <option value="300">Cód. 300 — Fijo-Discontinuo</option>
+                                                            <option value="100">Cód. 100 — Indefinido Tiempo Completo</option>
+                                                            <option value="200">Cód. 200 — Indefinido Tiempo Parcial</option>
+                                                        </select>
+                                                        <Badge variant="outline" className="font-mono text-xs px-2.5 py-1 shrink-0 border-indigo-300 text-indigo-700 dark:text-indigo-300 bg-white/80 dark:bg-slate-900/80">
+                                                            7 Páginas Oficiais + eIDAS
+                                                        </Badge>
+                                                    </div>
                                                 </div>
 
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">

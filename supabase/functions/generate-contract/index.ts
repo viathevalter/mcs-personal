@@ -494,27 +494,27 @@ serve(async (req) => {
 
       // Perfil da função/cargo
       const cargoUpper = (sepe.puesto || jobFunction || "").toUpperCase().trim();
-      const funcionesMap = settings.funciones_por_cargo || {};
-      const roleProfile = funcionesMap[cargoUpper] ||
-        Object.entries(funcionesMap).find(([k]) => cargoUpper.includes(k) || k.includes(cargoUpper))?.[1] ||
+      const funcionesMap = settings.cargos_mapeamento || settings.funciones_por_cargo || {};
+      const roleProfile: any = funcionesMap[cargoUpper] ||
+        Object.entries(funcionesMap).find(([k]) => cargoUpper.includes(k.toUpperCase()) || k.toUpperCase().includes(cargoUpper))?.[1] ||
         null;
 
-      // Extrair CP e Município da obra se disponíveis
-      const cpMatch = (siteAddress || clientAddress || "").match(/\b(\d{5})\b/);
-      const resolvedSiteCp = sepe.centro_trabajo_cp || sitePostalCode || (cpMatch ? cpMatch[1] : "") || settings.centro_trabajo_cp || "";
-      const resolvedSiteMunicipio = (sepe.centro_trabajo_municipio || siteCity || settings.centro_trabajo_municipio || "BARCELONA").toUpperCase();
-      const resolvedSiteCalle = sepe.centro_trabajo_calle || [siteName, siteAddress || clientAddress].filter(Boolean).join(" - ") || "OBRA ASIGNADA";
+      // Extrair CP, Município e Endereço do Centro de Trabalho (Padrão: Sede Oficial de Tarancón conforme Gestoría)
+      const resolvedSiteCp = sepe.centro_trabajo_cp || settings.centro_trabajo_cp || settings.cp_empresa || settings.empresa_cp || "16400";
+      const resolvedSiteMunicipio = (sepe.centro_trabajo_municipio || settings.centro_trabajo_municipio || settings.municipio_empresa || settings.empresa_municipio || "TARANCON").toUpperCase();
+      const resolvedSiteCodMunicipio = sepe.centro_trabajo_cod_municipio || settings.centro_trabajo_cod_municipio || settings.municipio_ct_cod || (resolvedSiteMunicipio.includes("TARANCON") ? "16203" : "");
+      const resolvedSiteCalle = (sepe.centro_trabajo_calle || settings.centro_trabajo_calle || "CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON").toUpperCase();
 
-      // Dados da Empresa
-      const empCif = sepe.cif || settings.cif || empresaRow?.tax_id || "B72855497";
-      const repNombre = sepe.representante_nombre || settings.representante_nombre || "";
-      const repNif = sepe.representante_nif || settings.representante_nif || "";
-      const repCargo = sepe.representante_cargo || settings.representante_cargo || "ADMINISTRADOR ÚNICO";
-      const empRazonSocial = sepe.razon_social || settings.razon_social || empresaRow?.legal_name || "HEXAGON MONTAJES INDUSTRIALES, S.L.";
-      const empDomicilio = sepe.domicilio_social || settings.domicilio_social || empresaRow?.address_line || "PLAZA DE ESPAÑA, 18, PLANTA 8, PUERTA 3";
-      const empMunicipio = sepe.empresa_municipio || settings.empresa_municipio || "MADRID";
-      const empCodMunicipio = sepe.empresa_cod_municipio || settings.empresa_cod_municipio || "28079";
-      const empCp = sepe.empresa_cp || settings.empresa_cp || "28008";
+      // Dados da Empresa (Oficiais Hexagon conforme Gestoría)
+      const empCif = sepe.cif || settings.cif || "B05688197";
+      const repNombre = (sepe.representante_nombre || settings.representante_nombre || "MARCOS DIVINO DE ALMEIDA JUNIOR").toUpperCase();
+      const repNif = (sepe.representante_nif || settings.representante_nif || "Z4103479P").toUpperCase();
+      const repCargo = (sepe.representante_cargo || settings.representante_cargo || "ADMINISTRADOR").toUpperCase();
+      const empRazonSocial = (sepe.razon_social || settings.razon_social || "HEXAGON MONTAJES INDUSTRIALES S.L.").toUpperCase();
+      const empDomicilio = (sepe.domicilio_social || settings.domicilio_social || "CALLE ARCHIVERO DIMAS PEREZ 2").toUpperCase();
+      const empMunicipio = (sepe.empresa_municipio || settings.municipio_empresa || settings.empresa_municipio || "TARANCON").toUpperCase();
+      const empCodMunicipio = sepe.empresa_cod_municipio ?? settings.municipio_cod_empresa ?? settings.empresa_cod_municipio ?? "";
+      const empCp = sepe.empresa_cp || settings.cp_empresa || settings.empresa_cp || "16400";
 
       setTxt("AA0101-E09", empCif, 9);
       setTxt("AA0102", repNombre);
@@ -523,66 +523,107 @@ serve(async (req) => {
       setTxt("AA0105", empRazonSocial);
       setTxt("AA0106", empDomicilio);
       setTxt("AA0107", empMunicipio);
-      setTxt("AA0108-E05", empCodMunicipio, 5);
+      if (empCodMunicipio) setTxt("AA0108-E05", empCodMunicipio, 5);
       setTxt("AA0109-E05", empCp, 5);
-      setTxt("AA0110", sepe.empresa_pais || settings.empresa_pais || "ESPAÑA");
-      setTxt("AA0111-E03", sepe.empresa_cod_pais || settings.empresa_cod_pais || "724", 3);
+      setTxt("AA0110", sepe.empresa_pais || settings.pais_empresa || settings.empresa_pais || "ESPAÑA");
+      setTxt("AA0111-E03", sepe.empresa_cod_pais || settings.pais_cod_empresa || settings.empresa_cod_pais || "724", 3);
 
       // Dados da Conta de Cotização
-      setTxt("AA0201-E04", sepe.regimen_ss || settings.regimen_ss || "0111", 4);
-      setTxt("AA0202-E11", (sepe.ccc || settings.ccc || "").replace(/\s+/g, ""), 11);
-      setTxt("AA0203", sepe.cnae_texto || settings.cnae_texto || "CONSTRUCCIÓN DE EDIFICIOS / MONTAJES INDUSTRIALES");
-      setTxt("AA0204-E02", sepe.cnae_codigo || settings.cnae_codigo || "43", 2);
+      const resolvedRegimen = sepe.regimen_ss || settings.ccc_regimen || settings.regimen_ss || "0111";
+      const resolvedCcc = (sepe.ccc || settings.ccc_numero || settings.ccc || "16106973470").replace(/\s+/g, "");
+      const resolvedCnaeTexto = (sepe.cnae_texto || settings.cnae_texto || "INSTALACIONES DE MAQUINAS Y EQUIPOS INDUSTRIALES").toUpperCase();
+      const resolvedCnaeCod = sepe.cnae_codigo ?? settings.cnae_cod ?? settings.cnae_codigo ?? "";
+
+      setTxt("AA0201-E04", resolvedRegimen, 4);
+      setTxt("AA0202-E11", resolvedCcc, 11);
+      setTxt("AA0203", resolvedCnaeTexto);
+      if (resolvedCnaeCod) setTxt("AA0204-E02", resolvedCnaeCod, 2);
 
       // Dados do Centro de Trabalho
       setTxt("AA0301", resolvedSiteMunicipio);
-      setTxt("AA0302-E05", sepe.centro_trabajo_cod_municipio || settings.centro_trabajo_cod_municipio || "", 5);
+      if (resolvedSiteCodMunicipio) setTxt("AA0302-E05", resolvedSiteCodMunicipio, 5);
       setTxt("AA0303-E05", resolvedSiteCp, 5);
       setTxt("AA0304", "ESPAÑA");
       setTxt("AA0305-E03", "724", 3);
 
+      // Mapa oficial INE de códigos de nacionalidade (3 dígitos)
+      const resolveNationalityCode = (nat: string): string => {
+        const u = nat.toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (u.includes("COLOMB")) return "170";
+        if (u.includes("VENEZ")) return "862";
+        if (u.includes("BRASIL") || u.includes("BRAZIL")) return "076";
+        if (u.includes("PERU")) return "604";
+        if (u.includes("ECUAD") || u.includes("EQUAT")) return "218";
+        if (u.includes("ESPAN")) return "724";
+        if (u.includes("PORTUG")) return "620";
+        if (u.includes("ARGENT")) return "032";
+        if (u.includes("BOLIV")) return "068";
+        if (u.includes("CHIL")) return "152";
+        if (u.includes("PARAG")) return "600";
+        if (u.includes("URUG")) return "858";
+        if (u.includes("DOMINIC")) return "214";
+        if (u.includes("HONDUR")) return "340";
+        if (u.includes("CUB")) return "192";
+        if (u.includes("MEXIC")) return "484";
+        if (u.includes("NICARAG")) return "558";
+        if (u.includes("SALVADOR")) return "222";
+        if (u.includes("GUATEMAL")) return "320";
+        if (u.includes("MARRUEC") || u.includes("MARROQ")) return "504";
+        if (u.includes("RUMAN") || u.includes("ROMEN")) return "642";
+        if (u.includes("ITAL")) return "380";
+        if (u.includes("FRANC")) return "250";
+        if (u.includes("SENEGAL")) return "686";
+        return "";
+      };
+
       // Dados da Pessoa Trabalhadora
-      const workerDocId = (sepe.worker_identificacion || worker.nie || worker.dni || worker.pasaporte || worker.nif || "").trim();
+      const workerDocId = (sepe.worker_identificacion || worker.nie || worker.dni || worker.pasaporte || worker.nif || "").trim().toUpperCase();
       const workerNuss = (sepe.nuss || worker.nuss || worker.niss || "").replace(/\s+/g, "");
       const workerBirthFormatted = formatDate(sepe.fecha_nacimiento || worker.fecha_nacimiento);
-      const workerNacionalidad = (sepe.nacionalidade || worker.nacionalidade || "ESPAÑOLA").toUpperCase();
-      const workerNivelFormativo = (sepe.nivel_formativo || worker.nivel_formativo || "ESTUDIOS SECUNDARIOS / PRIMERA ETAPA").toUpperCase();
-      const workerMunicipioDom = (sepe.municipio_domicilio || worker.municipio_domicilio || worker.location || "MADRID").toUpperCase();
-      const workerCpDom = (sepe.codigo_postal || worker.codigo_postal || "").trim();
+      const workerNacionalidad = (sepe.nacionalidade || worker.nacionalidade || "COLOMBIANO").toUpperCase();
+      const workerCodNacionalidad = sepe.cod_nacionalidad || resolveNationalityCode(workerNacionalidad);
+      const workerNivelFormativo = (sepe.nivel_formativo || worker.nivel_formativo || settings.nivel_formativo_default || "FORMACION PROFESIONAL").toUpperCase();
+      const workerMunicipioDom = (sepe.municipio_domicilio || worker.municipio_domicilio || worker.location || "TARANCON").toUpperCase().replace(/,\s*ESPANA|,\s*ESPAÑA/gi, "").trim();
+      const workerCpDom = (sepe.codigo_postal || worker.codigo_postal || "16400").trim();
 
       setTxt("AA0401", (worker.nome || "").toUpperCase());
       setTxt("AA0402-E09", workerDocId, 9);
       setTxt("AA0403-FE-E10", workerBirthFormatted, 10);
       setTxt("AA0404-E12", workerNuss, 12);
       setTxt("AA0405", workerNacionalidad);
-      setTxt("AA0406-E03", sepe.cod_nacionalidad || "", 3);
+      if (workerCodNacionalidad) setTxt("AA0406-E03", workerCodNacionalidad, 3);
       setTxt("AA0407", workerNivelFormativo);
-      setTxt("AA0408-E02", sepe.cod_nivel_formativo || "23", 2);
+      if (sepe.cod_nivel_formativo) setTxt("AA0408-E02", sepe.cod_nivel_formativo, 2);
       setTxt("AA0409", workerMunicipioDom);
-      setTxt("AA0410-E05", sepe.cod_municipio_domicilio || "", 5);
+      if (sepe.cod_municipio_domicilio) setTxt("AA0410-E05", sepe.cod_municipio_domicilio, 5);
       setTxt("AA0411-E05", workerCpDom, 5);
       setTxt("AA0412", "ESPAÑA");
       setTxt("AA0413-E03", "724", 3);
 
+      // Código SEPE da Modalidade (300 = Fijo-Discontinuo, 100 = Indefinido Tiempo Completo, 200 = Tiempo Parcial)
+      const sepeCodigo = String(sepe.sepe_codigo || settings.sepe_codigo_default || "300").trim();
+
       // Página 2: Cláusula Primeira e Segunda
       const resolvedPuesto = (sepe.puesto || roleProfile?.puesto || jobFunction || "OPERARIO").toUpperCase();
-      const resolvedGrupo = (sepe.grupo_profesional || roleProfile?.grupo_profesional || "OFICIAL").toUpperCase();
-      const resolvedFunciones = (sepe.funciones || roleProfile?.funciones || "PROPIAS DEL PUESTO").toUpperCase();
-      const resolvedConvenio = sepe.convenio_colectivo || settings.convenio_colectivo || "CONVENIO COLECTIVO DEL SECTOR DE LA CONSTRUCCIÓN";
-      const resolvedHoras = sepe.jornada_horas_semanales || settings.jornada_horas_semanales || "40";
+      const resolvedGrupo = (sepe.grupo_profesional || roleProfile?.grupo_profesional || "5").toUpperCase();
+      const resolvedFunciones = (sepe.funciones || roleProfile?.funciones || resolvedPuesto).toUpperCase();
+      const resolvedConvenio = (sepe.convenio_colectivo || settings.convenio_colectivo || "METAL DE CUENCA").toUpperCase();
+      const resolvedHoras = sepe.jornada_horas_semanales || settings.horas_semanales || settings.jornada_horas_semanales || "40";
 
       setTxt("C0101", resolvedPuesto);
       setTxt("C0102", resolvedGrupo);
       setTxt("C0103", resolvedFunciones);
       setTxt("C0104", resolvedSiteCalle);
 
-      setTxt("C0201", sepe.actividad_fijo_discontinuo || settings.actividad_fijo_discontinuo || "TRABAJOS DE MONTAJE Y CONSTRUCCIÓN EN OBRAS");
-      setTxt("C0202", sepe.actividad_ciclica || settings.actividad_ciclica || "PRESTACIÓN DE SERVICIOS EN CONTRATAS MERCANTILES DE CONSTRUCCIÓN");
-      setTxt("C0203", sepe.duracion_estimada || settings.duracion_estimada || "SEGÚN DURACIÓN DE LA OBRA / SERVICIO");
-      setTxt("C0204", resolvedHoras);
-      setTxt("C0205", sepe.jornada_estimada_periodo || "SEMANALES");
-      setTxt("C0206", sepe.distribucion_horaria || settings.distribucion_horaria || "DE LUNES A VIERNES SEGÚN CALENDARIO DE OBRA");
-      setTxt("C0207", resolvedConvenio);
+      if (sepeCodigo === "300" && sepe.preencher_clausula_segunda === true) {
+        setTxt("C0201", (sepe.actividad_fijo_discontinuo || settings.actividad_fijo_discontinuo || resolvedPuesto).toUpperCase());
+        setTxt("C0202", (sepe.actividad_ciclica || settings.actividad_ciclica || "INSTALACIONES Y MONTAJES INDUSTRIALES EN OBRAS").toUpperCase());
+        setTxt("C0203", (sepe.duracion_estimada || settings.duracion_estimada || "SEGUN DURACION DE LA OBRA").toUpperCase());
+        setTxt("C0204", resolvedHoras);
+        setTxt("C0205", sepe.jornada_estimada_periodo || "SEMANALES");
+        setTxt("C0206", (sepe.distribucion_horaria || settings.distribucion_horaria || "DE LUNES A VIERNES").toUpperCase());
+        setTxt("C0207", resolvedConvenio);
+      }
 
       try {
         form.getRadioGroup("C02BO1").select(sepe.tiempo_parcial ? "Elección1" : "Elección2");
@@ -599,14 +640,22 @@ serve(async (req) => {
       setTxt("C0301", resolvedHoras);
       setTxt("C0302", sepe.jornada_dia_inicio || settings.jornada_dia_inicio || "LUNES");
       setTxt("C0303", sepe.jornada_dia_fin || settings.jornada_dia_fin || "VIERNES");
-      setTxt("C0305", sepe.distribucion_tiempo || "SEGÚN CONVENIO COLECTIVO Y CALENDARIO LABORAL");
+      if (sepe.distribucion_tiempo) {
+        setTxt("C0305", sepe.distribucion_tiempo);
+      }
+      try {
+        form.getRadioGroup("C03BO3").select("Elección2");
+      } catch (e) {
+        console.warn("Aviso C03BO3:", e);
+      }
 
-      const resolvedFechaInicio = formatDate(sepe.fecha_inicio || startDate);
-      const resolvedPeriodoPrueba = sepe.periodo_prueba || roleProfile?.periodo_prueba || settings.periodo_prueba_default || "SEGÚN CONVENIO";
-      const resolvedRetribucion = sepe.retribucion_total || settings.salario_default_texto || "SEGÚN CONVENIO";
-      const resolvedRetribucionPeriodo = sepe.retribucion_periodo || settings.salario_periodo || "MENSUALES";
-      const resolvedConceptos = sepe.conceptos_salariales || settings.conceptos_salariales || "SALARIO BASE, PRORRATA PAGAS EXTRAS Y PLUSES DE CONVENIO";
-      const resolvedVacaciones = sepe.vacaciones || settings.vacaciones || "30 DÍAS NATURALES";
+      const rawFechaInicioIso = sepe.fecha_inicio || startDate || todayIso;
+      const resolvedFechaInicio = formatDate(rawFechaInicioIso);
+      const resolvedPeriodoPrueba = (sepe.periodo_prueba || roleProfile?.periodo_prueba || settings.periodo_prueba_default || "2 MESES").toUpperCase();
+      const resolvedRetribucion = (sepe.retribucion_total || settings.retribucion_default || settings.salario_default_texto || "SEGUN CONVENIO").toUpperCase();
+      const resolvedRetribucionPeriodo = (sepe.retribucion_periodo || settings.salario_periodo || "MENSUALES").toUpperCase();
+      const resolvedConceptos = (sepe.conceptos_salariales || settings.conceptos_salariales || "SEGUN CONVENIO").toUpperCase();
+      const resolvedVacaciones = (sepe.vacaciones || settings.vacaciones || "30 DIAS NATURALES").toUpperCase();
 
       setTxt("C0401-FE", resolvedFechaInicio, 10);
       setTxt("C0402", resolvedPeriodoPrueba);
@@ -627,16 +676,17 @@ serve(async (req) => {
       } catch (e) {
         console.warn("Aviso C09BO1:", e);
       }
-      setTxt("C1101", sepe.sepe_municipio || settings.sepe_municipio || "MADRID");
+      setTxt("C1101", (sepe.sepe_municipio || settings.sepe_municipio || "SERVICIOS TELEMATICOS DEL SEPE").toUpperCase());
 
-      // Páginas 5 e 6: Modalidade Indefinido Ordinário -> Código 300 (Fijo-Discontinuo)
+      // Páginas 5 e 6: Modalidade Indefinido Ordinário -> Código 100 (Tiempo Completo), 200 (Tiempo Parcial) ou 300 (Fijo-Discontinuo)
       try {
         form.getCheckBox("IP04CV1").check();
       } catch (e) {
         console.warn("Aviso IP04CV1:", e);
       }
       try {
-        form.getRadioGroup("IP04BO1").select("Elección3");
+        const radioChoice = sepeCodigo === "100" ? "Elección1" : sepeCodigo === "200" ? "Elección2" : "Elección3";
+        form.getRadioGroup("IP04BO1").select(radioChoice);
       } catch (e) {
         console.warn("Aviso IP04BO1:", e);
       }
@@ -646,17 +696,18 @@ serve(async (req) => {
         "ENERO", "FEBRERO", "MARZO", "ABRIL", "MAYO", "JUNIO",
         "JULIO", "AGOSTO", "SEPTIEMBRE", "OCTUBRE", "NOVIEMBRE", "DICIEMBRE"
       ];
+      const inicioMatch = String(rawFechaInicioIso).match(/^(\d{4})-(\d{2})-(\d{2})/);
       const nowDate = new Date();
-      const diaFirma = String(nowDate.getUTCDate()).padStart(2, "0");
-      const mesFirma = monthsESUpper[nowDate.getUTCMonth()] || "NOVIEMBRE";
-      const anioFirma2Digits = String(nowDate.getUTCFullYear()).slice(-2);
-      const lugarFirma = (sepe.lugar_firma || settings.lugar_firma || empMunicipio || "MADRID").toUpperCase();
+      const diaFirma = inicioMatch ? inicioMatch[3] : String(nowDate.getUTCDate()).padStart(2, "0");
+      const mesFirma = inicioMatch ? (monthsESUpper[Number(inicioMatch[2]) - 1] || "NOVIEMBRE") : (monthsESUpper[nowDate.getUTCMonth()] || "NOVIEMBRE");
+      const anioFirma4Digits = inicioMatch ? inicioMatch[1] : String(nowDate.getUTCFullYear());
+      const lugarFirma = (sepe.lugar_firma || settings.lugar_firma || empMunicipio || "TARANCON").toUpperCase();
 
       setTxt("ICA01", sepe.clausulas_adicionales || settings.clausulas_adicionales || "");
       setTxt("ICA02", lugarFirma);
       setTxt("ICA03", diaFirma);
       setTxt("ICA04", mesFirma);
-      setTxt("ICA05", anioFirma2Digits);
+      setTxt("ICA05", anioFirma4Digits);
 
       // 4. Atualizar aparências, achatar formulário no documento de 20 páginas e remover páginas 7 a 19 (índices 6 a 18)
       form.updateFieldAppearances(helvetica);
