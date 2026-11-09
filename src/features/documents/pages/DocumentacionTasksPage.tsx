@@ -675,11 +675,12 @@ export function DocumentacionTasksPage() {
     const uniqueClientsRequests = useMemo(() => {
         const set = new Set<string>();
         docRequests.forEach(req => {
-            const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
-                                     req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
-            const latestAssignment = req.worker?.assignments?.[0];
+            const sameEmpAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                      req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id);
+            const latestAssignment = sameEmpAssignment || req.worker?.assignments?.[0];
             const clientName = req.client?.trade_name || req.client?.legal_name ||
-                               activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                               (req as any).extracted_data?.client_name ||
+                               sameEmpAssignment?.client?.trade_name || sameEmpAssignment?.client?.legal_name ||
                                latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
                                req.worker?.cliente || 'Sin Asignación';
             set.add(clientName);
@@ -720,11 +721,12 @@ export function DocumentacionTasksPage() {
     // Filtrar solicitações localmente
     const filteredRequests = useMemo(() => {
         const filtered = docRequests.filter(req => {
-            const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
-                                     req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
-            const latestAssignment = req.worker?.assignments?.[0];
+            const sameEmpAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                      req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id);
+            const latestAssignment = sameEmpAssignment || req.worker?.assignments?.[0];
             const clientName = req.client?.trade_name || req.client?.legal_name ||
-                               activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                               (req as any).extracted_data?.client_name ||
+                               sameEmpAssignment?.client?.trade_name || sameEmpAssignment?.client?.legal_name ||
                                latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
                                req.worker?.cliente || 'Sin Asignación';
             
@@ -1105,17 +1107,18 @@ export function DocumentacionTasksPage() {
             let expectedEndDate: string | null = null;
             let requestedAt: string | null = solData?.requested_at || solData?.created_at || task.created_at || null;
 
-            // If pedidoId is present, fetch order info to refine code/client/site/dates
+            // If pedidoId is present, fetch order info to refine code/client/site/dates/empresa
             if (pedidoId) {
                 const { data: pedidoData } = await supabase
                     .schema('core_comercial')
                     .from('pedidos')
-                    .select('id, codigo, client_id, client_site_id, expected_start_date, expected_end_date, created_at, approved_at')
+                    .select('id, codigo, empresa_id, client_id, client_site_id, expected_start_date, expected_end_date, created_at, approved_at')
                     .eq('id', pedidoId)
                     .maybeSingle();
 
                 if (pedidoData) {
                     if (pedidoData.codigo) pedidoCode = pedidoData.codigo;
+                    if (pedidoData.empresa_id) empresaId = pedidoData.empresa_id;
                     if (pedidoData.client_id) clientId = pedidoData.client_id;
                     if (pedidoData.client_site_id) siteId = pedidoData.client_site_id;
                     if (pedidoData.expected_start_date) expectedStartDate = pedidoData.expected_start_date;
@@ -1250,11 +1253,34 @@ export function DocumentacionTasksPage() {
 
                     const { data: requests } = await reqQuery;
 
+                    const matchesCurrentOrder = (r: any) => {
+                        const ext = r?.extracted_data || {};
+                        if (solicitudId && ext.solicitud_id === solicitudId) return true;
+                        if (pedidoId && ext.pedido_id === pedidoId) return true;
+                        if (pedidoCode && pedidoCode !== 'N/A' && (
+                            ext.pedido_codigo === pedidoCode ||
+                            ext.codigo_pedido === pedidoCode ||
+                            ext.solicitud_codigo === pedidoCode
+                        )) return true;
+                        if (solData?.codigo && ext.solicitud_codigo === solData.codigo) return true;
+                        if (targetEmpresaId && r.empresa_id === targetEmpresaId && clientId && ext.client_id === clientId && requestedAt && r.created_at >= requestedAt) {
+                            return true;
+                        }
+                        return false;
+                    };
+
                     const requestsMap = new Map<string, any>();
+                    const isCurrentOrderMap = new Map<string, boolean>();
+
                     for (const r of (requests || [])) {
+                        const isMatch = matchesCurrentOrder(r);
                         if (!requestsMap.has(r.worker_id)) {
                             requestsMap.set(r.worker_id, r);
-                        } else if (targetEmpresaId && r.empresa_id === targetEmpresaId && requestsMap.get(r.worker_id)?.empresa_id !== targetEmpresaId) {
+                            isCurrentOrderMap.set(r.worker_id, isMatch);
+                        } else if (isMatch && !isCurrentOrderMap.get(r.worker_id)) {
+                            requestsMap.set(r.worker_id, r);
+                            isCurrentOrderMap.set(r.worker_id, true);
+                        } else if (!isCurrentOrderMap.get(r.worker_id) && targetEmpresaId && r.empresa_id === targetEmpresaId && requestsMap.get(r.worker_id)?.empresa_id !== targetEmpresaId) {
                             requestsMap.set(r.worker_id, r);
                         }
                     }
@@ -1270,9 +1296,22 @@ export function DocumentacionTasksPage() {
                                         HEXAGON_EMPRESA_ID,
                                         item.worker.id,
                                         clientId,
-                                        expectedStartDate ? expectedStartDate.substring(0, 10) : undefined
+                                        expectedStartDate ? expectedStartDate.substring(0, 10) : undefined,
+                                        {
+                                            pedidoCodigo: pedidoCode !== 'N/A' ? pedidoCode : undefined,
+                                            solicitudCodigo: solData?.codigo || task.solicitud?.codigo,
+                                            solicitudTipo: solData?.tipo || task.solicitud?.tipo,
+                                            solicitudTitle: solData?.title || task.solicitud?.title,
+                                            solicitudId,
+                                            pedidoId,
+                                            clientName: clientName !== 'N/A' ? clientName : undefined,
+                                            siteId,
+                                            siteName: siteName !== 'N/A' ? siteName : undefined,
+                                            forceEmpresaId: true
+                                        }
                                     );
                                     requestsMap.set(item.worker.id, { ...createdReq, worker: item.worker });
+                                    isCurrentOrderMap.set(item.worker.id, true);
                                     createdAny = true;
                                 } catch (e) {
                                     console.warn("Erro ao provisionar document_request da Hexagon:", e);
@@ -1284,10 +1323,15 @@ export function DocumentacionTasksPage() {
                         }
                     }
 
-                    displayItems = displayItems.map(item => ({
-                        ...item,
-                        docRequest: item.worker ? requestsMap.get(item.worker.id) : null
-                    }));
+                    displayItems = displayItems.map(item => {
+                        const matchedReq = item.worker ? requestsMap.get(item.worker.id) : null;
+                        const isCurr = item.worker ? (isCurrentOrderMap.get(item.worker.id) ?? false) : false;
+                        return {
+                            ...item,
+                            docRequest: matchedReq,
+                            isPreviousOrderRequest: matchedReq ? !isCurr : false
+                        };
+                    });
                 }
             }
 
@@ -1301,6 +1345,19 @@ export function DocumentacionTasksPage() {
         }
     };
 
+    const buildTaskExtraMetadata = () => ({
+        pedidoCodigo: taskMetadata?.pedidoCode && taskMetadata.pedidoCode !== 'N/A' ? taskMetadata.pedidoCode : (selectedTaskForWorkers?.solicitud?.codigo || undefined),
+        solicitudCodigo: selectedTaskForWorkers?.solicitud?.codigo || undefined,
+        solicitudTipo: selectedTaskForWorkers?.solicitud?.tipo || undefined,
+        solicitudTitle: selectedTaskForWorkers?.solicitud?.title || undefined,
+        solicitudId: selectedTaskForWorkers?.solicitud_id || selectedTaskForWorkers?.solicitud?.id || undefined,
+        pedidoId: selectedTaskForWorkers?.solicitud?.pedido_id || undefined,
+        clientName: taskMetadata?.clientName && taskMetadata.clientName !== 'N/A' ? taskMetadata.clientName : undefined,
+        siteId: taskMetadata?.siteId || undefined,
+        siteName: taskMetadata?.siteName && taskMetadata.siteName !== 'N/A' ? taskMetadata.siteName : undefined,
+        forceEmpresaId: true
+    });
+
     const handleSendWhatsApp = async (item: any) => {
         if (!item.worker) {
             toast.error("Trabalhador inválido.");
@@ -1311,15 +1368,15 @@ export function DocumentacionTasksPage() {
         const phone = item.worker.movil || '';
         
         let inviteLink = '';
+        const shouldCreateNewForOrder = !item.docRequest || item.isPreviousOrderRequest;
         
-        // Se já existe uma solicitação de documentos, usa o token existente (e renova/reabre se expirado ou já finalizado na Hexagon)
-        if (item.docRequest) {
+        if (!shouldCreateNewForOrder && item.docRequest) {
             const isExpired = item.docRequest.expires_at && new Date(item.docRequest.expires_at) < new Date();
             const isHexagon = (taskMetadata?.empresaId || item.docRequest.empresa_id || selectedEmpresaId) === HEXAGON_EMPRESA_ID;
             if (isExpired || (isHexagon && item.docRequest.status !== 'pending_upload')) {
                 try {
                     const reopened = await reopenDocumentRequest(item.docRequest.id);
-                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: { ...item.docRequest, ...reopened } } : w));
+                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: { ...item.docRequest, ...reopened }, isPreviousOrderRequest: false } : w));
                     loadDocRequests();
                 } catch (e) {
                     console.warn("Aviso ao renovar link de envio:", e);
@@ -1327,15 +1384,22 @@ export function DocumentacionTasksPage() {
             }
             inviteLink = `${window.location.origin}/enviar-documentos/${item.docRequest.token}`;
         } else {
-            // Caso contrário, cria uma nova solicitação silenciosamente na hora!
+            // Cria uma nova linha de solicitação para a empresa, cliente e pedido atuais!
             try {
-                const loadingToast = toast.loading("Gerando link de envio de documentos...");
-                const empId = taskMetadata?.empresaId || item.worker?.empresa_id || selectedEmpresaId!;
-                const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
+                const loadingToast = toast.loading("Gerando nova linha e link de envio de documentos para este pedido...");
+                const empId = taskMetadata?.empresaId || selectedTaskForWorkers?.solicitud?.empresa_id || item.worker?.empresa_id || selectedEmpresaId!;
+                const startDateIso = taskMetadata?.expectedStartDate ? String(taskMetadata.expectedStartDate).substring(0, 10) : undefined;
+                const res = await createDocumentRequest(
+                    empId,
+                    item.worker.id,
+                    taskMetadata?.clientId,
+                    startDateIso,
+                    buildTaskExtraMetadata()
+                );
                 inviteLink = `${window.location.origin}/enviar-documentos/${res.token}`;
                 
                 // Atualiza a lista local
-                setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
+                setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res, isPreviousOrderRequest: false } : w));
                 // Atualiza a aba geral de solicitações de documentos
                 loadDocRequests();
                 toast.dismiss(loadingToast);
@@ -5052,24 +5116,25 @@ Muchas gracias.`;
                                                 const inviteLink = `${window.location.origin}/enviar-documentos/${req.token}`;
                                                 const isExpired = new Date(req.expires_at) < new Date();
                                                 
-                                                const activeAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
-                                                                         req.worker?.assignments?.find((a: any) => a.status === 'active' || a.status === 'planned');
-                                                const latestAssignment = req.worker?.assignments?.[0];
+                                                const sameEmpresaAssignment = req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id && (a.status === 'active' || a.status === 'planned')) ||
+                                                                              req.worker?.assignments?.find((a: any) => a.empresa_id === req.empresa_id);
+                                                const latestAssignment = sameEmpresaAssignment || req.worker?.assignments?.[0];
                                                 const clientName = req.client?.trade_name || req.client?.legal_name ||
-                                                                   activeAssignment?.client?.trade_name || activeAssignment?.client?.legal_name ||
+                                                                   (req as any).extracted_data?.client_name ||
+                                                                   sameEmpresaAssignment?.client?.trade_name || sameEmpresaAssignment?.client?.legal_name ||
                                                                    latestAssignment?.client?.trade_name || latestAssignment?.client?.legal_name ||
                                                                    req.worker?.cliente || 'Sin Asignación';
                                                 
                                                 const rawWorkerCode = (req.worker as any)?.cod_colab || '';
                                                 const workerCode = rawWorkerCode ? (String(rawWorkerCode).startsWith('E') ? String(rawWorkerCode) : `E${rawWorkerCode}`) : '';
 
-                                                const rawClientCode = (req.client as any)?.codigo || (activeAssignment?.client as any)?.codigo || (latestAssignment?.client as any)?.codigo || '';
+                                                const rawClientCode = (req.client as any)?.codigo || (sameEmpresaAssignment?.client as any)?.codigo || (latestAssignment?.client as any)?.codigo || '';
                                                 const clientCode = rawClientCode ? (String(rawClientCode).startsWith('C') ? String(rawClientCode) : `C${rawClientCode}`) : '';
 
                                                 const empresaName = req.empresa?.name || 'Stocco';
                                                 
                                                 const plannedStartDate = (req as any).extracted_data?.start_date ||
-                                                                          activeAssignment?.planned_start_date || activeAssignment?.start_date ||
+                                                                          sameEmpresaAssignment?.planned_start_date || sameEmpresaAssignment?.start_date ||
                                                                           latestAssignment?.planned_start_date || latestAssignment?.start_date;
 
                                                 const formatDisplayDate = (dateStr?: string | null) => {
@@ -5215,15 +5280,17 @@ Muchas gracias.`;
                                                                     className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 text-xs gap-1"
                                                                     onClick={async () => {
                                                                         try {
-                                                                            await reopenDocumentRequest(req.id);
-                                                                            loadDocRequests();
-                                                                            handleCopyInviteLink(inviteLink, req.worker?.nome);
-                                                                            toast.success(`Solicitação de ${req.worker?.nome || 'trabalhador'} reaberta para novo envio e link copiado!`);
+                                                                            const targetEmpId = selectedEmpresaId || req.empresa_id;
+                                                                            const newReq = await createDocumentRequest(targetEmpId, req.worker_id);
+                                                                            await loadDocRequests();
+                                                                            const newInviteLink = `${window.location.origin}/enviar-documentos/${newReq.token}`;
+                                                                            handleCopyInviteLink(newInviteLink, req.worker?.nome);
+                                                                            toast.success(`Nova linha de envio criada para ${req.worker?.nome || 'trabalhador'} (com a empresa e pedido atuais) e link copiado!`);
                                                                         } catch (err) {
-                                                                            toast.error("Erro ao reabrir solicitação.");
+                                                                            toast.error("Erro ao criar nova solicitação de envio.");
                                                                         }
                                                                     }}
-                                                                    title="Reabrir solicitud para permitir nuevo envío de documentos y copiar enlace"
+                                                                    title="Crear una nueva línea de solicitud de documentos con la empresa/pedido actual del trabajador y copiar enlace"
                                                                 >
                                                                     <RefreshCw className="h-3.5 w-3.5" /> Nuevo Envío
                                                                 </Button>
@@ -7622,18 +7689,27 @@ Muchas gracias.`;
                                                         <Badge variant="outline" className="bg-slate-50 dark:bg-slate-800 text-slate-500 border-slate-200">
                                                             Sin Enlace de Envío
                                                         </Badge>
-                                                    ) : docStatus === 'verified' ? (
-                                                        <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
-                                                            Registro Validado
-                                                        </Badge>
-                                                    ) : docStatus === 'submitted' ? (
-                                                        <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/20 hover:bg-blue-500/20">
-                                                            Recibido - Revisar
-                                                        </Badge>
                                                     ) : (
-                                                        <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
-                                                            Esperando Envío
-                                                        </Badge>
+                                                        <div className="flex flex-col items-start gap-1">
+                                                            {docStatus === 'verified' ? (
+                                                                <Badge className="bg-emerald-500/15 text-emerald-600 border-emerald-500/20 hover:bg-emerald-500/20">
+                                                                    Registro Validado
+                                                                </Badge>
+                                                            ) : docStatus === 'submitted' ? (
+                                                                <Badge className="bg-blue-500/15 text-blue-600 border-blue-500/20 hover:bg-blue-500/20">
+                                                                    Recibido - Revisar
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge className="bg-amber-500/15 text-amber-600 border-amber-500/20 hover:bg-amber-500/20">
+                                                                    Esperando Envío
+                                                                </Badge>
+                                                            )}
+                                                            {item.isPreviousOrderRequest && (
+                                                                <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                                                    Pedido / Contrato Anterior
+                                                                </span>
+                                                            )}
+                                                        </div>
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right space-x-1.5 whitespace-nowrap">
@@ -7664,24 +7740,33 @@ Muchas gracias.`;
                                                         </Button>
                                                     )}
 
-                                                    {/* Reabrir para Nuevo Envío Button */}
-                                                    {item.docRequest && (docStatus === 'verified' || docStatus === 'submitted') && (
+                                                    {/* Criar Nova Linha para Nuevo Envío Button */}
+                                                    {item.docRequest && (docStatus === 'verified' || docStatus === 'submitted' || item.isPreviousOrderRequest) && (
                                                         <Button
                                                             size="sm"
                                                             variant="outline"
                                                             className="border-amber-200 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-300 text-xs gap-1"
                                                             onClick={async () => {
                                                                 try {
-                                                                    const reopened = await reopenDocumentRequest(item.docRequest.id);
-                                                                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: { ...item.docRequest, ...reopened } } : w));
-                                                                    loadDocRequests();
-                                                                    handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${item.docRequest.token}`, item.worker?.nome);
-                                                                    toast.success(`Solicitação reaberta para novo envio de ${item.worker?.nome || 'trabalhador'}!`);
+                                                                    const empId = taskMetadata?.empresaId || selectedTaskForWorkers?.solicitud?.empresa_id || selectedEmpresaId!;
+                                                                    const startDateIso = taskMetadata?.expectedStartDate ? String(taskMetadata.expectedStartDate).substring(0, 10) : undefined;
+                                                                    const createdReq = await createDocumentRequest(
+                                                                        empId,
+                                                                        item.worker.id,
+                                                                        taskMetadata?.clientId,
+                                                                        startDateIso,
+                                                                        buildTaskExtraMetadata()
+                                                                    );
+                                                                    setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: createdReq, isPreviousOrderRequest: false } : w));
+                                                                    await loadDocRequests();
+                                                                    handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${createdReq.token}`, item.worker?.nome);
+                                                                    toast.success(`Nova linha de envio criada para ${item.worker?.nome || 'trabalhador'} (${taskMetadata?.empresaName || ''} • ${taskMetadata?.clientName || ''} • ${taskMetadata?.pedidoCode || ''})!`);
                                                                 } catch (err) {
-                                                                    toast.error("Erro ao reabrir solicitação.");
+                                                                    console.error("Erro ao criar novo envio:", err);
+                                                                    toast.error("Erro ao criar nova solicitação de envio.");
                                                                 }
                                                             }}
-                                                            title="Solicitar novo envio de documentos (reabre o link)"
+                                                            title="Crear una nueva línea de envío de documentos para esta empresa, cliente y pedido"
                                                         >
                                                             <RefreshCw className="h-3 w-3" />
                                                             Nuevo Envío
@@ -7707,6 +7792,25 @@ Muchas gracias.`;
                                                              variant="outline"
                                                              className="text-indigo-600 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800"
                                                              onClick={async () => {
+                                                                 if (item.isPreviousOrderRequest) {
+                                                                     try {
+                                                                         const empId = taskMetadata?.empresaId || selectedTaskForWorkers?.solicitud?.empresa_id || selectedEmpresaId!;
+                                                                         const startDateIso = taskMetadata?.expectedStartDate ? String(taskMetadata.expectedStartDate).substring(0, 10) : undefined;
+                                                                         const createdReq = await createDocumentRequest(
+                                                                             empId,
+                                                                             item.worker.id,
+                                                                             taskMetadata?.clientId,
+                                                                             startDateIso,
+                                                                             buildTaskExtraMetadata()
+                                                                         );
+                                                                         setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: createdReq, isPreviousOrderRequest: false } : w));
+                                                                         await loadDocRequests();
+                                                                         handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${createdReq.token}`, item.worker?.nome);
+                                                                         return;
+                                                                     } catch (e) {
+                                                                         console.warn("Aviso ao criar novo link do pedido:", e);
+                                                                     }
+                                                                 }
                                                                  const isExpired = item.docRequest.expires_at && new Date(item.docRequest.expires_at) < new Date();
                                                                  const isHexagon = (taskMetadata?.empresaId || item.docRequest.empresa_id || selectedEmpresaId) === HEXAGON_EMPRESA_ID;
                                                                  if (isExpired || (isHexagon && item.docRequest.status !== 'pending_upload')) {
@@ -7734,15 +7838,22 @@ Muchas gracias.`;
                                                              onClick={async () => {
                                                                   if (isVacantReplacement) return;
                                                                   try {
-                                                                      const empId = taskMetadata?.empresaId || selectedEmpresaId!;
-                                                                      const res = await createDocumentRequest(empId, item.worker.id, taskMetadata?.clientId);
-                                                                      setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res } : w));
+                                                                      const empId = taskMetadata?.empresaId || selectedTaskForWorkers?.solicitud?.empresa_id || selectedEmpresaId!;
+                                                                      const startDateIso = taskMetadata?.expectedStartDate ? String(taskMetadata.expectedStartDate).substring(0, 10) : undefined;
+                                                                      const res = await createDocumentRequest(
+                                                                          empId,
+                                                                          item.worker.id,
+                                                                          taskMetadata?.clientId,
+                                                                          startDateIso,
+                                                                          buildTaskExtraMetadata()
+                                                                      );
+                                                                      setTaskWorkers(prev => prev.map(w => w.worker?.id === item.worker.id ? { ...w, docRequest: res, isPreviousOrderRequest: false } : w));
                                                                       loadDocRequests();
                                                                       handleCopyInviteLink(`${window.location.origin}/enviar-documentos/${res.token}`, item.worker?.nome);
                                                                   } catch (err) {
                                                                       toast.error("Erro ao criar link cadastral.");
                                                                   }
-                                                              }}
+                                                               }}
                                                              title="Criar e copiar mensagem com link"
                                                              disabled={isVacantReplacement}
                                                          >
@@ -7750,7 +7861,6 @@ Muchas gracias.`;
                                                              Crear Enlace
                                                          </Button>
                                                      )}
-
                                                     {/* Generar Contrato Button */}
                                                     <Button
                                                         size="sm"

@@ -138,7 +138,7 @@ async function fetchWorkersOrderInfo(workerIds: string[], codColabs: string[]) {
             supabase
                 .schema('core_personal')
                 .from('worker_assignments')
-                .select('id, worker_id, client_id, pedido_id, created_at')
+                .select('id, worker_id, empresa_id, client_id, pedido_id, status, start_date, planned_start_date, created_at')
                 .in('worker_id', chunk)
         ),
         fetchInChunks<any>(uniqueWorkerIds, chunk =>
@@ -217,19 +217,53 @@ function resolveOrderInfo(
     assignmentsGroupByWorker?: Map<string, any[]>,
     targetsGroupByWorker?: Map<string, any[]>,
     pedidosMap?: Map<string, string>,
-    solMap?: Map<string, any>
+    solMap?: Map<string, any>,
+    explicitOptions?: {
+        explicitClientId?: string | null;
+        targetEmpresaId?: string | null;
+        requestCreatedAt?: string | null;
+        explicitSolicitudCodigo?: string | null;
+        explicitSolicitudTipo?: string | null;
+        explicitSolicitudTitle?: string | null;
+    }
 ) {
     const workerAllocs = codColab && allocationsGroupByWorker ? (allocationsGroupByWorker.get(codColab) || []) : [];
     const workerAssigns = workerId && assignmentsGroupByWorker ? (assignmentsGroupByWorker.get(workerId) || []) : [];
     const workerTargets = workerId && targetsGroupByWorker ? (targetsGroupByWorker.get(workerId) || []) : [];
 
-    // Sort assignments by created_at desc
-    const sortedAssigns = [...workerAssigns].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
-    const latestAssign = sortedAssigns[0];
-    const assignPedidoCodigo = latestAssign?.pedido_id && pedidosMap ? pedidosMap.get(latestAssign.pedido_id) : null;
+    const reqTime = explicitOptions?.requestCreatedAt ? new Date(explicitOptions.requestCreatedAt).getTime() : 0;
 
-    // Sort targets by created_at desc
-    const sortedTargets = [...workerTargets].sort((a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime());
+    // Sort assignments prioritizing explicitClientId, then targetEmpresaId, then proximity to requestCreatedAt (or newest)
+    const sortedAssigns = [...workerAssigns].sort((a, b) => {
+        if (explicitOptions?.explicitClientId) {
+            const aClientMatch = a.client_id === explicitOptions.explicitClientId ? 1 : 0;
+            const bClientMatch = b.client_id === explicitOptions.explicitClientId ? 1 : 0;
+            if (aClientMatch !== bClientMatch) return bClientMatch - aClientMatch;
+        }
+        if (explicitOptions?.targetEmpresaId) {
+            const aEmpMatch = a.empresa_id === explicitOptions.targetEmpresaId ? 1 : 0;
+            const bEmpMatch = b.empresa_id === explicitOptions.targetEmpresaId ? 1 : 0;
+            if (aEmpMatch !== bEmpMatch) return bEmpMatch - aEmpMatch;
+        }
+        if (reqTime > 0) {
+            const distA = Math.abs(new Date(a.created_at || 0).getTime() - reqTime);
+            const distB = Math.abs(new Date(b.created_at || 0).getTime() - reqTime);
+            return distA - distB;
+        }
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
+    const matchedAssign = sortedAssigns[0];
+    const assignPedidoCodigo = matchedAssign?.pedido_id && pedidosMap ? pedidosMap.get(matchedAssign.pedido_id) : null;
+
+    // Sort targets by proximity to requestCreatedAt or created_at desc
+    const sortedTargets = [...workerTargets].sort((a, b) => {
+        if (reqTime > 0) {
+            const distA = Math.abs(new Date(a.created_at || 0).getTime() - reqTime);
+            const distB = Math.abs(new Date(b.created_at || 0).getTime() - reqTime);
+            return distA - distB;
+        }
+        return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+    });
     const latestTarget = sortedTargets[0];
     const latestSol = latestTarget?.solicitud_id && solMap ? solMap.get(latestTarget.solicitud_id) : null;
 
@@ -249,14 +283,15 @@ function resolveOrderInfo(
         }
     }
 
-    const finalPedidoCodigo = explicitPedidoCodigo || assignPedidoCodigo || pertinentAlloc?.codpedido || latestSol?.codigo || null;
-    const finalTipo = latestSol?.tipo || (finalPedidoCodigo ? 'Pedido' : null);
+    const finalPedidoCodigo = explicitPedidoCodigo || assignPedidoCodigo || pertinentAlloc?.codpedido || explicitOptions?.explicitSolicitudCodigo || latestSol?.codigo || null;
+    const finalSolicitudCodigo = explicitOptions?.explicitSolicitudCodigo || latestSol?.codigo || null;
+    const finalTipo = explicitOptions?.explicitSolicitudTipo || latestSol?.tipo || (finalPedidoCodigo ? 'Pedido' : null);
 
     return {
         pedido_codigo: finalPedidoCodigo,
-        solicitud_codigo: latestSol?.codigo || null,
+        solicitud_codigo: finalSolicitudCodigo,
         solicitud_tipo: finalTipo,
-        solicitud_title: latestSol?.title || null
+        solicitud_title: explicitOptions?.explicitSolicitudTitle || latestSol?.title || null
     };
 }
 
@@ -679,45 +714,70 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
 
     return docRequests.map(r => {
         const emp = empresasMap.get(r.empresa_id);
-        const explicitClientId = (r as any).extracted_data?.client_id;
-        const explicitClient = explicitClientId ? clientsMap.get(explicitClientId) : null;
-        const explicitPedido = (r as any).extracted_data?.pedido_codigo || (r as any).extracted_data?.codigo_pedido;
+        const ext = (r as any).extracted_data || {};
+        const explicitClientId = ext.client_id;
+        const explicitClientName = ext.client_name;
+        const explicitClient = explicitClientId
+            ? (clientsMap.get(explicitClientId) || (explicitClientName ? { id: explicitClientId, legal_name: explicitClientName, trade_name: explicitClientName } : null))
+            : (explicitClientName ? { id: '', legal_name: explicitClientName, trade_name: explicitClientName } : null);
+        const explicitPedido = ext.pedido_codigo || ext.codigo_pedido;
 
         const resolvedOrder = resolveOrderInfo(
             r.worker_id,
             r.worker?.cod_colab,
-            undefined,
+            emp?.nome,
             explicitPedido,
             allocationsGroupByWorker,
             assignmentsGroupByWorker,
             targetsGroupByWorker,
             pedidosMap,
-            solMap
+            solMap,
+            {
+                explicitClientId,
+                targetEmpresaId: r.empresa_id,
+                requestCreatedAt: r.created_at,
+                explicitSolicitudCodigo: ext.solicitud_codigo,
+                explicitSolicitudTipo: ext.solicitud_tipo,
+                explicitSolicitudTitle: ext.solicitud_title
+            }
         );
 
+        const reqTime = r.created_at ? new Date(r.created_at).getTime() : 0;
         const sortedAssignments = (r.worker?.assignments || [])
             .map((a: any) => ({
                 ...a,
                 client: clientsMap.get(a.client_id) || null
             }))
             .sort((a: any, b: any) => {
+                if (explicitClientId) {
+                    const aCli = a.client_id === explicitClientId ? 1 : 0;
+                    const bCli = b.client_id === explicitClientId ? 1 : 0;
+                    if (aCli !== bCli) return bCli - aCli;
+                }
                 const aSameEmp = a.empresa_id === r.empresa_id ? 1 : 0;
                 const bSameEmp = b.empresa_id === r.empresa_id ? 1 : 0;
+                if (aSameEmp !== bSameEmp) return bSameEmp - aSameEmp;
+
+                if (reqTime > 0) {
+                    const distA = Math.abs(new Date(a.created_at || 0).getTime() - reqTime);
+                    const distB = Math.abs(new Date(b.created_at || 0).getTime() - reqTime);
+                    return distA - distB;
+                }
+
                 const aActiveOrPlanned = (a.status === 'active' || a.status === 'planned') ? 1 : 0;
                 const bActiveOrPlanned = (b.status === 'active' || b.status === 'planned') ? 1 : 0;
-
-                const scoreA = aSameEmp * 4 + aActiveOrPlanned * 2 + (a.status === 'active' ? 1 : 0);
-                const scoreB = bSameEmp * 4 + bActiveOrPlanned * 2 + (b.status === 'active' ? 1 : 0);
-                if (scoreA !== scoreB) return scoreB - scoreA;
+                if (aActiveOrPlanned !== bActiveOrPlanned) return bActiveOrPlanned - aActiveOrPlanned;
 
                 return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
             });
+
+        const sameEmpAssignment = sortedAssignments.find((a: any) => a.empresa_id === r.empresa_id);
 
         return {
             ...r,
             ...resolvedOrder,
             empresa: emp ? { id: emp.id, name: emp.nome } : null,
-            client: explicitClient || sortedAssignments[0]?.client || null,
+            client: explicitClient || sameEmpAssignment?.client || sortedAssignments[0]?.client || null,
             worker: r.worker ? {
                 ...r.worker,
                 assignments: sortedAssignments
@@ -726,9 +786,28 @@ export async function listDocumentRequests(empresaId: string): Promise<DocumentR
     }) as unknown as DocumentRequest[];
 }
 
-export async function createDocumentRequest(empresaId: string, workerId: string, clientId?: string, startDate?: string): Promise<DocumentRequest> {
-    // Buscar dados pré-existentes do trabalhador e solicitações anteriores (ex: de outras empresas do grupo)
-    const [{ data: worker }, { data: prevReq }] = await Promise.all([
+export interface CreateDocumentRequestMetadata {
+    pedidoCodigo?: string | null;
+    solicitudCodigo?: string | null;
+    solicitudTipo?: string | null;
+    solicitudTitle?: string | null;
+    solicitudId?: string | null;
+    pedidoId?: string | null;
+    clientName?: string | null;
+    siteId?: string | null;
+    siteName?: string | null;
+    forceEmpresaId?: boolean;
+}
+
+export async function createDocumentRequest(
+    empresaId: string,
+    workerId: string,
+    clientId?: string,
+    startDate?: string,
+    extraMetadata?: CreateDocumentRequestMetadata
+): Promise<DocumentRequest> {
+    // Buscar dados pré-existentes do trabalhador, solicitações anteriores e alocações/solicitações ativas
+    const [{ data: worker }, { data: prevReq }, { data: workerAssigns }, { data: workerTargets }] = await Promise.all([
         supabase
             .schema('core_personal')
             .from('workers')
@@ -743,10 +822,89 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
             .order('updated_at', { ascending: false })
             .order('created_at', { ascending: false })
             .limit(1)
-            .maybeSingle()
+            .maybeSingle(),
+        supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .select('id, empresa_id, client_id, client_site_id, pedido_id, status, start_date, planned_start_date, created_at')
+            .eq('worker_id', workerId)
+            .order('created_at', { ascending: false })
+            .limit(5),
+        supabase
+            .schema('core_operacoes')
+            .from('solicitud_targets')
+            .select('id, solicitud_id, target_client_id, source_client_id, created_at')
+            .or(`target_worker_id.eq.${workerId},source_worker_id.eq.${workerId}`)
+            .order('created_at', { ascending: false })
+            .limit(5)
     ]);
 
-    const prevExt = (prevReq?.extracted_data || {}) as Record<string, any>;
+    // Resolver alocação/solicitação mais recente caso os metadados não tenham sido passados explicitamente
+    const activeOrPlannedAssign = (workerAssigns || []).find((a: any) => a.status === 'planned' || a.status === 'active') || (workerAssigns || [])[0];
+    const latestTarget = (workerTargets || [])[0];
+
+    let latestSol: any = null;
+    if (latestTarget?.solicitud_id) {
+        const { data: sData } = await supabase
+            .schema('core_operacoes')
+            .from('solicitudes_operativas')
+            .select('id, codigo, empresa_id, client_id, client_site_id, pedido_id, tipo, title')
+            .eq('id', latestTarget.solicitud_id)
+            .maybeSingle();
+        latestSol = sData;
+    }
+
+    const resolvedPedidoId = extraMetadata?.pedidoId || activeOrPlannedAssign?.pedido_id || latestSol?.pedido_id || null;
+    let latestPedido: any = null;
+    if (resolvedPedidoId) {
+        const { data: pData } = await supabase
+            .schema('core_comercial')
+            .from('pedidos')
+            .select('id, codigo, empresa_id, client_id, client_site_id, expected_start_date')
+            .eq('id', resolvedPedidoId)
+            .maybeSingle();
+        latestPedido = pData;
+    }
+
+    const resolvedEmpresaId = (extraMetadata?.forceEmpresaId && !isHoldingId(empresaId))
+        ? empresaId
+        : (activeOrPlannedAssign?.empresa_id || latestPedido?.empresa_id || latestSol?.empresa_id || (!isHoldingId(empresaId) ? empresaId : prevReq?.empresa_id) || empresaId);
+
+    const resolvedClientId = clientId || activeOrPlannedAssign?.client_id || latestPedido?.client_id || latestSol?.client_id || latestTarget?.target_client_id || latestTarget?.source_client_id || null;
+    const resolvedSiteId = extraMetadata?.siteId || activeOrPlannedAssign?.client_site_id || latestPedido?.client_site_id || latestSol?.client_site_id || null;
+    const resolvedStartDate = startDate || activeOrPlannedAssign?.planned_start_date || activeOrPlannedAssign?.start_date || latestPedido?.expected_start_date || null;
+    const resolvedPedidoCodigo = extraMetadata?.pedidoCodigo || latestPedido?.codigo || latestSol?.codigo || null;
+    const resolvedSolicitudCodigo = extraMetadata?.solicitudCodigo || latestSol?.codigo || null;
+    const resolvedSolicitudTipo = extraMetadata?.solicitudTipo || latestSol?.tipo || (resolvedPedidoCodigo ? 'Pedido' : null);
+    const resolvedSolicitudTitle = extraMetadata?.solicitudTitle || latestSol?.title || null;
+    const resolvedSolicitudId = extraMetadata?.solicitudId || latestSol?.id || null;
+
+    let resolvedClientName = extraMetadata?.clientName || null;
+    if (!resolvedClientName && resolvedClientId) {
+        const { data: cData } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('trade_name, legal_name')
+            .eq('id', resolvedClientId)
+            .maybeSingle();
+        resolvedClientName = cData?.trade_name || cData?.legal_name || null;
+    }
+
+    const prevExt = { ...((prevReq?.extracted_data || {}) as Record<string, any>) };
+    // Limpar chaves de vínculo de pedido/cliente anterior para não poluir a nova linha
+    delete prevExt.client_id;
+    delete prevExt.client_name;
+    delete prevExt.pedido_codigo;
+    delete prevExt.codigo_pedido;
+    delete prevExt.solicitud_codigo;
+    delete prevExt.solicitud_tipo;
+    delete prevExt.solicitud_title;
+    delete prevExt.solicitud_id;
+    delete prevExt.pedido_id;
+    delete prevExt.site_id;
+    delete prevExt.site_name;
+    delete prevExt.start_date;
+
     const prevIbanUrl = prevReq?.iban_url || prevExt.iban_url || null;
     const prevResidenceUrl = prevReq?.residence_url || prevExt.residence_url || null;
     const prevResidenceBackUrl = prevExt.residence_back_url || null;
@@ -778,15 +936,24 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
         iban_url: prevIbanUrl,
         residence_url: prevResidenceUrl,
         residence_back_url: prevResidenceBackUrl,
-        client_id: clientId || prevExt.client_id || null,
-        start_date: startDate || prevExt.start_date || null
+        client_id: resolvedClientId,
+        client_name: resolvedClientName,
+        pedido_codigo: resolvedPedidoCodigo,
+        solicitud_codigo: resolvedSolicitudCodigo,
+        solicitud_tipo: resolvedSolicitudTipo,
+        solicitud_title: resolvedSolicitudTitle,
+        solicitud_id: resolvedSolicitudId,
+        pedido_id: resolvedPedidoId,
+        site_id: resolvedSiteId,
+        site_name: extraMetadata?.siteName || null,
+        start_date: resolvedStartDate ? String(resolvedStartDate).substring(0, 10) : null
     };
 
     const { data, error } = await supabase
         .schema('core_personal')
         .from('document_requests')
         .insert({
-            empresa_id: empresaId,
+            empresa_id: resolvedEmpresaId,
             worker_id: workerId,
             status: 'pending_upload',
             passport_url: prevReq?.passport_url || null,
@@ -807,7 +974,18 @@ export async function createDocumentRequest(empresaId: string, workerId: string,
         throw mapSupabaseError(error);
     }
 
-    return data as unknown as DocumentRequest;
+    return {
+        ...(data as any),
+        pedido_codigo: resolvedPedidoCodigo,
+        solicitud_codigo: resolvedSolicitudCodigo,
+        solicitud_tipo: resolvedSolicitudTipo,
+        solicitud_title: resolvedSolicitudTitle,
+        client: resolvedClientId ? {
+            id: resolvedClientId,
+            legal_name: resolvedClientName || '',
+            trade_name: resolvedClientName || ''
+        } : null
+    } as unknown as DocumentRequest;
 }
 
 export async function reopenDocumentRequest(requestId: string): Promise<DocumentRequest> {
