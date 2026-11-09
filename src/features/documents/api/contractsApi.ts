@@ -1433,3 +1433,121 @@ export async function updateCompanyContractSettings(
     }
 
 }
+
+
+export interface UploadSignedContractPayload {
+    contract: Contract;
+    file: File;
+    signedBy: "both" | "company" | "worker";
+    archiveToWorkerProfile?: boolean;
+}
+
+export async function uploadSignedContractFile(
+    payload: UploadSignedContractPayload
+): Promise<{ documentUrl: string; status: Contract["status"]; companySigned: boolean; workerSigned: boolean }> {
+    const { contract, file, signedBy, archiveToWorkerProfile = true } = payload;
+    const ext = (file.name.split(".").pop() || "pdf").toLowerCase();
+    const cleanContratante = (contract.contratante || "HEXAGON").toUpperCase().replace(/[^A-Z0-9_-]/g, "_");
+    const targetPath = `${cleanContratante}/FIRMADO_${contract.id}_${Date.now()}.${ext}`;
+
+    const contentType =
+        file.type ||
+        (ext === "pdf"
+            ? "application/pdf"
+            : ext === "docx"
+            ? "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            : "image/jpeg");
+
+    const { error: uploadErr } = await supabase.storage
+        .from("worker-contracts")
+        .upload(targetPath, file, {
+            upsert: true,
+            contentType,
+        });
+
+    if (uploadErr) {
+        throw new Error(`Error al subir el archivo del contrato firmado: ${uploadErr.message}`);
+    }
+
+    const { data: existingRow } = await supabase
+        .schema("core_personal")
+        .from("contracts")
+        .select("metadata, status, signed_at")
+        .eq("id", contract.id)
+        .maybeSingle();
+
+    const prevMeta = (existingRow?.metadata && typeof existingRow.metadata === "object")
+        ? existingRow.metadata
+        : (contract.metadata || {});
+
+    const nowIso = new Date().toISOString();
+    const companySigned = signedBy === "both" || signedBy === "company" ? true : Boolean(prevMeta.company_signed);
+    const workerSigned = signedBy === "both" || signedBy === "worker" ? true : (existingRow?.status === "signed" || contract.status === "signed");
+    const nextStatus: Contract["status"] = workerSigned ? "signed" : "pending_signature";
+    const nextSignedAt = workerSigned ? (existingRow?.signed_at || nowIso) : null;
+
+    const updatedMeta: Record<string, any> = {
+        ...prevMeta,
+        company_signed: companySigned,
+        ...(signedBy === "both" || signedBy === "company" ? { company_signed_at: nowIso } : {}),
+        worker_signed: workerSigned,
+        ...(signedBy === "both" || signedBy === "worker" ? { worker_signed_at: nowIso } : {}),
+        base_document_url: targetPath,
+        uploaded_signed_file_name: file.name,
+        uploaded_signed_by: signedBy,
+        uploaded_signed_at: nowIso,
+    };
+
+    const { error: updateErr } = await supabase
+        .schema("core_personal")
+        .from("contracts")
+        .update({
+            document_url: targetPath,
+            signed_document_url: targetPath,
+            status: nextStatus,
+            signed_at: nextSignedAt,
+            metadata: updatedMeta,
+            updated_at: nowIso,
+        })
+        .eq("id", contract.id);
+
+    if (updateErr) {
+        throw mapSupabaseError(updateErr);
+    }
+
+    if (archiveToWorkerProfile && contract.worker_id) {
+        try {
+            const workerName = contract.worker?.nome || "Trabajador";
+            const statusLabel =
+                signedBy === "both"
+                    ? "Contrato Firmado (Empresa y Trabajador)"
+                    : signedBy === "company"
+                    ? "Contrato Firmado (Empresa)"
+                    : "Contrato Firmado (Trabajador)";
+            const docFileName = `${statusLabel} - ${workerName}.${ext}`;
+            const workerDocPath = `worker-contracts/${targetPath}`;
+
+            await supabase
+                .schema("core_personal")
+                .from("worker_documents")
+                .insert({
+                    empresa_id: contract.empresa_id || HEXAGON_EMPRESA_ID,
+                    worker_id: contract.worker_id,
+                    doc_type: contract.contract_type === "rescisao" ? "carta_renuncia" : "contrato_trabalho",
+                    file_path: workerDocPath,
+                    file_name: docFileName,
+                    file_size: file.size || 1024,
+                    mime_type: contentType,
+                });
+        } catch (archErr) {
+            console.warn("Aviso al archivar contrato firmado en la ficha del trabajador:", archErr);
+        }
+    }
+
+    return {
+        documentUrl: targetPath,
+        status: nextStatus,
+        companySigned,
+        workerSigned,
+    };
+}

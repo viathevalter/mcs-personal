@@ -5,7 +5,7 @@ import { DepartmentTaskBoard } from '@/features/operacoes/solicitudes/components
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { 
     listContracts, generateContract, deleteContract, updateContractNoticeMetadata, createManualNoticeEntry, consolidateNoticeDiscountToPayroll,
-    signContractAsCompany, requestCompanyOtp, getCompanyContractSettings, updateCompanyContractSettings, type Contract,
+    signContractAsCompany, requestCompanyOtp, getCompanyContractSettings, updateCompanyContractSettings, uploadSignedContractFile, type Contract,
     listDocumentRequests, createDocumentRequest, reopenDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, HEXAGON_EMPRESA_ID, type DocumentRequest
 } from '../api/contractsApi';
 import { PdfCanvasViewer } from '../components/PdfCanvasViewer';
@@ -444,7 +444,15 @@ export function DocumentacionTasksPage() {
     // Modal de Assinatura Eletrônica da Empresa (Representante Legal - Bilateral OTP)
     const [companySignDialogOpen, setCompanySignDialogOpen] = useState(false);
     const [companySigningContract, setCompanySigningContract] = useState<Contract | null>(null);
-    const [companySignMode, setCompanySignMode] = useState<'draw' | 'type' | 'saved'>('draw');
+    const [companyModalTab, setCompanyModalTab] = useState<'electronic_otp' | 'upload_file'>('electronic_otp');
+    const [companySignMode, setCompanySignMode] = useState<'draw' | 'type' | 'saved' | 'image'>('draw');
+    const [companyUploadedSigImage, setCompanyUploadedSigImage] = useState<string | null>(null);
+    const companySigImageInputRef = useRef<HTMLInputElement>(null);
+    const [signedContractFile, setSignedContractFile] = useState<File | null>(null);
+    const [signedContractSignedBy, setSignedContractSignedBy] = useState<'both' | 'company' | 'worker'>('both');
+    const [archiveUploadedContract, setArchiveUploadedContract] = useState<boolean>(true);
+    const [uploadingSignedContract, setUploadingSignedContract] = useState<boolean>(false);
+    const signedContractFileInputRef = useRef<HTMLInputElement>(null);
     const [companyTypedSignature, setCompanyTypedSignature] = useState('');
     const [companySavedSigBase64, setCompanySavedSigBase64] = useState<string | null>(() => {
         try { return localStorage.getItem('hexagon_rep_signature'); } catch { return null; }
@@ -2015,8 +2023,12 @@ Muchas gracias.`;
     };
 
     // 4.1 Modal de Assinatura Eletrônica da Empresa (Representante Legal — Bilateral OTP)
-    const handleOpenCompanySignModal = (contract: Contract) => {
+    const handleOpenCompanySignModal = (contract: Contract, initialTab: 'electronic_otp' | 'upload_file' = 'electronic_otp') => {
         setCompanySigningContract(contract);
+        setCompanyModalTab(initialTab);
+        setSignedContractFile(null);
+        setSignedContractSignedBy('both');
+        setArchiveUploadedContract(true);
         const repName = contract.metadata?.representante_nombre || hexagonSettings?.representante_nombre || 'MARCOS DIVINO DE ALMEIDA JUNIOR';
         const repDoc = contract.metadata?.representante_nif || hexagonSettings?.representante_nif || 'Z4103479P';
         const repCargo = contract.metadata?.representante_cargo || hexagonSettings?.representante_cargo || 'ADMINISTRADOR';
@@ -2037,6 +2049,72 @@ Muchas gracias.`;
         setCompanySignMode(savedSig ? 'saved' : 'draw');
         setHasDrawnCompanySig(false);
         setCompanySignDialogOpen(true);
+    };
+
+    const handleSelectCompanySigImage = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        e.target.value = '';
+        const reader = new FileReader();
+        reader.onload = () => {
+            if (typeof reader.result === 'string') {
+                setCompanyUploadedSigImage(reader.result);
+                setCompanySignMode('image');
+            }
+        };
+        reader.readAsDataURL(file);
+    };
+
+    const handleUploadSignedContractSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!companySigningContract) return;
+        if (!signedContractFile) {
+            toast.error("Seleccione el archivo del contrato firmado (.pdf, .docx o imagen) antes de confirmar.");
+            return;
+        }
+        try {
+            setUploadingSignedContract(true);
+            const res = await uploadSignedContractFile({
+                contract: companySigningContract,
+                file: signedContractFile,
+                signedBy: signedContractSignedBy,
+                archiveToWorkerProfile: archiveUploadedContract,
+            });
+            toast.success(
+                signedContractSignedBy === 'both'
+                    ? "¡Contrato firmado por Empresa y Trabajador subido y archivado con éxito!"
+                    : signedContractSignedBy === 'company'
+                    ? "¡Contrato firmado por la Empresa subido con éxito! Listo para firma del trabajador."
+                    : "¡Contrato firmado por el Trabajador subido con éxito!"
+            );
+            setCompanySignDialogOpen(false);
+            loadContracts();
+
+            if (generationSuccess && generationSuccess.contractId === companySigningContract.id && res.documentUrl) {
+                try {
+                    setLoadingPreview(true);
+                    const { data: signedData } = await supabase.storage
+                        .from('worker-contracts')
+                        .createSignedUrl(`${res.documentUrl}?t=${Date.now()}`, 300);
+                    if (signedData?.signedUrl) {
+                        const fileRes = await fetch(signedData.signedUrl);
+                        if (fileRes.ok) {
+                            const blob = await fileRes.blob();
+                            setPreviewBlob(blob);
+                        }
+                    }
+                } catch (errPrev) {
+                    console.warn("Aviso al actualizar vista previa del contrato subido:", errPrev);
+                } finally {
+                    setLoadingPreview(false);
+                }
+            }
+        } catch (err: any) {
+            console.error("Error al subir contrato firmado:", err);
+            toast.error(err.message || "Error al subir el archivo del contrato firmado.");
+        } finally {
+            setUploadingSignedContract(false);
+        }
     };
 
     const startDrawingCompany = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
@@ -2150,6 +2228,12 @@ Muchas gracias.`;
                 return;
             }
             signatureBase64 = companySavedSigBase64;
+        } else if (companySignMode === 'image') {
+            if (!companyUploadedSigImage) {
+                toast.error("Seleccione una imagen de firma o sello para continuar.");
+                return;
+            }
+            signatureBase64 = companyUploadedSigImage;
         } else if (companySignMode === 'type') {
             if (!companyTypedSignature.trim()) {
                 toast.error("Escriba el nombre para generar la firma digital.");
@@ -4185,6 +4269,33 @@ Muchas gracias.`;
                                                                 <PenTool className="h-4 w-4" />
                                                                 Firmar Ahora por la Empresa (OTP)
                                                             </Button>
+                                                            <Button
+                                                                type="button"
+                                                                size="sm"
+                                                                variant="outline"
+                                                                className="w-full mt-2 border-emerald-300 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-semibold flex items-center justify-center gap-2"
+                                                                onClick={() => {
+                                                                    const found = contracts.find(c => c.id === generationSuccess.contractId);
+                                                                    handleOpenCompanySignModal(found || ({
+                                                                        id: generationSuccess.contractId!,
+                                                                        empresa_id: selectedContratante === 'HEXAGON' ? HEXAGON_EMPRESA_ID : (selectedEmpresaId || ''),
+                                                                        worker_id: selectedWorkerId || '',
+                                                                        contratante: selectedContratante,
+                                                                        contract_type: generationSuccess.contractType || selectedContractType,
+                                                                        document_url: generationSuccess.documentUrl || '',
+                                                                        status: 'pending_signature',
+                                                                        metadata: {
+                                                                            company_otp_code: generationSuccess.companyOtpCode,
+                                                                            representante_nombre: hexagonSettings?.representante_nombre,
+                                                                            representante_nif: hexagonSettings?.representante_nif,
+                                                                            representante_cargo: hexagonSettings?.representante_cargo,
+                                                                        }
+                                                                    } as Contract), 'upload_file');
+                                                                }}
+                                                            >
+                                                                <Upload className="h-4 w-4" />
+                                                                Subir Contrato Firmado (Empresa y/o Trabajador)
+                                                            </Button>
                                                         </div>
                                                     )}
 
@@ -5347,6 +5458,17 @@ Muchas gracias.`;
                                                                     {contract.metadata?.company_signed ? 'Empresa ✓' : 'Firmar Empresa'}
                                                                 </Button>
                                                             )}
+
+                                                            <Button
+                                                                size="sm"
+                                                                variant="outline"
+                                                                onClick={() => handleOpenCompanySignModal(contract, 'upload_file')}
+                                                                title="Subir archivo del contrato firmado por la Empresa y/o el Trabajador"
+                                                                className="h-8 text-xs gap-1 border-indigo-200 dark:border-indigo-800 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-50 dark:hover:bg-slate-800 font-semibold"
+                                                            >
+                                                                <Upload className="h-3.5 w-3.5" />
+                                                                Subir Firmado
+                                                            </Button>
 
                                                             <Button
                                                                 size="icon"
@@ -8083,26 +8205,27 @@ Muchas gracias.`;
                 </DialogContent>
             </Dialog>
 
-            {/* Modal de Assinatura Eletrônica da Empresa (Representante Legal — Bilateral OTP + eIDAS) */}
+            {/* Modal de Assinatura Eletrônica da Empresa & Upload de Contrato Assinado (Empresa / Trabalhador) */}
             <Dialog open={companySignDialogOpen} onOpenChange={setCompanySignDialogOpen}>
-                <DialogContent className="sm:max-w-2xl max-w-2xl w-[92vw] bg-white dark:bg-slate-900">
+                <DialogContent className="sm:max-w-2xl max-w-2xl w-[94vw] max-h-[92vh] overflow-y-auto bg-white dark:bg-slate-900">
                     <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold text-emerald-700 dark:text-emerald-400">
                             <PenTool className="h-5 w-5" />
-                            Firma Electrónica de la Empresa (Representante Legal — OTP Bilateral)
+                            Firma del Contrato — Empresa y Trabajador
                         </DialogTitle>
                         <DialogDescription className="text-xs">
-                            La firma del representante legal se estampará en el cuadro <strong>"El/la representante de la empresa"</strong> (Página 20), en el margen izquierdo de todas las páginas y en el <strong>Certificado de Firma Electrónica Bilateral (eIDAS / UE Nº 910/2014)</strong>.
+                            Firme electrónicamente con validación OTP en el sistema o suba directamente el archivo del contrato ya firmado por la Empresa y/o el Trabajador.
                         </DialogDescription>
                     </DialogHeader>
 
                     {companySigningContract && (
-                        <form onSubmit={handleSubmitCompanySign} className="space-y-4 pt-2">
-                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex items-center justify-between text-xs">
+                        <div className="space-y-4 pt-1">
+                            {/* Barra de status do Contrato */}
+                            <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-800 flex flex-wrap items-center justify-between gap-2 text-xs">
                                 <div>
                                     <span className="text-slate-500 block">Trabajador / Contrato</span>
                                     <span className="font-bold text-slate-900 dark:text-slate-100">
-                                        {companySigningContract.worker?.nome || 'Trabalhador'} — {companySigningContract.contratante}
+                                        {companySigningContract.worker?.nome || 'Trabajador'} — {companySigningContract.contratante}
                                     </span>
                                 </div>
                                 <div className="flex items-center gap-2">
@@ -8115,206 +8238,412 @@ Muchas gracias.`;
                                 </div>
                             </div>
 
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold">Nombre del Representante Legal *</Label>
-                                    <Input
-                                        required
-                                        value={companySignerName}
-                                        onChange={(e) => {
-                                            setCompanySignerName(e.target.value);
-                                            if (companySignMode === 'type') setCompanyTypedSignature(e.target.value);
-                                        }}
-                                        placeholder="Ex: JUAN PÉREZ GARCÍA"
-                                        className="h-9 text-xs"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold">NIF / NIE / CIF</Label>
-                                    <Input
-                                        value={companySignerDocument}
-                                        onChange={(e) => setCompanySignerDocument(e.target.value)}
-                                        placeholder="Ex: B19394493"
-                                        className="h-9 text-xs font-mono"
-                                    />
-                                </div>
-                                <div className="space-y-1">
-                                    <Label className="text-xs font-semibold">Cargo / En Concepto</Label>
-                                    <Input
-                                        value={companySignerCargo}
-                                        onChange={(e) => setCompanySignerCargo(e.target.value)}
-                                        placeholder="ADMINISTRADOR ÚNICO"
-                                        className="h-9 text-xs"
-                                    />
-                                </div>
+                            {/* Seletor Principal: Assinatura Digital OTP vs Subir Arquivo Assinado */}
+                            <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
+                                <button
+                                    type="button"
+                                    onClick={() => setCompanyModalTab('electronic_otp')}
+                                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                        companyModalTab === 'electronic_otp'
+                                            ? 'bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-400 shadow-sm'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <PenTool className="h-3.5 w-3.5" />
+                                    1. Firma Digital en el Sistema (OTP)
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setCompanyModalTab('upload_file')}
+                                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2 ${
+                                        companyModalTab === 'upload_file'
+                                            ? 'bg-white dark:bg-slate-900 text-indigo-700 dark:text-indigo-400 shadow-sm'
+                                            : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                    }`}
+                                >
+                                    <Upload className="h-3.5 w-3.5" />
+                                    2. Subir Contrato Firmado (Archivo)
+                                </button>
                             </div>
 
-                            {/* Seletor de Modo de Rubrica (Desenhar / Digitar / Usar Salva) */}
-                            <div className="space-y-2">
-                                <div className="flex items-center justify-between">
-                                    <Label className="text-xs font-bold">Rúbrica / Firma del Representante</Label>
-                                    <div className="inline-flex rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-100 dark:bg-slate-800">
-                                        {companySavedSigBase64 && (
-                                            <button
-                                                type="button"
-                                                onClick={() => setCompanySignMode('saved')}
-                                                className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                                                    companySignMode === 'saved'
-                                                        ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
-                                                        : 'text-slate-600 dark:text-slate-400'
-                                                }`}
-                                            >
-                                                Firma Guardada
-                                            </button>
-                                        )}
-                                        <button
-                                            type="button"
-                                            onClick={() => setCompanySignMode('draw')}
-                                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
-                                                companySignMode === 'draw'
-                                                    ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
-                                                    : 'text-slate-600 dark:text-slate-400'
-                                            }`}
-                                        >
-                                            <PenTool className="h-3 w-3" /> Dibujar
-                                        </button>
-                                        <button
-                                            type="button"
-                                            onClick={() => {
-                                                setCompanySignMode('type');
-                                                if (!companyTypedSignature) setCompanyTypedSignature(companySignerName);
-                                            }}
-                                            className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
-                                                companySignMode === 'type'
-                                                    ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
-                                                    : 'text-slate-600 dark:text-slate-400'
-                                            }`}
-                                        >
-                                            <Type className="h-3 w-3" /> Escribir Firma
-                                        </button>
-                                    </div>
-                                </div>
-
-                                {companySignMode === 'saved' && companySavedSigBase64 ? (
-                                    <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-800 rounded-xl p-4 bg-white flex flex-col items-center justify-center gap-2">
-                                        <img src={companySavedSigBase64} alt="Rubrica Salva" className="max-h-28 object-contain" />
-                                        <span className="text-[11px] text-emerald-700 font-medium">Firma oficial del representante lista para usar</span>
-                                    </div>
-                                ) : companySignMode === 'type' ? (
-                                    <div className="space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950">
-                                        <Input
-                                            value={companyTypedSignature}
-                                            onChange={(e) => setCompanyTypedSignature(e.target.value)}
-                                            placeholder="Escriba el nombre para generar la firma caligráfica..."
-                                            className="bg-white dark:bg-slate-900 text-sm"
-                                        />
-                                        <div className="h-24 bg-white rounded-lg border flex flex-col items-center justify-center p-2">
-                                            <span className="text-2xl italic font-serif font-bold text-slate-900">
-                                                {companyTypedSignature || companySignerName || 'Firma Representante'}
-                                            </span>
-                                            <span className="text-[10px] font-mono text-slate-500 mt-1">
-                                                FIRMA DIGITAL EMPRESA — {companySignerDocument || 'Z4103479P'}
-                                            </span>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-1.5">
-                                        <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden bg-white relative">
-                                            <canvas
-                                                ref={companyCanvasRef}
-                                                width={520}
-                                                height={150}
-                                                onMouseDown={startDrawingCompany}
-                                                onMouseMove={drawCompany}
-                                                onMouseUp={stopDrawingCompany}
-                                                onMouseLeave={stopDrawingCompany}
-                                                onTouchStart={startDrawingCompany}
-                                                onTouchMove={drawCompany}
-                                                onTouchEnd={stopDrawingCompany}
-                                                className="w-full h-[140px] cursor-crosshair touch-none"
+                            {companyModalTab === 'electronic_otp' ? (
+                                <form onSubmit={handleSubmitCompanySign} className="space-y-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Nombre del Representante Legal *</Label>
+                                            <Input
+                                                required
+                                                value={companySignerName}
+                                                onChange={(e) => {
+                                                    setCompanySignerName(e.target.value);
+                                                    if (companySignMode === 'type') setCompanyTypedSignature(e.target.value);
+                                                }}
+                                                placeholder="Ej: MARCOS DIVINO DE ALMEIDA JUNIOR"
+                                                className="h-9 text-xs"
                                             />
-                                            <button
-                                                type="button"
-                                                onClick={clearCompanyCanvas}
-                                                className="absolute top-2 right-2 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1"
-                                            >
-                                                <Eraser className="h-3 w-3" /> Limpiar
-                                            </button>
                                         </div>
-                                        <p className="text-[11px] text-slate-500">
-                                            Dibuje la firma del representante en el recuadro de arriba usando el ratón o la pantalla táctil.
-                                        </p>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">NIF / NIE / CIF</Label>
+                                            <Input
+                                                value={companySignerDocument}
+                                                onChange={(e) => setCompanySignerDocument(e.target.value)}
+                                                placeholder="Ej: Z4103479P"
+                                                className="h-9 text-xs font-mono"
+                                            />
+                                        </div>
+                                        <div className="space-y-1">
+                                            <Label className="text-xs font-semibold">Cargo / En Concepto</Label>
+                                            <Input
+                                                value={companySignerCargo}
+                                                onChange={(e) => setCompanySignerCargo(e.target.value)}
+                                                placeholder="ADMINISTRADOR"
+                                                className="h-9 text-xs"
+                                            />
+                                        </div>
                                     </div>
-                                )}
 
-                                <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer pt-1">
-                                    <input
-                                        type="checkbox"
-                                        checked={companySaveDefaultSig}
-                                        onChange={(e) => setCompanySaveDefaultSig(e.target.checked)}
-                                        className="rounded border-slate-300"
-                                    />
-                                    Guardar esta firma y datos como predeterminados del Representante de Hexagon para los próximos contratos
-                                </label>
-                            </div>
+                                    {/* Seletor de Modo de Rubrica (Guardada / Dibujar / Escribir / Subir Imagen) */}
+                                    <div className="space-y-2">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <Label className="text-xs font-bold">Rúbrica / Firma del Representante</Label>
+                                            <div className="inline-flex flex-wrap rounded-lg border border-slate-200 dark:border-slate-800 p-0.5 bg-slate-100 dark:bg-slate-800">
+                                                {companySavedSigBase64 && (
+                                                    <button
+                                                        type="button"
+                                                        onClick={() => setCompanySignMode('saved')}
+                                                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
+                                                            companySignMode === 'saved'
+                                                                ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
+                                                                : 'text-slate-600 dark:text-slate-400'
+                                                        }`}
+                                                    >
+                                                        Firma Guardada
+                                                    </button>
+                                                )}
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setCompanySignMode('draw')}
+                                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                                                        companySignMode === 'draw'
+                                                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
+                                                            : 'text-slate-600 dark:text-slate-400'
+                                                    }`}
+                                                >
+                                                    <PenTool className="h-3 w-3" /> Dibujar
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCompanySignMode('type');
+                                                        if (!companyTypedSignature) setCompanyTypedSignature(companySignerName);
+                                                    }}
+                                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                                                        companySignMode === 'type'
+                                                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
+                                                            : 'text-slate-600 dark:text-slate-400'
+                                                    }`}
+                                                >
+                                                    <Type className="h-3 w-3" /> Escribir Firma
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => {
+                                                        setCompanySignMode('image');
+                                                        if (!companyUploadedSigImage) {
+                                                            companySigImageInputRef.current?.click();
+                                                        }
+                                                    }}
+                                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all flex items-center gap-1 ${
+                                                        companySignMode === 'image'
+                                                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-sm'
+                                                            : 'text-slate-600 dark:text-slate-400'
+                                                    }`}
+                                                >
+                                                    <Upload className="h-3 w-3" /> Subir Imagen / Sello
+                                                </button>
+                                            </div>
+                                        </div>
 
-                            {/* Validação OTP da Empresa */}
-                            <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 space-y-2.5">
-                                <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
-                                        <KeyRound className="h-4 w-4 text-indigo-600" />
-                                        Código OTP de Validación de la Empresa (6 dígitos)
-                                    </Label>
-                                    <div className="flex items-center gap-1.5">
-                                        <Input
-                                            type="email"
-                                            value={companySignerEmail}
-                                            onChange={(e) => setCompanySignerEmail(e.target.value)}
-                                            placeholder="Correo p/ recibir OTP (opcional)"
-                                            className="h-7 text-xs w-48 bg-white dark:bg-slate-900"
+                                        <input
+                                            ref={companySigImageInputRef}
+                                            type="file"
+                                            accept="image/png,image/jpeg,image/webp"
+                                            onChange={handleSelectCompanySigImage}
+                                            className="hidden"
                                         />
+
+                                        {companySignMode === 'saved' && companySavedSigBase64 ? (
+                                            <div className="border-2 border-dashed border-emerald-300 dark:border-emerald-800 rounded-xl p-4 bg-white flex flex-col items-center justify-center gap-2">
+                                                <img src={companySavedSigBase64} alt="Firma Guardada" className="max-h-28 object-contain" />
+                                                <span className="text-[11px] text-emerald-700 font-medium">Firma oficial del representante lista para usar</span>
+                                            </div>
+                                        ) : companySignMode === 'image' ? (
+                                            <div
+                                                onClick={() => companySigImageInputRef.current?.click()}
+                                                className="border-2 border-dashed border-indigo-300 dark:border-indigo-700 rounded-xl p-4 bg-white dark:bg-slate-950 flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-indigo-50/30 transition-all min-h-[140px]"
+                                            >
+                                                {companyUploadedSigImage ? (
+                                                    <>
+                                                        <img src={companyUploadedSigImage} alt="Firma Subida" className="max-h-28 object-contain" />
+                                                        <span className="text-[11px] text-indigo-600 font-semibold">Haga clic para cambiar la imagen de la firma / sello</span>
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <UploadCloud className="h-7 w-7 text-indigo-500" />
+                                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">Haga clic para subir una imagen (PNG/JPG) de la firma o sello de la empresa</span>
+                                                    </>
+                                                )}
+                                            </div>
+                                        ) : companySignMode === 'type' ? (
+                                            <div className="space-y-2 border border-slate-200 dark:border-slate-800 rounded-xl p-4 bg-slate-50 dark:bg-slate-950">
+                                                <Input
+                                                    value={companyTypedSignature}
+                                                    onChange={(e) => setCompanyTypedSignature(e.target.value)}
+                                                    placeholder="Escriba el nombre para generar la firma caligráfica..."
+                                                    className="bg-white dark:bg-slate-900 text-sm"
+                                                />
+                                                <div className="h-24 bg-white rounded-lg border flex flex-col items-center justify-center p-2">
+                                                    <span className="text-2xl italic font-serif font-bold text-slate-900">
+                                                        {companyTypedSignature || companySignerName || 'Firma Representante'}
+                                                    </span>
+                                                    <span className="text-[10px] font-mono text-slate-500 mt-1">
+                                                        FIRMA DIGITAL EMPRESA — {companySignerDocument || 'Z4103479P'}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-1.5">
+                                                <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl overflow-hidden bg-white relative">
+                                                    <canvas
+                                                        ref={companyCanvasRef}
+                                                        width={520}
+                                                        height={150}
+                                                        onMouseDown={startDrawingCompany}
+                                                        onMouseMove={drawCompany}
+                                                        onMouseUp={stopDrawingCompany}
+                                                        onMouseLeave={stopDrawingCompany}
+                                                        onTouchStart={startDrawingCompany}
+                                                        onTouchMove={drawCompany}
+                                                        onTouchEnd={stopDrawingCompany}
+                                                        className="w-full h-[140px] cursor-crosshair touch-none"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        onClick={clearCompanyCanvas}
+                                                        className="absolute top-2 right-2 px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold flex items-center gap-1"
+                                                    >
+                                                        <Eraser className="h-3 w-3" /> Limpiar
+                                                    </button>
+                                                </div>
+                                                <p className="text-[11px] text-slate-500">
+                                                    Dibuje la firma del representante en el recuadro de arriba usando el ratón o la pantalla táctil.
+                                                </p>
+                                            </div>
+                                        )}
+
+                                        <label className="flex items-center gap-2 text-xs text-slate-600 dark:text-slate-400 cursor-pointer pt-1">
+                                            <input
+                                                type="checkbox"
+                                                checked={companySaveDefaultSig}
+                                                onChange={(e) => setCompanySaveDefaultSig(e.target.checked)}
+                                                className="rounded border-slate-300"
+                                            />
+                                            Guardar esta firma y datos como predeterminados del Representante de Hexagon para los próximos contratos
+                                        </label>
+                                    </div>
+
+                                    {/* Validação OTP da Empresa */}
+                                    <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-indigo-50/50 dark:bg-indigo-950/30 space-y-2.5">
+                                        <div className="flex flex-wrap items-center justify-between gap-2">
+                                            <Label className="text-xs font-bold text-indigo-900 dark:text-indigo-200 flex items-center gap-1.5">
+                                                <KeyRound className="h-4 w-4 text-indigo-600" />
+                                                Código OTP de Validación de la Empresa (6 dígitos)
+                                            </Label>
+                                            <div className="flex items-center gap-1.5">
+                                                <Input
+                                                    type="email"
+                                                    value={companySignerEmail}
+                                                    onChange={(e) => setCompanySignerEmail(e.target.value)}
+                                                    placeholder="Correo p/ recibir OTP (opcional)"
+                                                    className="h-7 text-xs w-48 bg-white dark:bg-slate-900"
+                                                />
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    variant="outline"
+                                                    disabled={requestingCompanyOtp}
+                                                    onClick={handleRequestNewCompanyOtp}
+                                                    className="h-7 text-xs font-semibold border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                                                >
+                                                    {requestingCompanyOtp ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
+                                                    Generar / Enviar OTP
+                                                </Button>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center gap-3">
+                                            <Input
+                                                required
+                                                maxLength={6}
+                                                value={companyOtpInput}
+                                                onChange={(e) => setCompanyOtpInput(e.target.value)}
+                                                placeholder="000000"
+                                                className="h-10 font-mono text-base font-black tracking-widest text-center w-40 bg-white dark:bg-slate-900 border-indigo-300"
+                                            />
+                                            <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed flex-1">
+                                                El código OTP de la empresa se genera automáticamente al emitir el contrato y queda registrado en la auditoría eIDAS junto con la IP y el sello de tiempo UTC.
+                                            </p>
+                                        </div>
+                                    </div>
+
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                        <Button type="button" variant="outline" onClick={() => setCompanySignDialogOpen(false)}>
+                                            Cancelar
+                                        </Button>
                                         <Button
-                                            type="button"
-                                            size="sm"
-                                            variant="outline"
-                                            disabled={requestingCompanyOtp}
-                                            onClick={handleRequestNewCompanyOtp}
-                                            className="h-7 text-xs font-semibold border-indigo-300 text-indigo-700 hover:bg-indigo-100"
+                                            type="submit"
+                                            disabled={submittingCompanySign}
+                                            className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2"
                                         >
-                                            {requestingCompanyOtp ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <RefreshCw className="h-3 w-3 mr-1" />}
-                                            Generar / Enviar OTP
+                                            {submittingCompanySign ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
+                                            Confirmar y Firmar Contrato por la Empresa
                                         </Button>
                                     </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    <Input
-                                        required
-                                        maxLength={6}
-                                        value={companyOtpInput}
-                                        onChange={(e) => setCompanyOtpInput(e.target.value)}
-                                        placeholder="000000"
-                                        className="h-10 font-mono text-base font-black tracking-widest text-center w-40 bg-white dark:bg-slate-900 border-indigo-300"
-                                    />
-                                    <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed flex-1">
-                                        El código OTP de la empresa se genera automáticamente al emitir el contrato y queda registrado en la auditoría eIDAS junto con la IP y el sello de tiempo UTC.
-                                    </p>
-                                </div>
-                            </div>
+                                </form>
+                            ) : (
+                                /* ABA 2: SUBIR ARCHIVO DE CONTRATO FIRMADO (EMPRESA Y/O TRABAJADOR) */
+                                <form onSubmit={handleUploadSignedContractSubmit} className="space-y-4">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                            1. ¿Quién ha firmado el archivo que va a subir?
+                                        </Label>
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => setSignedContractSignedBy('both')}
+                                                className={`p-3 rounded-xl border text-left transition-all ${
+                                                    signedContractSignedBy === 'both'
+                                                        ? 'border-emerald-500 bg-emerald-50/70 dark:bg-emerald-950/30 text-emerald-900 dark:text-emerald-200 shadow-sm'
+                                                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                <div className="text-xs font-bold flex items-center gap-1.5">
+                                                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+                                                    Empresa y Trabajador
+                                                </div>
+                                                <p className="text-[11px] opacity-80 mt-1">
+                                                    El documento ya tiene las dos firmas (marca ambos como Firmado ✓).
+                                                </p>
+                                            </button>
 
-                            <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
-                                <Button type="button" variant="outline" onClick={() => setCompanySignDialogOpen(false)}>
-                                    Cancelar
-                                </Button>
-                                <Button
-                                    type="submit"
-                                    disabled={submittingCompanySign}
-                                    className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-2"
-                                >
-                                    {submittingCompanySign ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                                    Confirmar y Firmar Contrato por la Empresa
-                                </Button>
-                            </div>
-                        </form>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSignedContractSignedBy('company')}
+                                                className={`p-3 rounded-xl border text-left transition-all ${
+                                                    signedContractSignedBy === 'company'
+                                                        ? 'border-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/30 text-indigo-900 dark:text-indigo-200 shadow-sm'
+                                                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                <div className="text-xs font-bold flex items-center gap-1.5">
+                                                    <Building2 className="h-4 w-4 text-indigo-600 shrink-0" />
+                                                    Solo la Empresa
+                                                </div>
+                                                <p className="text-[11px] opacity-80 mt-1">
+                                                    Firmado por la Empresa. El trabajador podrá firmarlo luego desde su enlace.
+                                                </p>
+                                            </button>
+
+                                            <button
+                                                type="button"
+                                                onClick={() => setSignedContractSignedBy('worker')}
+                                                className={`p-3 rounded-xl border text-left transition-all ${
+                                                    signedContractSignedBy === 'worker'
+                                                        ? 'border-amber-500 bg-amber-50/70 dark:bg-amber-950/30 text-amber-900 dark:text-amber-200 shadow-sm'
+                                                        : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400'
+                                                }`}
+                                            >
+                                                <div className="text-xs font-bold flex items-center gap-1.5">
+                                                    <FileText className="h-4 w-4 text-amber-600 shrink-0" />
+                                                    Solo el Trabajador
+                                                </div>
+                                                <p className="text-[11px] opacity-80 mt-1">
+                                                    Archivo enviado/firmado por el trabajador (marca Trabajador: Firmado ✓).
+                                                </p>
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                            2. Seleccionar Archivo del Contrato Firmado (.PDF, .DOCX o Imagen)
+                                        </Label>
+                                        <input
+                                            ref={signedContractFileInputRef}
+                                            type="file"
+                                            accept=".pdf,.docx,.doc,image/*"
+                                            onChange={(e) => {
+                                                const f = e.target.files?.[0];
+                                                if (f) setSignedContractFile(f);
+                                            }}
+                                            className="hidden"
+                                        />
+                                        <div
+                                            onClick={() => signedContractFileInputRef.current?.click()}
+                                            className={`border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-all flex flex-col items-center justify-center gap-2 ${
+                                                signedContractFile
+                                                    ? 'border-emerald-400 bg-emerald-50/40 dark:bg-emerald-950/20'
+                                                    : 'border-slate-300 dark:border-slate-700 hover:border-indigo-500 hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                            }`}
+                                        >
+                                            <UploadCloud className={`h-8 w-8 ${signedContractFile ? 'text-emerald-600' : 'text-indigo-500'}`} />
+                                            {signedContractFile ? (
+                                                <div>
+                                                    <p className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+                                                        {signedContractFile.name}
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        {(signedContractFile.size / 1024).toFixed(1)} KB — Haga clic aquí si desea cambiar el archivo
+                                                    </p>
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">
+                                                        Haga clic aquí para seleccionar el PDF o documento firmado
+                                                    </p>
+                                                    <p className="text-xs text-slate-500 mt-0.5">
+                                                        Formatos soportados: PDF (recomendado), DOCX, JPG o PNG
+                                                    </p>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </div>
+
+                                    <label className="flex items-center gap-2 text-xs text-slate-700 dark:text-slate-300 cursor-pointer pt-1">
+                                        <input
+                                            type="checkbox"
+                                            checked={archiveUploadedContract}
+                                            onChange={(e) => setArchiveUploadedContract(e.target.checked)}
+                                            className="rounded border-slate-300"
+                                        />
+                                        Archivar automáticamente este contrato firmado en la Ficha del Trabajador (Pestaña Documentos)
+                                    </label>
+
+                                    <div className="flex justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                                        <Button type="button" variant="outline" onClick={() => setCompanySignDialogOpen(false)}>
+                                            Cancelar
+                                        </Button>
+                                        <Button
+                                            type="submit"
+                                            disabled={uploadingSignedContract || !signedContractFile}
+                                            className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-2"
+                                        >
+                                            {uploadingSignedContract ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                                            Subir y Registrar Contrato Firmado
+                                        </Button>
+                                    </div>
+                                </form>
+                            )}
+                        </div>
                     )}
                 </DialogContent>
             </Dialog>
