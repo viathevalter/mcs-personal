@@ -6,7 +6,7 @@ import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useAuth } from '@/app/providers/AuthProvider';
 import type { Lead } from '../../estimaciones/types';
 
-export type CommercialOwnerKey = 'alex' | 'alba' | 'liseth' | 'fatumata';
+export type CommercialOwnerKey = 'alex' | 'alba' | 'ayslan' | 'liseth' | 'fatumata' | 'giada';
 
 export interface CommercialOperatorProfile {
   key: CommercialOwnerKey;
@@ -17,14 +17,15 @@ export interface CommercialOperatorProfile {
   displayName: string;
   shortName: string;
   empresaId: string;
-  empresaCode: 'LUM' | 'TRI' | 'WIS';
+  empresaCode: 'LUM' | 'TRI' | 'WIS' | 'GEN';
   empresaName: string;
-  country: 'ES' | 'FR';
+  country: 'ES' | 'FR' | 'IT';
   flag: string;
-  language: 'es' | 'fr';
+  language: 'es' | 'fr' | 'it';
   commercialEmail: string;       // E-mail Corporativo M365 / Outlook & Reply-To
   marketingSenderEmail: string;  // E-mail Remetente de Campanhas (Subdomínio Resend)
   senderBrandName: string;       // Nome de exibição nos disparos de e-mail
+  commercialPhone?: string;      // Telefone Comercial direto
 }
 
 export const COMMERCIAL_DEPARTMENT_ID = 'd3d525e8-14bc-43b4-9d66-b59826eba2ab';
@@ -47,14 +48,15 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     commercialEmail: 'comercial1@luminousalley.com',
     marketingSenderEmail: 'comercial1@mail.luminousalley.com',
     senderBrandName: 'Luminous Alley',
+    commercialPhone: '+34 937 37 41 80',
   },
   {
     key: 'alba',
     ownerKey: 'alba',
     userId: 'ca69863d-998b-4bad-865a-19720e7a1f67',
     email: 'alba@gestaologinpro.com',
-    name: 'Alba',
-    displayName: 'Alba',
+    name: 'Alba Bernal',
+    displayName: 'Alba Bernal',
     shortName: 'Alba',
     empresaId: 'a798620a-358a-4c6c-9db2-3a507c583cac',
     empresaCode: 'TRI',
@@ -65,14 +67,34 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     commercialEmail: 'comercial4@triangulolda.com',
     marketingSenderEmail: 'comercial4@es.triangulolda.com',
     senderBrandName: 'Triángulo Servicios Industriales',
+    commercialPhone: '+34 937 37 48 30',
+  },
+  {
+    key: 'ayslan',
+    ownerKey: 'ayslan',
+    userId: '9cba947d-432d-4622-89f0-18c5750581d9',
+    email: 'ayslan@gestaologinpro.com',
+    name: 'Ayslan',
+    displayName: 'Ayslan',
+    shortName: 'Ayslan',
+    empresaId: '4a507974-f922-409f-83c0-9ef8cbf982cb',
+    empresaCode: 'GEN',
+    empresaName: 'Génio Montagens',
+    country: 'ES',
+    flag: '🇪🇸',
+    language: 'es',
+    commercialEmail: 'comercial5@geniomontagens.com',
+    marketingSenderEmail: 'comercial5@es.geniomontagens.com',
+    senderBrandName: 'Génio Montagens Industriales',
+    commercialPhone: '+351 913 417 249',
   },
   {
     key: 'liseth',
     ownerKey: 'liseth',
     userId: 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa',
     email: 'liseth@gestaologinpro.com',
-    name: 'Liseth',
-    displayName: 'Liseth',
+    name: 'Liseth Alexandra',
+    displayName: 'Liseth Alexandra',
     shortName: 'Liseth',
     empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
     empresaCode: 'WIS',
@@ -83,6 +105,7 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     commercialEmail: 'comercial2@wiseowe.com',
     marketingSenderEmail: 'comercial2@es.wiseowe.com',
     senderBrandName: 'Wiseowe Servicios Industriales',
+    commercialPhone: '+34 937 37 15 40',
   },
   {
     key: 'fatumata',
@@ -101,6 +124,26 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     commercialEmail: 'comercial3@wiseowe.com',
     marketingSenderEmail: 'comercial3@fr.wiseowe.com',
     senderBrandName: 'Wiseowe Industrie',
+    commercialPhone: '+33 1 76 21 06 55',
+  },
+  {
+    key: 'giada',
+    ownerKey: 'giada',
+    userId: '76f9a2f5-116a-456e-a7d9-9a6a0401ac65',
+    email: 'giada@gestaologinpro.com',
+    name: 'Giada',
+    displayName: 'Giada',
+    shortName: 'Giada',
+    empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
+    empresaCode: 'WIS',
+    empresaName: 'Wiseowe',
+    country: 'IT',
+    flag: '🇮🇹',
+    language: 'it',
+    commercialEmail: 'comercial4@wiseowe.com',
+    marketingSenderEmail: 'comercial4@it.wiseowe.com',
+    senderBrandName: 'Wiseowe Servizi Industriali',
+    commercialPhone: '+39 02 8295 4100',
   },
 ];
 
@@ -204,9 +247,12 @@ export function useCommercialScope() {
     (empId: string | null, currentKey?: CommercialOwnerKey | 'all'): CommercialOwnerKey => {
       if (empId === '847796c4-b253-4e53-9e6b-34a127ec7d85') return 'alex';
       if (empId === 'a798620a-358a-4c6c-9db2-3a507c583cac') return 'alba';
+      if (empId === '4a507974-f922-409f-83c0-9ef8cbf982cb') return 'ayslan';
       if (empId === 'dae64d51-2181-4510-b14f-e63d2f111a8e') {
-        if (currentKey === 'liseth' || currentKey === 'fatumata') return currentKey;
-        return i18n.language?.startsWith('fr') ? 'fatumata' : 'liseth';
+        if (currentKey === 'liseth' || currentKey === 'fatumata' || currentKey === 'giada') return currentKey;
+        if (i18n.language?.startsWith('fr')) return 'fatumata';
+        if (i18n.language?.startsWith('it')) return 'giada';
+        return 'liseth';
       }
       return 'alex';
     },
