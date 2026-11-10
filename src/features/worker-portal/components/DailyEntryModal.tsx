@@ -115,23 +115,31 @@ export function DailyEntryModal({
     // Carregar dados iniciais ao abrir ou mudar dia
     useEffect(() => {
         const preferredObra = sanitizeObraChoice(initialEntry?.obra || defaultObra);
-        if (initialEntry) {
-            const tot = Number(initialEntry.totalHoras || 0);
-            const not = Number(initialEntry.horasNoturnas || 0);
+        const tot = Number(initialEntry?.totalHoras || 0);
+        const not = Number(initialEntry?.horasNoturnas || 0);
+        const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
+        const obsTrim = (initialEntry?.obs || '').trim();
+        const hasExplicitZeroEntry = Boolean(
+            initialEntry &&
+            tot === 0 &&
+            obsTrim !== '' &&
+            (isWeekend || obsTrim.toLowerCase().includes('folga') || obsTrim.toLowerCase().includes('festivo') || obsTrim.toLowerCase().includes('descanso'))
+        );
+
+        if (tot > 0 || hasExplicitZeroEntry) {
             const isNot = not > 0;
             const currentShift = isNot ? 'noturno' : 'diurno';
             const defaultStart = isNot ? '18:00' : '07:00';
-            const loadedEntrada = initialEntry.entrada || (tot > 0 ? defaultStart : '');
-            const loadedSaida = initialEntry.saida || (tot > 0 ? computeEndTime(loadedEntrada, tot, currentShift) : '');
+            const loadedEntrada = initialEntry?.entrada || (tot > 0 ? defaultStart : '');
+            const loadedSaida = initialEntry?.saida || (tot > 0 ? computeEndTime(loadedEntrada, tot, currentShift) : '');
 
             setTotalHoras(tot);
             setTurno(currentShift);
             setEntrada(loadedEntrada);
             setSaida(loadedSaida);
             setObra(preferredObra);
-            setObs(initialEntry.obs || '');
+            setObs(obsTrim);
         } else {
-            const isWeekend = dateObj.getDay() === 0 || dateObj.getDay() === 6;
             const initHrs = isWeekend ? 0 : 8.0;
             const initStart = isWeekend ? '' : '07:00';
             const initEnd = isWeekend ? '' : computeEndTime('07:00', 8.0, 'diurno');
@@ -141,27 +149,71 @@ export function DailyEntryModal({
             setEntrada(initStart);
             setSaida(initEnd);
             setObra(preferredObra);
-            setObs(isWeekend ? (isSpanish ? 'Descanso' : 'Descanso') : '');
+            setObs(isWeekend ? 'Descanso' : '');
         }
     }, [validDay, initialEntry, defaultObra, availableObras, sanitizeObraChoice, computeEndTime]);
+
+    const computeHoursFromTimes = useCallback((startStr: string, endStr: string): number | null => {
+        if (!startStr || !endStr) return null;
+        const [sh, sm] = startStr.split(':').map(Number);
+        const [eh, em] = endStr.split(':').map(Number);
+        if (isNaN(sh) || isNaN(sm) || isNaN(eh) || isNaN(em)) return null;
+        let diffMin = (eh * 60 + em) - (sh * 60 + sm);
+        if (diffMin <= 0) diffMin += 24 * 60;
+        const rawHours = diffMin / 60;
+        // Desconta 1h de refeição caso o período entre entrada e saída seja entre 6h e 11.5h
+        const worked = (rawHours >= 6 && rawHours < 12) ? rawHours - 1 : rawHours;
+        return Math.max(0.5, Math.min(24, Math.round(worked * 2) / 2));
+    }, []);
 
     // Trocar Turno (atualiza horário inicial e final conforme o turno)
     const handleTurnoChange = (newTurno: 'diurno' | 'noturno') => {
         setTurno(newTurno);
         const newStart = newTurno === 'diurno' ? '07:00' : '18:00';
-        setEntrada(newStart);
-        if (totalHoras > 0) {
-            setSaida(computeEndTime(newStart, totalHoras, newTurno));
-        } else {
-            setSaida('');
+        const effectiveHrs = totalHoras > 0 ? totalHoras : 8.0;
+        if (totalHoras === 0) {
+            setTotalHoras(8.0);
+            if (obs.toLowerCase().includes('descanso') || obs.toLowerCase().includes('folga')) {
+                setObs('');
+            }
         }
+        setEntrada(newStart);
+        setSaida(computeEndTime(newStart, effectiveHrs, newTurno));
     };
 
     // Alteração manual da Entrada (ajusta a Saída para preservar a quantidade de horas trabalhadas)
     const handleEntradaChange = (val: string) => {
         setEntrada(val);
-        if (totalHoras > 0 && val) {
+        if (!val) return;
+        if (totalHoras > 0) {
             setSaida(computeEndTime(val, totalHoras, turno));
+        } else if (saida) {
+            const calc = computeHoursFromTimes(val, saida);
+            if (calc && calc > 0) {
+                setTotalHoras(calc);
+                if (obs.toLowerCase().includes('descanso') || obs.toLowerCase().includes('folga')) {
+                    setObs('');
+                }
+            }
+        } else {
+            setTotalHoras(8.0);
+            setSaida(computeEndTime(val, 8.0, turno));
+            if (obs.toLowerCase().includes('descanso') || obs.toLowerCase().includes('folga')) {
+                setObs('');
+            }
+        }
+    };
+
+    const handleSaidaChange = (val: string) => {
+        setSaida(val);
+        if (val && entrada) {
+            const calc = computeHoursFromTimes(entrada, val);
+            if (calc && calc > 0) {
+                setTotalHoras(calc);
+                if (obs.toLowerCase().includes('descanso') || obs.toLowerCase().includes('folga')) {
+                    setObs('');
+                }
+            }
         }
     };
 
@@ -508,7 +560,7 @@ export function DailyEntryModal({
                                         id="saida"
                                         type="time"
                                         value={saida}
-                                        onChange={(e) => setSaida(e.target.value)}
+                                        onChange={(e) => handleSaidaChange(e.target.value)}
                                         className="pl-8 h-8 rounded-lg bg-slate-50 border-slate-200 text-xs font-medium text-slate-800"
                                     />
                                 </div>

@@ -155,12 +155,18 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                         return false;
                     });
 
+                    const hasFilledDays = (h: any) => {
+                        const raw = h?.apontamentos_diarios;
+                        const arr = Array.isArray(raw) ? raw : [];
+                        return arr.some((d: any) => Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0) > 0);
+                    };
+
                     candidates.sort((a, b) => {
                         const score = (h: any) => {
                             let s = 0;
                             const hClient = (h.cliente_nombre || '').trim().toLowerCase();
                             if (hClient && wClient && hClient === wClient) s += 2000;
-                            if (Number(h.horas_totais || 0) > 0 || (Array.isArray(h.apontamentos_diarios) && h.apontamentos_diarios.length > 0)) s += 500;
+                            if (Number(h.horas_totais || 0) > 0 || hasFilledDays(h)) s += 500;
                             if (h.file_url) s += 400;
                             if (h.status === 'validado') s += 60;
                             else if (h.status === 'assinado_encarregado') s += 50;
@@ -173,9 +179,9 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                     });
 
                     const hourRecord = candidates[0];
-                    const hasHours = Number(hourRecord?.horas_totais || 0) > 0 || (Array.isArray(hourRecord?.apontamentos_diarios) && hourRecord.apontamentos_diarios.length > 0);
+                    const hasHours = Number(hourRecord?.horas_totais || 0) > 0 || hasFilledDays(hourRecord);
                     let resolvedStatus = hourRecord?.status || 'pendente';
-                    if (resolvedStatus === 'processado' && !hourRecord?.file_url) {
+                    if ((resolvedStatus === 'processado' || resolvedStatus === 'em_andamento') && !hourRecord?.file_url) {
                         resolvedStatus = hasHours ? 'em_andamento' : 'pendente';
                     }
 

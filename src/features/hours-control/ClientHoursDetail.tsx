@@ -178,42 +178,49 @@ export function ClientHoursDetail() {
             const computeWeeklyBreakdown = (h: any): WeeklyHoursBreakdown => {
                 const arr = parseDailyArray(h);
                 let w1 = 0, w2 = 0, w3 = 0, w4 = 0;
-                let w1Active = false, w2Active = false, w3Active = false, w4Active = false;
 
                 arr.forEach((d: any) => {
                     const dayNum = Number(d?.day ?? d?.dia ?? 0);
                     const hrs = Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0);
-                    const hasObs = Boolean(String(d?.obs || '').trim());
-                    const isFilled = hrs > 0 || hasObs;
 
                     if (dayNum >= 1 && dayNum <= 7) {
                         w1 += hrs;
-                        if (isFilled) w1Active = true;
                     } else if (dayNum >= 8 && dayNum <= 14) {
                         w2 += hrs;
-                        if (isFilled) w2Active = true;
                     } else if (dayNum >= 15 && dayNum <= 21) {
                         w3 += hrs;
-                        if (isFilled) w3Active = true;
                     } else if (dayNum >= 22) {
                         w4 += hrs;
-                        if (isFilled) w4Active = true;
                     }
                 });
 
-                if (h?.file_url || h?.status === 'validado' || h?.status === 'assinado_encarregado') {
-                    w1Active = true;
-                    w2Active = true;
-                    w3Active = true;
-                    w4Active = true;
-                }
+                const isFullDocumentComplete = Boolean(
+                    h?.file_url || h?.status === 'validado' || h?.status === 'assinado_encarregado'
+                );
 
-                return { w1, w2, w3, w4, w1Active, w2Active, w3Active, w4Active };
+                const w1Active = w1 > 0 || isFullDocumentComplete;
+                const w2Active = w2 > 0 || isFullDocumentComplete;
+                const w3Active = w3 > 0 || isFullDocumentComplete;
+                const w4Active = w4 > 0 || isFullDocumentComplete;
+
+                return {
+                    w1: Math.round(w1 * 100) / 100,
+                    w2: Math.round(w2 * 100) / 100,
+                    w3: Math.round(w3 * 100) / 100,
+                    w4: Math.round(w4 * 100) / 100,
+                    w1Active,
+                    w2Active,
+                    w3Active,
+                    w4Active
+                };
             };
 
             const hasFilledPortalHours = (h: any): boolean => {
                 const arr = parseDailyArray(h);
-                return arr.some((d: any) => Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0) > 0);
+                const anyDayWithHours = arr.some(
+                    (d: any) => Number(d?.totalHoras ?? d?.total_horas ?? d?.horasNormais ?? d?.horas_normais ?? 0) > 0
+                );
+                return anyDayWithHours || Number(h?.horas_totais || 0) > 0;
             };
 
             const scoreHourRecord = (h: any, w: any): number => {
@@ -253,10 +260,11 @@ export function ClientHoursDetail() {
                 const hr = candidates[0];
                 const portalFilled = hasFilledPortalHours(hr);
                 const weekly = computeWeeklyBreakdown(hr);
-                const totalHrs = Number(hr?.horas_totais || 0);
+                const sumWeekly = Math.round((weekly.w1 + weekly.w2 + weekly.w3 + weekly.w4) * 100) / 100;
+                const totalHrs = Number(hr?.horas_totais || 0) || sumWeekly;
 
                 let resolvedStatus = hr?.status || 'pendente';
-                if (resolvedStatus === 'processado' && !hr?.file_url) {
+                if ((resolvedStatus === 'processado' || resolvedStatus === 'em_andamento') && !hr?.file_url) {
                     resolvedStatus = portalFilled ? 'em_andamento' : 'pendente';
                 }
 

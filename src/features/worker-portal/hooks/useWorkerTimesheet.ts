@@ -247,8 +247,8 @@ export function useWorkerTimesheet(workerAuth: any) {
                 const aPending = a.status !== 'validado' ? 1 : 0;
                 const bPending = b.status !== 'validado' ? 1 : 0;
                 if (aPending !== bPending) return bPending - aPending;
-                const aHas = Number((a as any).horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.length > 0) ? 1 : 0;
-                const bHas = Number((b as any).horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.length > 0) ? 1 : 0;
+                const aHas = Number((a as any).horas_totais || 0) > 0 || (Array.isArray(a.apontamentos_diarios) && a.apontamentos_diarios.some((d: any) => Number(d?.totalHoras ?? d?.total_horas ?? 0) > 0)) ? 1 : 0;
+                const bHas = Number((b as any).horas_totais || 0) > 0 || (Array.isArray(b.apontamentos_diarios) && b.apontamentos_diarios.some((d: any) => Number(d?.totalHoras ?? d?.total_horas ?? 0) > 0)) ? 1 : 0;
                 if (aHas !== bHas) return bHas - aHas;
                 const aCli = targetCli && (a.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
                 const bCli = targetCli && (b.cliente_nombre || '').trim().toLowerCase() === targetCli ? 1 : 0;
@@ -558,8 +558,8 @@ export function useWorkerTimesheet(workerAuth: any) {
         });
 
         try {
-            const nextStatus = (selectedPeriod.status === 'pendente' || (selectedPeriod.status === 'processado' && !selectedPeriod.file_url))
-                ? 'em_andamento'
+            const nextStatus = (selectedPeriod.status === 'pendente' || selectedPeriod.status === 'em_andamento' || (selectedPeriod.status === 'processado' && !selectedPeriod.file_url))
+                ? (totais > 0 ? 'em_andamento' : 'pendente')
                 : selectedPeriod.status;
 
             const resolvedCliente = (!selectedPeriod.cliente_nombre || selectedPeriod.cliente_nombre === 'CLIENTE GERAL' || selectedPeriod.cliente_nombre === 'NÃO DEFINIDO')
