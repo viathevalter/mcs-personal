@@ -60,6 +60,7 @@ interface BrandMaterialConfig {
   accentColor: string;
   website: string;
   logoPath: string;
+  logoOnDark?: boolean;
   heroImagePath: string;
   presentationPdf: string;
   dossierPdf: string;
@@ -72,10 +73,11 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     companyFull: 'Triángulo Servicios Industriales',
     brandSubtitle: 'Fuerza Laboral Especializada para la Industria Europea',
     primaryColor: '#0F172A',
-    accentColor: '#D97706',
+    accentColor: '#2563EB',
     website: 'www.triangulolda.com',
-    logoPath: '/assets/images/logo-triangulo.png',
-    heroImagePath: '/assets/images/triangulo-tig-welder.png',
+    logoPath: '/triangulo_logo_blanco_ES.png',
+    logoOnDark: true,
+    heroImagePath: '/assets/images/mkt-triangulo-es-hero.jpg',
     presentationPdf: 'Apresentacao-Triangulo-ES-Alba.pdf',
     dossierPdf: 'Dossier-Triangulo-ES-Alba.pdf',
     phone: '+34 937 37 48 30',
@@ -88,6 +90,7 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     accentColor: '#DC2626',
     website: 'www.geniomontagens.com',
     logoPath: '/assets/images/genio/logo_full.png',
+    logoOnDark: false,
     heroImagePath: '/assets/images/genio/hero_empresas.png',
     presentationPdf: 'Apresentacao-Genio-Montagens-ES-Ayslan.pdf',
     dossierPdf: 'Dossier-Genio-Montagens-ES-Ayslan.pdf',
@@ -100,7 +103,8 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     primaryColor: '#0C192C',
     accentColor: '#EA580C',
     website: 'www.wiseowe.com',
-    logoPath: '/assets/images/logo-wiseowe.png',
+    logoPath: '/assets/images/wiseowe-logo.png',
+    logoOnDark: true,
     heroImagePath: '/assets/images/wise-mkt01-hero.png',
     presentationPdf: 'Apresentacao-Wiseowe-ES-Liseth.pdf',
     dossierPdf: 'Dossier-Wiseowe-ES-Liseth.pdf',
@@ -113,7 +117,8 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     primaryColor: '#0C192C',
     accentColor: '#EA580C',
     website: 'www.wiseowe.com',
-    logoPath: '/assets/images/logo-wiseowe.png',
+    logoPath: '/assets/images/wiseowe-logo.png',
+    logoOnDark: true,
     heroImagePath: '/assets/images/wise-mkt02-dossier.png',
     presentationPdf: 'Apresentacao-Wiseowe-FR-Fatumata.pdf',
     dossierPdf: 'Dossier-Wiseowe-FR-Fatumata.pdf',
@@ -126,8 +131,9 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     primaryColor: '#1E1B4B',
     accentColor: '#2563EB',
     website: 'www.luminousalley.com',
-    logoPath: '/assets/images/logo-luminous.png',
-    heroImagePath: '/assets/images/luminous-mig-welder.png',
+    logoPath: '/luminous-logo-official-2026.png',
+    logoOnDark: true,
+    heroImagePath: '/luminous_hero_welder_mkt03.jpg',
     presentationPdf: 'Apresentacao-Luminous-ES-Alex.pdf',
     dossierPdf: 'Dossier-Luminous-ES-Alex.pdf',
     phone: '+34 937 37 41 80',
@@ -139,7 +145,8 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     primaryColor: '#0C192C',
     accentColor: '#EA580C',
     website: 'www.wiseowe.com',
-    logoPath: '/assets/images/logo-wiseowe.png',
+    logoPath: '/assets/images/wiseowe-logo.png',
+    logoOnDark: true,
     heroImagePath: '/assets/images/wise-mkt03-despliegue.png',
     presentationPdf: 'Apresentacao-Wiseowe-IT-Giada.pdf',
     dossierPdf: 'Dossier-Wiseowe-IT-Giada.pdf',
@@ -169,6 +176,9 @@ function buildMaterialsForCommercial(
   const dossierUrl = `${originUrl}/assets/materials/${brand.dossierPdf}`;
   const logoUrl = `${originUrl}${brand.logoPath}`;
   const heroUrl = `${originUrl}${brand.heroImagePath}`;
+  const logoStyle = brand.logoOnDark
+    ? 'max-height:38px;width:auto;display:block;'
+    : 'max-height:44px;width:auto;background:#ffffff;padding:5px 12px;border-radius:8px;display:block;';
 
   if (profile.language === 'fr') {
     return [
@@ -185,7 +195,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           🇫🇷 OPÉRATIONS FRANCE & EUROPE<br/>
@@ -242,7 +252,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           DOSSIER TECHNIQUE 2026<br/>
@@ -296,7 +306,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           MODÈLE OPÉRATIONNEL CLÉ EN MAIN<br/>
@@ -305,6 +315,7 @@ function buildMaterialsForCommercial(
       </tr>
     </table>
   </div>
+  <img src="${heroUrl}" alt="Modèle Tout Compris" style="width:100%;max-height:190px;object-fit:cover;display:block;" />
   <div style="padding:26px 28px;">
     <p style="font-size:15px;margin:0 0 12px 0;">Bonjour <strong>{{nome_contato}}</strong>,</p>
     <p style="font-size:14px;line-height:1.65;color:#334155;margin:0 0 16px 0;">
@@ -362,7 +373,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           🇮🇹 OPERAZIONI ITALIA & EUROPA<br/>
@@ -416,7 +427,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           DOSSIER TECNICO 2026<br/>
@@ -470,7 +481,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           MODELLO OPERATIVO CHIAVI IN MANO<br/>
@@ -479,6 +490,7 @@ function buildMaterialsForCommercial(
       </tr>
     </table>
   </div>
+  <img src="${heroUrl}" alt="Modello Tutto Incluso" style="width:100%;max-height:190px;object-fit:cover;display:block;" />
   <div style="padding:26px 28px;">
     <p style="font-size:15px;margin:0 0 12px 0;">Gentile <strong>{{nome_contato}}</strong>,</p>
     <p style="font-size:14px;line-height:1.65;color:#334155;margin:0 0 16px 0;">
@@ -536,7 +548,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           🇪🇸 OPERACIONES ESPAÑA & EUROPA<br/>
@@ -593,7 +605,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           DOSSIER TÉCNICO 2026<br/>
@@ -647,7 +659,7 @@ function buildMaterialsForCommercial(
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td>
-          <img src="${logoUrl}" alt="${brand.companyFull}" style="max-height:42px;background:#ffffff;padding:6px 12px;border-radius:8px;display:block;" />
+          <img src="${logoUrl}" alt="${brand.companyFull}" style="${logoStyle}" />
         </td>
         <td align="right" style="color:#f8fafc;font-size:12px;font-weight:700;">
           MODELO OPERATIVO LLAVE EN MANO<br/>
@@ -656,6 +668,7 @@ function buildMaterialsForCommercial(
       </tr>
     </table>
   </div>
+  <img src="${heroUrl}" alt="Modelo Todo Incluido" style="width:100%;max-height:190px;object-fit:cover;display:block;" />
   <div style="padding:26px 28px;">
     <p style="font-size:15px;margin:0 0 12px 0;">Estimado/a <strong>{{nome_contato}}</strong>,</p>
     <p style="font-size:14px;line-height:1.65;color:#334155;margin:0 0 16px 0;">
