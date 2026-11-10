@@ -73,7 +73,6 @@ export async function updateWorkerStatusUnified(payload: UnifiedStatusPayload): 
     // Regras para Status do Trabalhador
     if (['INATIVO', 'INACTIVO', 'BAIXA', 'DESLIGADO', 'DESISTIU'].includes(statusTrabUpper)) {
         updateData.data_baixa = effectiveDate;
-        updateData.cliente = null;
     } else if (['ATIVO', 'ACTIVO'].includes(statusTrabUpper)) {
         updateData.data_ingresso = effectiveDate;
         updateData.data_baixa = null;
