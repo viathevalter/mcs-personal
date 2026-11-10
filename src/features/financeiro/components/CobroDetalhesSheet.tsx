@@ -31,7 +31,8 @@ import {
     Download,
     FileSpreadsheet,
     ShieldCheck,
-    Eye
+    Eye,
+    RotateCcw
 } from 'lucide-react';
 import { 
     buildFaturaPdfFilename, 
@@ -908,6 +909,46 @@ export function CobroDetalhesSheet({
                         </div>
 
                         <div className="flex items-center gap-2">
+                            {/* Estornar / Reverter Baixa (para títulos Pagos ou Parciais) */}
+                            {(titulo.Status === 'Pago' || titulo.Status === 'Parcial' || Number(titulo.Saldo_a_pagar || 0) < Number(titulo.Valot_total || 0)) && (
+                                <Button
+                                    variant="outline"
+                                    onClick={async () => {
+                                        const isOverdue = titulo.Dt_venc ? new Date(titulo.Dt_venc) < new Date(new Date().setHours(0, 0, 0, 0)) : true;
+                                        const targetStatus = isOverdue ? 'Vencido' : 'A vencer';
+                                        if (!window.confirm(`Deseja estornar a baixa deste título (${titulo.Num_doc}) e retornar o status para "${targetStatus}" com saldo integral de ${formatCurrency(titulo.Valot_total)}?`)) {
+                                            return;
+                                        }
+                                        try {
+                                            const res = await updateContaReceber(titulo.id, {
+                                                Status: targetStatus,
+                                                Saldo_a_pagar: Number(titulo.Valot_total || 0),
+                                                Valot_total: Number(titulo.Valot_total || 0),
+                                                dt_recebimento: null as any,
+                                                Form_receb: '',
+                                                Valor_parcial: 0
+                                            });
+                                            if (!res.success) throw res.error;
+                                            await saveObservacao({
+                                                conta_receber_id: titulo.id,
+                                                usuario: currentUser,
+                                                tipo: 'Estorno de Baixa',
+                                                descricao: `Baixa estornada / revertida por ${currentUser}. Status retornado para "${targetStatus}" e saldo restaurado para ${formatCurrency(titulo.Valot_total)}.`,
+                                                data: new Date().toISOString()
+                                            });
+                                            toast.success(`Baixa estornada! Título retornado para ${targetStatus}.`);
+                                            onRefresh();
+                                            onClose();
+                                        } catch (err: any) {
+                                            toast.error('Erro ao estornar baixa: ' + (err?.message || 'Erro desconhecido'));
+                                        }
+                                    }}
+                                    className="text-rose-600 hover:text-rose-700 hover:bg-rose-50 border-rose-200 dark:border-rose-900/50 dark:text-rose-400 text-xs h-9 font-bold"
+                                >
+                                    <RotateCcw size={14} className="mr-1.5" /> Estornar Baixa (Voltar p/ Vencido)
+                                </Button>
+                            )}
+
                             {/* Editar/Alterar */}
                             <Button 
                                 variant="outline"

@@ -446,13 +446,35 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
       }
     }
     if (data.Saldo_a_pagar !== undefined) dbData.saldo_a_pagar = data.Saldo_a_pagar?.toString() || null;
+
+    // When reversing a cobro back to 'Vencido' or 'A vencer', ensure saldo_a_pagar is restored (> 0) and clear receipt fields
+    const isRevertingToOpen = data.Status === 'Vencido' || data.Status === 'A vencer';
+    if (isRevertingToOpen && (dbData.saldo_a_pagar === undefined || Number(dbData.saldo_a_pagar) <= 0)) {
+      if (dbData.valot_total !== undefined && Number(dbData.valot_total) > 0) {
+        dbData.saldo_a_pagar = dbData.valot_total;
+      } else {
+        const { data: existingRow } = await supabase
+          .from('contas_receber')
+          .select('valot_total')
+          .eq('id', id)
+          .maybeSingle();
+        if (existingRow?.valot_total) {
+          dbData.saldo_a_pagar = String(existingRow.valot_total);
+        }
+      }
+      dbData.dt_recebimento = null;
+      dbData.form_receb = null;
+      dbData.valor_parcial = null;
+      dbData.hist_valor_parcial = null;
+    }
+
     if (data.Status !== undefined) dbData.status = data.Status;
     if (data.Integral_parcial !== undefined) dbData.integral_parcial = data.Integral_parcial;
     if (data.comisao_taxa !== undefined) dbData.comisao_taxa = data.comisao_taxa;
     if (data.comentarios !== undefined) dbData.comentarios = data.comentarios;
     if (data.obs_recebimento !== undefined) dbData.obs_recebimento = data.obs_recebimento;
-    if (data.Form_receb !== undefined) dbData.form_receb = data.Form_receb;
-    if (data.dt_recebimento !== undefined) dbData.dt_recebimento = toSafeIsoDateString(data.dt_recebimento);
+    if (data.Form_receb !== undefined && !isRevertingToOpen) dbData.form_receb = data.Form_receb;
+    if (data.dt_recebimento !== undefined && !isRevertingToOpen) dbData.dt_recebimento = toSafeIsoDateString(data.dt_recebimento);
     if (data.categoria_id !== undefined) dbData.categoria_id = data.categoria_id;
     if (data.departamento_id !== undefined) dbData.departamento_id = data.departamento_id;
     if (data.obra_id !== undefined) dbData.obra_id = data.obra_id;
@@ -461,6 +483,18 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
 
     const { error } = await supabase.from('contas_receber').update(dbData).eq('id', id);
     if (error) throw error;
+
+    // If reverted from Pago/Parcial back to Vencido or A vencer, remove reversed payment records
+    if (isRevertingToOpen && Number(dbData.saldo_a_pagar) > 0) {
+      try {
+        await supabase
+          .from('contas_receber_pagamentos')
+          .delete()
+          .eq('conta_receber_id', id);
+      } catch (delPayErr) {
+        console.warn('Could not clean up contas_receber_pagamentos on status reversal:', delPayErr);
+      }
+    }
 
     // Keep linked core_finance.faturas ajustes_json.data_vencimento in sync when Dt_venc is updated
     if (dbData.dt_venc) {
