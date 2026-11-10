@@ -47,8 +47,28 @@ async function normalizeDocxTemplates(
               .replace(/www\.\s*stocc?o\s*\.\s*(pt|es|com)/gi, brandGuard.website)
               .replace(/\b(Hexagon|Luminous|Triangulo|Wiseowe|Stocco)\b(?=\s*·|\s*<\/w:t>)/gi, brandGuard.brandName);
           }
-          if (!brandGuard.isHexagon && path === 'word/document.xml' && content.includes('Tarancón')) {
-            content = content.replace(/Tarancón\s*\(Cuenca\)/gi, 'Vila Nova de Gaia');
+          if (!brandGuard.isHexagon && path === 'word/document.xml') {
+            if (content.includes('Tarancón')) {
+              content = content.replace(/Tarancón\s*\(Cuenca\)/gi, 'Vila Nova de Gaia');
+            }
+            // Empresas portuguesas (Luminous, Wiseowe, Triangulo, Stocco) não devem exibir cláusula de IVA espanhol (21% / sujeto pasivo / cláusula 3.6) nos presupuestos/contratos
+            content = content.replace(/<w:p\b[^>]*>[\s\S]*?<\/w:p>/g, (p) => {
+              const plain = p.replace(/<[^>]+>/g, '').trim();
+              if (
+                /precios\s+(?:indicados\s+)?no\s+incluyen\s+IVA/i.test(plain) ||
+                /Se\s+aplicar[aá]\s+el\s+(?:tipo\s+general\s+del\s+)?21\s*%/i.test(plain) ||
+                /Aplicaci[oó]n\s+del\s+IVA\s+e\s+inversi[oó]n\s+del\s+sujeto\s+pasivo/i.test(plain) ||
+                /prix\s+ne\s+comprennent\s+pas\s+la\s+TVA/i.test(plain) ||
+                /prezzi\s+non\s+includono\s+l.IVA/i.test(plain)
+              ) {
+                return '';
+              }
+              return p;
+            });
+            content = content
+              .replace(/\s*\(Impuestos no incluidos\s*\/\s*IVA aplicable\)/gi, '')
+              .replace(/\s*\(Hors taxes\s*\/\s*TVA applicable\)/gi, '')
+              .replace(/\s*\(Imposte escluse\s*\/\s*IVA applicabile\)/gi, '');
           }
         }
 
