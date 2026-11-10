@@ -3191,6 +3191,11 @@ MCS - Gestão Comercial`;
                               ) : null}
                               <span className="font-bold text-slate-900 dark:text-slate-100">{fatura.client?.nombre_comercial || 'Cliente Desconhecido'}</span>
                             </div>
+                            {fatura.client?.legal_name && fatura.client.legal_name.trim().toLowerCase() !== (fatura.client?.nombre_comercial || '').trim().toLowerCase() && (
+                              <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal leading-tight">
+                                {fatura.client.legal_name}
+                              </span>
+                            )}
                             {(fatura.ajustes_json?.obra || fatura.ajustesJson?.obra) && (
                               <div className="flex items-center gap-1 text-[11px] text-indigo-700 dark:text-indigo-300 font-medium mt-0.5">
                                 <span className="bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 rounded px-1.5 py-0.5 max-w-[280px] truncate" title={fatura.ajustes_json?.obra || fatura.ajustesJson?.obra}>

@@ -33,9 +33,14 @@ export function FaturasHistorico() {
   }, [selectedEmpresaId]);
 
   const filteredFaturas = faturas.filter(f => {
-    const query = searchQuery.toLowerCase();
-    const matchesId = f.id.toLowerCase().includes(query);
-    const matchesClient = f.client?.nombre_comercial?.toLowerCase().includes(query) || false;
+    const query = searchQuery.toLowerCase().trim();
+    if (!query) return true;
+    const matchesId = f.id.toLowerCase().includes(query) || (f.fatura_numero && f.fatura_numero.toLowerCase().includes(query));
+    const matchesClient =
+      f.client?.nombre_comercial?.toLowerCase().includes(query) ||
+      f.client?.legal_name?.toLowerCase().includes(query) ||
+      f.client?.codigo?.toLowerCase().includes(query) ||
+      false;
     return matchesId || matchesClient;
   });
 
@@ -150,7 +155,14 @@ export function FaturasHistorico() {
                       })()}
                     </TableCell>
                     <TableCell className="font-medium text-slate-700 dark:text-slate-300">
-                      {fatura.client?.nombre_comercial || 'Cliente Desconhecido'}
+                      <div className="flex flex-col">
+                        <span>{fatura.client?.nombre_comercial || 'Cliente Desconhecido'}</span>
+                        {fatura.client?.legal_name && fatura.client.legal_name.trim().toLowerCase() !== (fatura.client?.nombre_comercial || '').trim().toLowerCase() && (
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-normal">
+                            {fatura.client.legal_name}
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       <div className="flex items-center gap-1.5">

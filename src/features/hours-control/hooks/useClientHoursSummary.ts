@@ -5,6 +5,8 @@ import { getHoursControlWorkers } from '../../workers/api/workersApi';
 
 export interface ClientSummary {
     cliente_nombre: string;
+    legal_name?: string | null;
+    codigo?: string | null;
     total_workers: number;
     pending_hours: number;
     submitted_hours: number;
@@ -76,6 +78,24 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
 
                 if (!isMounted) return;
 
+                // Fetch clients metadata (legal_name, codigo) to support searching and displaying Razão Social alongside trade_name
+                const { data: clientsMeta } = await supabase
+                    .schema('core_common')
+                    .from('clients')
+                    .select('trade_name, legal_name, codigo')
+                    .is('deleted_at', null)
+                    .range(0, 9999);
+
+                const clientMetaMap = new Map<string, { legal_name?: string | null; codigo?: string | null }>();
+                (clientsMeta || []).forEach((cm: any) => {
+                    if (cm.trade_name) {
+                        clientMetaMap.set(cm.trade_name.trim().toUpperCase(), {
+                            legal_name: cm.legal_name || null,
+                            codigo: cm.codigo || null
+                        });
+                    }
+                });
+
                 // Group by client
                 const summaryMap = new Map<string, ClientSummary>();
                 
@@ -85,15 +105,24 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                     filteredWorkers = filteredWorkers.filter(w => {
                         const nameMatch = w.nome && w.nome.toLowerCase().includes(q);
                         const phoneMatch = w.movil && w.movil.toLowerCase().includes(q);
-                        return nameMatch || phoneMatch;
+                        const codeMatch = w.cod_colab && w.cod_colab.toLowerCase().includes(q);
+                        const cName = (w.cliente_nombre || '').trim();
+                        const clientMatch = cName.toLowerCase().includes(q);
+                        const meta = clientMetaMap.get(cName.toUpperCase());
+                        const legalMatch = meta?.legal_name && meta.legal_name.toLowerCase().includes(q);
+                        const clientCodeMatch = meta?.codigo && meta.codigo.toLowerCase().includes(q);
+                        return nameMatch || phoneMatch || codeMatch || clientMatch || legalMatch || clientCodeMatch;
                     });
                 }
 
                 filteredWorkers.forEach(w => {
                     const client = w.cliente_nombre || 'NÃO DEFINIDO';
                     if (!summaryMap.has(client)) {
+                        const meta = clientMetaMap.get(client.trim().toUpperCase());
                         summaryMap.set(client, {
                             cliente_nombre: client,
+                            legal_name: meta?.legal_name || null,
+                            codigo: meta?.codigo || null,
                             total_workers: 0,
                             pending_hours: 0,
                             submitted_hours: 0,

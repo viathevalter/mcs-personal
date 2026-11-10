@@ -3215,12 +3215,13 @@ MCS - Gestão Comercial`;
 
   // Filtrar faturamentos por prazo de pagamento, status e busca de cliente
   const filteredFaturamentos = faturamentos.filter(f => {
-    // 1. Filtro de Busca Textual
+    // 1. Filtro de Busca Textual (busca por Nome de Exibição, Razão Social e Código)
     if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.toLowerCase().trim();
       const clientName = (f.clientName || '').toLowerCase();
-      const clientCode = (f.clientCode || '').toLowerCase();
-      if (!clientName.includes(query) && !clientCode.includes(query)) {
+      const clientLegalName = (f.clientLegalName || '').toLowerCase();
+      const clientCode = (f.clientCodigo || f.clientCode || '').toLowerCase();
+      if (!clientName.includes(query) && !clientLegalName.includes(query) && !clientCode.includes(query)) {
         return false;
       }
     }
@@ -3653,7 +3654,14 @@ MCS - Gestão Comercial`;
                               {f.clientCodigo}
                             </span>
                           )}
-                          <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100 truncate">{f.clientName}</h3>
+                          <h3 className="font-semibold text-base text-slate-900 dark:text-slate-100 truncate">
+                            {f.clientName}
+                            {f.clientLegalName && f.clientLegalName.trim().toLowerCase() !== (f.clientName || '').trim().toLowerCase() && (
+                              <span className="ml-1.5 text-xs font-normal text-slate-500 dark:text-slate-400">
+                                ({f.clientLegalName})
+                              </span>
+                            )}
+                          </h3>
                           {f.paymentTermDays !== null && f.paymentTermDays <= 15 && (
                             <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[9px] font-extrabold px-1.5 py-0 shadow-[0_0_8px_rgba(16,185,129,0.3)] shrink-0">
                               Prioridade

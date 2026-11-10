@@ -93,49 +93,13 @@ export function PortalCliente() {
     return undefined;
   }, [disputedHours]);
 
-  const { 
-    totalHorasCalculadas, 
-    totalNormaisCalculadas, 
-    totalNoturnasCalculadas,
-    totalHorasNormaisCalculadas,
-    totalHorasNoturnasCalculadas
-  } = React.useMemo(() => {
-    let tot = 0;
-    let norm = 0;
-    let not = 0;
-    horas.forEach(h => {
-      const entryTot = Number(h.horas_totais || 0);
-      const entryNot = Number(h.horas_noturnas || 0);
-      const entryNorm = Math.max(0, entryTot - entryNot);
+  const { cycleStartDay, year, month } = React.useMemo(() => {
+    return resolveFaturaBillingCycle(fatura, horas);
+  }, [fatura, horas]);
 
-      const proposed = getProposedHours(h.worker_id, h.obra_id || 'sem_obra', h.data_trabalho);
-      if (proposed !== undefined) {
-        tot += proposed;
-        if (entryNot > 0 && entryNorm === 0) {
-          not += proposed;
-        } else if (entryNot === 0) {
-          norm += proposed;
-        } else if (entryTot > 0) {
-          const pNot = Math.min(proposed, entryNot * (proposed / entryTot));
-          not += pNot;
-          norm += Math.max(0, proposed - pNot);
-        } else {
-          norm += proposed;
-        }
-      } else {
-        tot += entryTot;
-        norm += entryNorm;
-        not += entryNot;
-      }
-    });
-    return {
-      totalHorasCalculadas: tot,
-      totalNormaisCalculadas: norm,
-      totalNoturnasCalculadas: not,
-      totalHorasNormaisCalculadas: norm,
-      totalHorasNoturnasCalculadas: not
-    };
-  }, [horas, getProposedHours]);
+  const daysArray = React.useMemo(() => {
+    return getBillingCycleDays(cycleStartDay, year, month);
+  }, [cycleStartDay, year, month]);
 
   useEffect(() => {
     // Force light mode on this page
@@ -445,6 +409,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
         chunk.forEach(w => {
           const workerTotal = daysArrayLocal.reduce((sum, dInfo) => {
+            const proposedVal = getProposedHours(w.workerId, obra.obraId, dInfo.dateStr);
+            if (proposedVal !== undefined) return sum + proposedVal;
             const hourObj = w.horasDiarias[dInfo.dateStr] as any;
             return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
           }, 0);
@@ -459,7 +425,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
           daysArrayLocal.forEach(dInfo => {
             const hourObj = w.horasDiarias[dInfo.dateStr] as any;
-            const hoursVal = hourObj ? Number(hourObj.horas_totais || 0) : 0;
+            const proposedVal = getProposedHours(w.workerId, obra.obraId, dInfo.dateStr);
+            const hoursVal = proposedVal !== undefined ? proposedVal : (hourObj ? Number(hourObj.horas_totais || 0) : 0);
             const nightVal = hourObj ? Number(hourObj.horas_noturnas || 0) : 0;
             
             const cellDate = new Date(dInfo.year, dInfo.month - 1, dInfo.day);
@@ -514,6 +481,8 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
           daysArrayLocal.forEach(dInfo => {
             const daySum = obra.workers.reduce((sum, w) => {
+              const proposedVal = getProposedHours(w.workerId, obra.obraId, dInfo.dateStr);
+              if (proposedVal !== undefined) return sum + proposedVal;
               const hourObj = w.horasDiarias[dInfo.dateStr] as any;
               return sum + (hourObj ? Number(hourObj.horas_totais || 0) : 0);
             }, 0);
@@ -797,8 +766,55 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
       };
     });
 
+    // Also include disputed hours added by the client on days that were originally blank (no row in horas)
+    obraMap.forEach((obraGroup) => {
+      obraGroup.workers.forEach((worker) => {
+        daysArray.forEach((dInfo) => {
+          const dateKey = dInfo.dateStr;
+          if (!worker.horasDiarias[dateKey]) {
+            const proposed = getProposedHours(worker.workerId, obraGroup.obraId, dateKey);
+            if (proposed !== undefined && proposed > 0) {
+              const entryValorNormais = proposed * worker.tarifa;
+              worker.totalHoras += proposed;
+              worker.totalHorasNormais += proposed;
+              worker.totalValor += entryValorNormais;
+
+              obraGroup.totalHoras += proposed;
+              obraGroup.totalHorasNormais += proposed;
+              obraGroup.totalValor += entryValorNormais;
+              obraGroup.totalValorNormais += entryValorNormais;
+            }
+          }
+        });
+      });
+    });
+
     return Array.from(obraMap.values()).sort((a, b) => a.obraName.localeCompare(b.obraName));
-  }, [horas, getProposedHours, fatura]);
+  }, [horas, getProposedHours, fatura, daysArray]);
+
+  const { 
+    totalHorasCalculadas, 
+    totalNormaisCalculadas, 
+    totalNoturnasCalculadas,
+    totalHorasNormaisCalculadas,
+    totalHorasNoturnasCalculadas
+  } = React.useMemo(() => {
+    let tot = 0;
+    let norm = 0;
+    let not = 0;
+    groupedObras.forEach(o => {
+      tot += o.totalHoras;
+      norm += o.totalHorasNormais;
+      not += o.totalHorasNoturnas;
+    });
+    return {
+      totalHorasCalculadas: tot,
+      totalNormaisCalculadas: norm,
+      totalNoturnasCalculadas: not,
+      totalHorasNormaisCalculadas: norm,
+      totalHorasNoturnasCalculadas: not
+    };
+  }, [groupedObras]);
 
   const visibleObras = React.useMemo(() => {
     if (selectedObraId === 'all') return groupedObras;
@@ -848,14 +864,6 @@ const clientName = fatura.client?.legal_name || fatura.client?.razon_social || f
 
     return Array.from(workersMap.values());
   }, [groupedObras]);
-
-  const { cycleStartDay, year, month } = React.useMemo(() => {
-    return resolveFaturaBillingCycle(fatura, horas);
-  }, [fatura, horas]);
-
-  const daysArray = React.useMemo(() => {
-    return getBillingCycleDays(cycleStartDay, year, month);
-  }, [cycleStartDay, year, month]);
 
   const { finalTotalVal, adjustments, dataEmissaoStr, dataVencimentoStr, totalBaseVal, totalValorNormaisCalculadas, totalValorNoturnasCalculadas } = React.useMemo(() => {
     let totValNormais = 0;

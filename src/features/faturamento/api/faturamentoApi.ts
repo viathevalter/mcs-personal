@@ -2124,15 +2124,21 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           }
         });
 
-        // Also check any newly added dates in disputedObj not yet in hoursSums
-        Object.keys(disputedObj).forEach(wId => {
-          const dates = disputedObj[wId] || {};
-          const sample = faturaHours.find(h => h.worker_id === wId);
+        // Also check any newly added dates in disputedObj not yet in hoursSums (supporting composite workerId___obraId keys)
+        Object.keys(disputedObj).forEach(rawKey => {
+          const dates = disputedObj[rawKey] || {};
+          if (typeof dates !== 'object') return;
+          const parts = rawKey.split('___');
+          const wId = parts[0];
+          const oId = parts[1] || null;
+          const sample = faturaHours.find(h => h.worker_id === wId && (!oId || h.obra_id === oId)) || faturaHours.find(h => h.worker_id === wId);
           const rate = Number(sample?.tarifa_faturada || 0);
+          const obraKey = oId || sample?.obra_id || 'sem_obra';
 
           Object.keys(dates).forEach(dateKey => {
-            const key = `${wId}_${dateKey}`;
+            const key = `${wId}_${dateKey}_${obraKey}`;
             if (!processedKeys.has(key)) {
+              processedKeys.add(key);
               const hoursVal = Number(dates[dateKey] || 0);
               if (hoursVal > 0) {
                 totHoras += hoursVal;

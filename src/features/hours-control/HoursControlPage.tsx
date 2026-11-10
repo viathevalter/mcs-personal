@@ -780,9 +780,16 @@ export function HoursControlPage() {
                                                 }`}>
                                                     <Building2 className="h-4 w-4" />
                                                 </div>
-                                                <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
-                                                    {client.cliente_nombre}
-                                                </span>
+                                                <div className="flex flex-col">
+                                                    <span className="text-sm font-bold text-foreground group-hover:text-primary transition-colors">
+                                                        {client.cliente_nombre}
+                                                    </span>
+                                                    {client.legal_name && client.legal_name.trim().toLowerCase() !== client.cliente_nombre.trim().toLowerCase() && (
+                                                        <span className="text-[11px] font-normal text-muted-foreground leading-tight">
+                                                            {client.legal_name}
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-center">
