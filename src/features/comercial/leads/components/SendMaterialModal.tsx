@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import {
@@ -27,6 +28,13 @@ import {
   ShieldCheck,
   ClipboardList,
   Layers,
+  Pencil,
+  RotateCcw,
+  Code,
+  Bold,
+  Italic,
+  Underline,
+  List,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/shared/supabase/client';
@@ -221,7 +229,7 @@ function buildMaterialsForCommercial(
         <li><strong>Mécaniciens Monteurs :</strong> alignement d'équipements rotatifs, skids, arrêts d'unités et maintenance lourde.</li>
       </ul>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
       <a href="${presUrl}" target="_blank" style="background:${brand.accentColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
         📄 Télécharger la Présentation Exécutive (PDF également en pièce jointe)
@@ -277,7 +285,7 @@ function buildMaterialsForCommercial(
         <li><strong>Méthodologie en 4 Étapes :</strong> Cahier des charges, sélection sur épreuve pratique, logistique clé en main et suivi en chantier.</li>
       </ul>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
       <a href="${dossierUrl}" target="_blank" style="background:${brand.primaryColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
         📘 Ouvrir le Dossier Technique Complet (PDF 5 Pages en pièce jointe)
@@ -345,7 +353,7 @@ function buildMaterialsForCommercial(
         <li><strong>Volume horaire hebdomadaire prévu :</strong> (ex. 40h à 50h / semaine)</li>
       </ol>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:13px;color:#1e293b;">
       Dans l'attente de votre retour,<br/>
       <strong style="font-size:14px;color:${brand.primaryColor};">{{vendedor_nome}}</strong><br/>
@@ -399,7 +407,7 @@ function buildMaterialsForCommercial(
         <li><strong>Montatori Meccanici:</strong> montaggio macchinari, allineamento gruppi rotanti, skid e fermate impianti.</li>
       </ul>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
       <a href="${presUrl}" target="_blank" style="background:${brand.accentColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
         📄 Scarica la Presentazione Esecutiva (PDF allegato all'e-mail)
@@ -452,7 +460,7 @@ function buildMaterialsForCommercial(
         <li><strong>Metodologia in 4 Fasi:</strong> Analisi WPS, prova pratica in cabina, logistica chiavi in mano e coordinamento in cantiere.</li>
       </ul>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
       <a href="${dossierUrl}" target="_blank" style="background:${brand.primaryColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
         📘 Apri il Dossier Tecnico Completo (PDF 5 Pagine in allegato)
@@ -520,7 +528,7 @@ function buildMaterialsForCommercial(
         <li><strong>Monte ore settimanale previsto:</strong> (es. 40h - 50h / settimana)</li>
       </ol>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:13px;color:#1e293b;">
       Restando in attesa di un Suo gentile riscontro,<br/>
       <strong style="font-size:14px;color:${brand.primaryColor};">{{vendedor_nome}}</strong><br/>
@@ -574,7 +582,7 @@ function buildMaterialsForCommercial(
         <li><strong>Montadores Mecánicos:</strong> montaje de maquinaria industrial, alineación de equipos rotativos, skids y paradas de planta.</li>
       </ul>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
       <a href="${presUrl}" target="_blank" style="background:${brand.accentColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
         📄 Descargar Presentación Ejecutiva (PDF también adjunto en este correo)
@@ -630,7 +638,7 @@ function buildMaterialsForCommercial(
         <li><strong>Metodología en 4 Etapas:</strong> Levantamiento de WPS, selección práctica en cabina, logística integral y seguimiento en obra.</li>
       </ul>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
       <a href="${dossierUrl}" target="_blank" style="background:${brand.primaryColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
         📘 Abrir Dossier Técnico Completo (PDF 5 Páginas adjunto)
@@ -698,7 +706,7 @@ function buildMaterialsForCommercial(
         <li><strong>Jornada semanal prevista:</strong> (ej. 40h a 50h / semana)</li>
       </ol>
     </div>
-    <!-- EXTRA_NOTE_SLOT -->
+    <div data-extra-note-slot="true"></div>
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:13px;color:#1e293b;">
       Quedamos a la espera de sus comentarios para preparar su cotización,<br/>
       <strong style="font-size:14px;color:${brand.primaryColor};">{{vendedor_nome}}</strong><br/>
@@ -804,6 +812,12 @@ export function SendMaterialModal({
   const [emailHtml, setEmailHtml] = useState<string>('');
   const [extraNote, setExtraNote] = useState<string>('');
 
+  // Editor states
+  const [editorMode, setEditorMode] = useState<'visual' | 'html'>('visual');
+  const [isVisualEditable, setIsVisualEditable] = useState<boolean>(true);
+  const [hasCustomEdits, setHasCustomEdits] = useState<boolean>(false);
+  const visualEditorRef = useRef<HTMLDivElement | null>(null);
+
   // UI states
   const [isSendingM365, setIsSendingM365] = useState<boolean>(false);
   const [copied, setCopied] = useState<boolean>(false);
@@ -847,23 +861,96 @@ export function SendMaterialModal({
       .replace(/\{\{vendedor_telefone\}\}/gi, senderPhone);
   };
 
-  // Update Subject & HTML whenever selected material, sender or lead changes
-  useEffect(() => {
+  const buildNoteHtmlBlock = (noteText: string) => {
+    if (!noteText.trim()) return '';
+    const noteTitle =
+      activeSenderProfile.language === 'fr'
+        ? 'Note complémentaire suite à notre échange :'
+        : activeSenderProfile.language === 'it'
+          ? 'Nota aggiuntiva dalla nostra chiamata:'
+          : 'Nota adicional de nuestra llamada:';
+    return `<div style="margin:16px 0;padding:14px 16px;background-color:#f8fafc;border-left:4px solid ${activeBrandConfig.accentColor};border-radius:8px;font-size:13px;color:#1e293b;"><p style="margin:0;font-weight:700;color:#0f172a;">${noteTitle}</p><p style="margin:5px 0 0 0;line-height:1.5;">${noteText.replace(/\n/g, '<br/>')}</p></div>`;
+  };
+
+  // Load default template HTML and sync visual editor
+  const applyDefaultTemplate = () => {
+    let baseHtml = '';
     if (selectedSourceType === 'builtin') {
       const mat = builtinMaterials.find((m) => m.id === selectedId) || builtinMaterials[0];
       if (!mat) return;
       const compSuffix = lead?.company_name || lead?.name || '';
       const sub = compSuffix ? `${mat.subject} — ${compSuffix}` : mat.subject;
       setEmailSubject(sub);
-      setEmailHtml(renderTemplateTags(mat.htmlBody));
+      baseHtml = renderTemplateTags(mat.htmlBody);
     } else {
       const tmpl = dbTemplates.find((t) => t.id === selectedId);
       if (tmpl) {
         setEmailSubject(tmpl.subject ? renderTemplateTags(tmpl.subject) : `${activeBrandConfig.companyFull}`);
-        setEmailHtml(renderTemplateTags(tmpl.html_content || ''));
+        baseHtml = renderTemplateTags(tmpl.html_content || '');
       }
     }
+
+    if (extraNote.trim() && baseHtml.includes('data-extra-note-slot="true"')) {
+      baseHtml = baseHtml.replace(
+        /<div data-extra-note-slot="true">[\s\S]*?<\/div>/i,
+        `<div data-extra-note-slot="true">${buildNoteHtmlBlock(extraNote)}</div>`
+      );
+    }
+
+    setEmailHtml(baseHtml);
+    setHasCustomEdits(false);
+    if (visualEditorRef.current) {
+      visualEditorRef.current.innerHTML = baseHtml;
+    }
+  };
+
+  // Update Subject & HTML whenever selected material, sender or lead changes
+  useEffect(() => {
+    applyDefaultTemplate();
   }, [selectedId, selectedSourceType, builtinMaterials, lead, senderName, senderEmail, senderPhone, dbTemplates]);
+
+  // Sync visual editor when switching from HTML mode back to Visual mode or opening modal
+  useEffect(() => {
+    if (isOpen && editorMode === 'visual' && visualEditorRef.current) {
+      if (visualEditorRef.current.innerHTML !== emailHtml) {
+        visualEditorRef.current.innerHTML = emailHtml;
+      }
+    }
+  }, [isOpen, editorMode]);
+
+  // Live-update only the extra-note slot when user types in extraNote without losing custom edits in the rest of the email
+  const handleExtraNoteChange = (nextNote: string) => {
+    setExtraNote(nextNote);
+    const noteBlock = buildNoteHtmlBlock(nextNote);
+
+    if (visualEditorRef.current) {
+      const slotEl = visualEditorRef.current.querySelector('[data-extra-note-slot="true"]');
+      if (slotEl) {
+        slotEl.innerHTML = noteBlock;
+        setEmailHtml(visualEditorRef.current.innerHTML);
+        return;
+      }
+    }
+
+    if (emailHtml.includes('data-extra-note-slot="true"')) {
+      const updated = emailHtml.replace(
+        /<div data-extra-note-slot="true">[\s\S]*?<\/div>/i,
+        `<div data-extra-note-slot="true">${noteBlock}</div>`
+      );
+      setEmailHtml(updated);
+      if (visualEditorRef.current) {
+        visualEditorRef.current.innerHTML = updated;
+      }
+    }
+  };
+
+  const handleExecCommand = (command: string) => {
+    if (editorMode !== 'visual' || !visualEditorRef.current) return;
+    visualEditorRef.current.focus();
+    document.execCommand(command, false);
+    setEmailHtml(visualEditorRef.current.innerHTML);
+    setHasCustomEdits(true);
+  };
 
   const currentBuiltinMaterial = useMemo(() => {
     if (selectedSourceType !== 'builtin') return null;
@@ -888,23 +975,22 @@ export function SendMaterialModal({
     try {
       setIsSendingM365(true);
 
-      let finalHtml = emailHtml;
-      if (extraNote.trim()) {
-        const noteTitle =
-          activeSenderProfile.language === 'fr'
-            ? 'Note complémentaire suite à notre échange :'
-            : activeSenderProfile.language === 'it'
-              ? 'Nota aggiuntiva dalla nostra chiamata:'
-              : 'Nota adicional de nuestra llamada:';
-        const extraBlock = `<div style="margin:16px 0;padding:14px 16px;background-color:#f8fafc;border-left:4px solid ${activeBrandConfig.accentColor};border-radius:8px;font-size:13px;color:#1e293b;"><p style="margin:0;font-weight:700;color:#0f172a;">${noteTitle}</p><p style="margin:5px 0 0 0;line-height:1.5;">${extraNote.replace(/\n/g, '<br/>')}</p></div>`;
+      let finalHtml =
+        editorMode === 'visual' && visualEditorRef.current
+          ? visualEditorRef.current.innerHTML
+          : emailHtml;
 
-        if (finalHtml.includes('<!-- EXTRA_NOTE_SLOT -->')) {
-          finalHtml = finalHtml.replace('<!-- EXTRA_NOTE_SLOT -->', extraBlock);
+      // If extraNote was typed and not yet inside the HTML, inject it
+      if (extraNote.trim() && !finalHtml.includes(extraNote.trim().slice(0, 15))) {
+        const extraBlock = buildNoteHtmlBlock(extraNote);
+        if (finalHtml.includes('data-extra-note-slot="true"')) {
+          finalHtml = finalHtml.replace(
+            /<div data-extra-note-slot="true">[\s\S]*?<\/div>/i,
+            `<div data-extra-note-slot="true">${extraBlock}</div>`
+          );
         } else {
           finalHtml += extraBlock;
         }
-      } else {
-        finalHtml = finalHtml.replace('<!-- EXTRA_NOTE_SLOT -->', '');
       }
 
       // Build PDF attachments array if enabled
@@ -987,7 +1073,11 @@ export function SendMaterialModal({
       toast.error('Informe o e-mail de destino');
       return;
     }
-    const plainTextBody = emailHtml
+    const currentHtml =
+      editorMode === 'visual' && visualEditorRef.current
+        ? visualEditorRef.current.innerHTML
+        : emailHtml;
+    const plainTextBody = currentHtml
       .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
       .replace(/<[^>]+>/g, '')
       .replace(/\n\s*\n\s*\n/g, '\n\n')
@@ -998,7 +1088,11 @@ export function SendMaterialModal({
   };
 
   const handleCopyText = () => {
-    const plainTextBody = emailHtml
+    const currentHtml =
+      editorMode === 'visual' && visualEditorRef.current
+        ? visualEditorRef.current.innerHTML
+        : emailHtml;
+    const plainTextBody = currentHtml
       .replace(/<[^>]+>/g, '')
       .replace(/\n\s*\n\s*\n/g, '\n\n')
       .trim();
@@ -1030,9 +1124,9 @@ export function SendMaterialModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && !isSendingM365 && onClose()}>
-      <DialogContent className="sm:max-w-4xl max-h-[94vh] flex flex-col p-0 bg-card border-border text-foreground shadow-2xl overflow-hidden">
-        <DialogHeader className="p-4 sm:p-5 pb-3.5 border-b border-border bg-muted/30">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <DialogContent className="sm:max-w-[96vw] xl:max-w-[1380px] w-full h-[94vh] max-h-[95vh] flex flex-col p-0 bg-card border-border text-foreground shadow-2xl overflow-hidden">
+        <DialogHeader className="px-5 py-3.5 border-b border-border bg-muted/30 shrink-0">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-blue-500/15 border border-blue-500/30 flex items-center justify-center text-blue-600 dark:text-blue-400 shrink-0">
                 <Mail className="w-5 h-5" />
@@ -1047,13 +1141,13 @@ export function SendMaterialModal({
                 <DialogDescription className="text-xs text-muted-foreground">
                   {lead
                     ? `Empresa: ${lead.company_name || lead.name} • Contato: ${lead.name || 'Decisor'}`
-                    : 'Dispare a Apresentação Executiva ou Dossiê Técnico oficial com PDF anexado pela conta M365 do vendedor'}
+                    : 'Edite o texto livremente e dispare a Apresentação Executiva ou Dossiê Técnico oficial pela conta M365 do vendedor'}
                 </DialogDescription>
               </div>
             </div>
 
             {/* Remetente M365 Ativo */}
-            <div className="flex flex-col sm:items-end text-xs bg-background/80 px-3 py-1.5 rounded-xl border border-border shrink-0">
+            <div className="flex flex-col sm:items-end text-xs bg-background/80 px-3.5 py-1.5 rounded-xl border border-border shrink-0">
               <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
                 <UserCheck className="w-3 h-3 text-emerald-500" />
                 {activeSenderProfile.flag} {activeSenderProfile.shortName} • {activeBrandConfig.companyFull}
@@ -1064,9 +1158,9 @@ export function SendMaterialModal({
             </div>
           </div>
 
-          {/* Seletor rápido dos 6 Comerciais (visível para Super Admin / Gestores ou para conferência) */}
+          {/* Seletor rápido dos 6 Comerciais (visível para Super Admin / Gestores) */}
           {!isCommercialOperator && (
-            <div className="mt-3 pt-2.5 border-t border-border/60 flex flex-wrap items-center gap-1.5">
+            <div className="mt-2.5 pt-2 border-t border-border/60 flex flex-wrap items-center gap-1.5">
               <span className="text-[10px] font-bold uppercase text-muted-foreground mr-1">
                 Vendedor / Conta M365:
               </span>
@@ -1095,244 +1189,323 @@ export function SendMaterialModal({
           )}
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          {/* Destinatário & Opções de Anexo */}
-          <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2.5">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <Mail className="w-3.5 h-3.5 text-blue-500" />
-                E-mail de Destino do Decisor (Cliente)
-              </Label>
-              {lead?.email && lead.email !== recipientEmail && (
-                <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
-                  E-mail atualizado na chamada
-                </Badge>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-              <div className="md:col-span-6">
-                <Input
-                  type="email"
-                  value={recipientEmail}
-                  onChange={(e) => setRecipientEmail(e.target.value)}
-                  placeholder="Ex: compras@empresa.es ou direction@industrie.fr"
-                  className="bg-background text-xs h-9 font-medium"
-                  required
-                />
-              </div>
-
-              <div className="md:col-span-3 flex items-center space-x-2">
-                <Checkbox
-                  id="updateLeadEmail"
-                  checked={updateLeadEmail}
-                  onCheckedChange={(checked) => setUpdateLeadEmail(Boolean(checked))}
-                />
-                <label
-                  htmlFor="updateLeadEmail"
-                  className="text-[11px] font-medium leading-none text-muted-foreground cursor-pointer"
-                >
-                  Salvar e-mail no Lead
-                </label>
-              </div>
-
-              <div className="md:col-span-3 flex items-center space-x-2">
-                <Checkbox
-                  id="attachPdfFile"
-                  checked={attachPdfFile}
-                  onCheckedChange={(checked) => setAttachPdfFile(Boolean(checked))}
-                />
-                <label
-                  htmlFor="attachPdfFile"
-                  className="text-[11px] font-semibold leading-none text-blue-600 dark:text-blue-400 cursor-pointer flex items-center gap-1"
-                >
-                  <Paperclip className="w-3 h-3" /> Anexar PDF Oficial
-                </label>
-              </div>
-            </div>
-          </div>
-
-          {/* Seleção do Tipo de Material / Template */}
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
-                <FileText className="w-3.5 h-3.5 text-indigo-500" />
-                Selecione o Material Oficial de {activeBrandConfig.companyFull} ({activeSenderProfile.country}):
-              </Label>
-
-              <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg text-[11px]">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedSourceType('builtin');
-                    setSelectedId('apresentacao_executiva');
-                  }}
-                  className={`px-2.5 py-1 rounded font-semibold transition-all ${
-                    selectedSourceType === 'builtin'
-                      ? 'bg-card text-foreground shadow-sm'
-                      : 'text-muted-foreground hover:text-foreground'
-                  }`}
-                >
-                  Materiais Oficiais ({builtinMaterials.length})
-                </button>
-                {dbTemplates.length > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedSourceType('template');
-                      if (dbTemplates[0]) setSelectedId(dbTemplates[0].id);
-                    }}
-                    className={`px-2.5 py-1 rounded font-semibold transition-all ${
-                      selectedSourceType === 'template'
-                        ? 'bg-card text-foreground shadow-sm'
-                        : 'text-muted-foreground hover:text-foreground'
-                    }`}
-                  >
-                    Templates MKT ({dbTemplates.length})
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {selectedSourceType === 'builtin' ? (
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-2.5">
-                {builtinMaterials.map((mat) => {
-                  const isSelected = selectedId === mat.id;
-                  const pdfHref = `/assets/materials/${mat.pdfFilename}`;
-                  const IconComponent =
-                    mat.id === 'apresentacao_executiva'
-                      ? Layers
-                      : mat.id === 'dossier_tecnico'
-                        ? ShieldCheck
-                        : ClipboardList;
-
-                  return (
-                    <div
-                      key={mat.id}
-                      onClick={() => setSelectedId(mat.id)}
-                      className={`p-3.5 rounded-xl border cursor-pointer transition-all text-left flex flex-col justify-between ${
-                        isSelected
-                          ? 'bg-blue-500/10 border-blue-500 text-foreground shadow-sm ring-1 ring-blue-500'
-                          : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/60'
-                      }`}
-                    >
-                      <div>
-                        <div className="flex items-center justify-between gap-1 mb-1.5">
-                          <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400">
-                            <IconComponent className="w-3 h-3" />
-                            {mat.badge}
-                          </span>
-                          {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
-                        </div>
-                        <h4 className="text-xs font-bold text-foreground leading-snug mb-1">{mat.title}</h4>
-                        <p className="text-[11px] text-muted-foreground line-clamp-3 leading-relaxed">
-                          {mat.description}
-                        </p>
-                      </div>
-
-                      <div className="mt-3 pt-2 border-t border-border/60 flex items-center justify-between">
-                        <a
-                          href={pdfHref}
-                          target="_blank"
-                          rel="noreferrer"
-                          onClick={(e) => e.stopPropagation()}
-                          className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-bold"
-                        >
-                          <ExternalLink className="w-3 h-3" /> Abrir PDF ({mat.pdfFilename.split('-')[0]})
-                        </a>
-                        {mat.secondaryPdfFilename && (
-                          <a
-                            href={`/assets/materials/${mat.secondaryPdfFilename}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={(e) => e.stopPropagation()}
-                            className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold"
-                          >
-                            + Apresentação
-                          </a>
-                        )}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                {dbTemplates.map((tmpl: MarketingTemplate) => {
-                  const isSelected = selectedId === tmpl.id;
-                  return (
-                    <div
-                      key={tmpl.id}
-                      onClick={() => setSelectedId(tmpl.id)}
-                      className={`p-3 rounded-xl border cursor-pointer transition-all text-left ${
-                        isSelected
-                          ? 'bg-blue-500/10 border-blue-500 text-foreground shadow-sm ring-1 ring-blue-500'
-                          : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/60'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between mb-1">
-                        <h4 className="text-xs font-bold text-foreground truncate">{tmpl.title}</h4>
-                        {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
-                      </div>
-                      <p className="text-[11px] text-muted-foreground truncate">{tmpl.subject || 'Sem assunto'}</p>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Assunto & Recado Adicional em Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-foreground">Assunto do E-mail:</Label>
-              <Input
-                value={emailSubject}
-                onChange={(e) => setEmailSubject(e.target.value)}
-                className="text-xs h-9 bg-background font-medium"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
-                <Sparkles className="w-3 h-3 text-amber-500" />
-                Recado Personalizado da Ligação (Opcional):
-              </Label>
-              <Input
-                value={extraNote}
-                onChange={(e) => setExtraNote(e.target.value)}
-                placeholder="Ex: Conforme falamos, temos 4 soldadores TIG disponíveis na próxima semana."
-                className="text-xs h-9 bg-background"
-              />
-            </div>
-          </div>
-
-          {/* Prévia Visual Rica do E-mail */}
-          <div className="space-y-1.5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Label className="text-[11px] font-bold text-muted-foreground uppercase">
-                  Pré-visualização do Corpo do E-mail (HTML Rico):
+        {/* Corpo Principal Amplo em 2 Colunas no Desktop */}
+        <div className="flex-1 overflow-y-auto lg:overflow-hidden p-4 sm:p-5 grid grid-cols-1 lg:grid-cols-12 gap-5 min-h-0">
+          {/* COLUNA ESQUERDA (5 colunas): Destinatário, Seleção de Material, Assunto e Nota da Ligação */}
+          <div className="lg:col-span-5 flex flex-col gap-4 lg:overflow-y-auto lg:pr-1 min-h-0">
+            {/* 1. Destinatário & Opções de Anexo */}
+            <div className="p-3.5 rounded-xl bg-muted/40 border border-border space-y-2.5">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <Mail className="w-3.5 h-3.5 text-blue-500" />
+                  E-mail de Destino do Decisor (Cliente)
                 </Label>
-                {attachPdfFile && currentBuiltinMaterial && (
-                  <Badge variant="outline" className="text-[10px] border-blue-500/30 text-blue-600 dark:text-blue-400 gap-1">
-                    <Paperclip className="w-2.5 h-2.5" />
-                    Anexo: {currentBuiltinMaterial.pdfFilename}
-                    {currentBuiltinMaterial.secondaryPdfFilename ? ' + Apresentação' : ''}
+                {lead?.email && lead.email !== recipientEmail && (
+                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-500/30">
+                    E-mail atualizado na chamada
                   </Badge>
                 )}
               </div>
 
-              <div className="flex items-center gap-2">
+              <Input
+                type="email"
+                value={recipientEmail}
+                onChange={(e) => setRecipientEmail(e.target.value)}
+                placeholder="Ex: compras@empresa.es ou direction@industrie.fr"
+                className="bg-background text-xs h-9 font-medium"
+                required
+              />
+
+              <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="updateLeadEmail"
+                    checked={updateLeadEmail}
+                    onCheckedChange={(checked) => setUpdateLeadEmail(Boolean(checked))}
+                  />
+                  <label
+                    htmlFor="updateLeadEmail"
+                    className="text-[11px] font-medium leading-none text-muted-foreground cursor-pointer"
+                  >
+                    Salvar e-mail no Lead
+                  </label>
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="attachPdfFile"
+                    checked={attachPdfFile}
+                    onCheckedChange={(checked) => setAttachPdfFile(Boolean(checked))}
+                  />
+                  <label
+                    htmlFor="attachPdfFile"
+                    className="text-[11px] font-semibold leading-none text-blue-600 dark:text-blue-400 cursor-pointer flex items-center gap-1"
+                  >
+                    <Paperclip className="w-3 h-3" /> Anexar PDF Oficial Automaticamente
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {/* 2. Seleção do Tipo de Material / Template */}
+            <div className="space-y-2">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                  <FileText className="w-3.5 h-3.5 text-indigo-500" />
+                  Material de {activeBrandConfig.companyFull}:
+                </Label>
+
+                <div className="flex items-center gap-1 bg-muted p-0.5 rounded-lg text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedSourceType('builtin');
+                      setSelectedId('apresentacao_executiva');
+                    }}
+                    className={`px-2.5 py-1 rounded font-semibold transition-all ${
+                      selectedSourceType === 'builtin'
+                        ? 'bg-card text-foreground shadow-sm'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    Materiais Oficiais ({builtinMaterials.length})
+                  </button>
+                  {dbTemplates.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedSourceType('template');
+                        if (dbTemplates[0]) setSelectedId(dbTemplates[0].id);
+                      }}
+                      className={`px-2.5 py-1 rounded font-semibold transition-all ${
+                        selectedSourceType === 'template'
+                          ? 'bg-card text-foreground shadow-sm'
+                          : 'text-muted-foreground hover:text-foreground'
+                      }`}
+                    >
+                      Templates MKT ({dbTemplates.length})
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {selectedSourceType === 'builtin' ? (
+                <div className="space-y-2">
+                  {builtinMaterials.map((mat) => {
+                    const isSelected = selectedId === mat.id;
+                    const pdfHref = `/assets/materials/${mat.pdfFilename}`;
+                    const IconComponent =
+                      mat.id === 'apresentacao_executiva'
+                        ? Layers
+                        : mat.id === 'dossier_tecnico'
+                          ? ShieldCheck
+                          : ClipboardList;
+
+                    return (
+                      <div
+                        key={mat.id}
+                        onClick={() => setSelectedId(mat.id)}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all text-left flex flex-col justify-between ${
+                          isSelected
+                            ? 'bg-blue-500/10 border-blue-500 text-foreground shadow-sm ring-1 ring-blue-500'
+                            : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/60'
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1 mb-1">
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-600 dark:text-blue-400">
+                              <IconComponent className="w-3 h-3" />
+                              {mat.badge}
+                            </span>
+                            <div className="flex items-center gap-2">
+                              <a
+                                href={pdfHref}
+                                target="_blank"
+                                rel="noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                className="text-[10px] text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1 font-bold"
+                              >
+                                <ExternalLink className="w-3 h-3" /> Abrir PDF
+                              </a>
+                              {mat.secondaryPdfFilename && (
+                                <a
+                                  href={`/assets/materials/${mat.secondaryPdfFilename}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold"
+                                >
+                                  + Apresentação
+                                </a>
+                              )}
+                              {isSelected && <Check className="w-4 h-4 text-blue-600 shrink-0" />}
+                            </div>
+                          </div>
+                          <h4 className="text-xs font-bold text-foreground leading-snug mb-0.5">{mat.title}</h4>
+                          <p className="text-[11px] text-muted-foreground leading-relaxed">{mat.description}</p>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                  {dbTemplates.map((tmpl: MarketingTemplate) => {
+                    const isSelected = selectedId === tmpl.id;
+                    return (
+                      <div
+                        key={tmpl.id}
+                        onClick={() => setSelectedId(tmpl.id)}
+                        className={`p-3 rounded-xl border cursor-pointer transition-all text-left ${
+                          isSelected
+                            ? 'bg-blue-500/10 border-blue-500 text-foreground shadow-sm ring-1 ring-blue-500'
+                            : 'bg-muted/30 border-border text-muted-foreground hover:bg-muted/60'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-1">
+                          <h4 className="text-xs font-bold text-foreground truncate">{tmpl.title}</h4>
+                          {isSelected && <Check className="w-3.5 h-3.5 text-blue-600 shrink-0" />}
+                        </div>
+                        <p className="text-[11px] text-muted-foreground truncate">{tmpl.subject || 'Sem assunto'}</p>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* 3. Assunto do E-mail */}
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">Assunto do E-mail:</Label>
+              <Input
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                className="text-xs h-9 bg-background font-semibold"
+              />
+            </div>
+
+            {/* 4. Recado Personalizado Adicional (Caixa Grande Multi-linha) */}
+            <div className="space-y-1.5 flex-1 flex flex-col">
+              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                Recado Personalizado da Ligação (Entra em destaque no e-mail):
+              </Label>
+              <Textarea
+                value={extraNote}
+                onChange={(e) => handleExtraNoteChange(e.target.value)}
+                rows={4}
+                placeholder="Digite aqui qualquer detalhe combinado na ligação (ex: Conforme conversamos com o Sr. Jesús, temos 4 soldadores TIG/MAG homologados disponíveis para início na próxima segunda-feira em Madrid)..."
+                className="text-xs bg-background leading-relaxed resize-y min-h-[96px]"
+              />
+            </div>
+          </div>
+
+          {/* COLUNA DIREITA (7 colunas): Editor Visual Direto do Corpo do E-mail em Tela Cheia */}
+          <div className="lg:col-span-7 flex flex-col min-h-[480px] lg:min-h-0 h-full bg-muted/20 rounded-2xl border border-border overflow-hidden">
+            {/* Barra de Ferramentas do Editor do E-mail */}
+            <div className="px-3.5 py-2.5 bg-muted/50 border-b border-border flex flex-wrap items-center justify-between gap-2 shrink-0">
+              <div className="flex flex-wrap items-center gap-1.5">
+                <span className="text-[11px] font-bold uppercase text-foreground flex items-center gap-1.5 mr-1">
+                  <Pencil className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  Corpo do E-mail (Editável):
+                </span>
+
+                {/* Botões de Modo: Visual vs Código HTML */}
+                <div className="flex items-center bg-background rounded-lg p-0.5 border border-border text-[11px]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditorMode('visual');
+                      setIsVisualEditable(true);
+                    }}
+                    className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-all ${
+                      editorMode === 'visual'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Pencil className="w-3 h-3" /> Editar Texto Visual
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (editorMode === 'visual' && visualEditorRef.current) {
+                        setEmailHtml(visualEditorRef.current.innerHTML);
+                      }
+                      setEditorMode('html');
+                    }}
+                    className={`px-2.5 py-1 rounded-md font-semibold flex items-center gap-1 transition-all ${
+                      editorMode === 'html'
+                        ? 'bg-blue-600 text-white shadow-xs'
+                        : 'text-muted-foreground hover:text-foreground'
+                    }`}
+                  >
+                    <Code className="w-3 h-3" /> Código HTML
+                  </button>
+                </div>
+
+                {/* Botões de Formatação Rápida no Modo Visual */}
+                {editorMode === 'visual' && (
+                  <div className="flex items-center gap-0.5 bg-background rounded-lg p-0.5 border border-border">
+                    <button
+                      type="button"
+                      onClick={() => handleExecCommand('bold')}
+                      className="p-1.5 rounded hover:bg-muted text-foreground"
+                      title="Negrito (Ctrl+B)"
+                    >
+                      <Bold className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExecCommand('italic')}
+                      className="p-1.5 rounded hover:bg-muted text-foreground"
+                      title="Itálico (Ctrl+I)"
+                    >
+                      <Italic className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExecCommand('underline')}
+                      className="p-1.5 rounded hover:bg-muted text-foreground"
+                      title="Sublinhado (Ctrl+U)"
+                    >
+                      <Underline className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleExecCommand('insertUnorderedList')}
+                      className="p-1.5 rounded hover:bg-muted text-foreground"
+                      title="Lista com marcadores"
+                    >
+                      <List className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {hasCustomEdits && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={applyDefaultTemplate}
+                    className="h-7 px-2 text-[11px] text-amber-600 hover:text-amber-700 hover:bg-amber-500/10 gap-1"
+                    title="Desfazer alterações manuais e restaurar texto padrão"
+                  >
+                    <RotateCcw className="w-3 h-3" /> Restaurar Padrão
+                  </Button>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1.5">
                 <Button
                   type="button"
                   variant="outline"
                   size="sm"
                   onClick={handleCopyText}
-                  className="h-7 text-xs border-input gap-1"
+                  className="h-7 text-[11px] border-input gap-1"
                 >
-                  {copied ? <Check className="w-3.5 h-3.5 text-emerald-500" /> : <Copy className="w-3.5 h-3.5" />}
-                  Copiar Texto
+                  {copied ? <Check className="w-3 h-3 text-emerald-500" /> : <Copy className="w-3 h-3" />}
+                  Copiar
                 </Button>
                 {lead?.phone && (
                   <Button
@@ -1340,29 +1513,64 @@ export function SendMaterialModal({
                     variant="outline"
                     size="sm"
                     onClick={handleWhatsAppShare}
-                    className="h-7 text-xs border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-1"
+                    className="h-7 text-[11px] border-emerald-500/30 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-500/10 gap-1"
                   >
-                    <MessageSquare className="w-3.5 h-3.5" /> Enviar Link no WhatsApp
+                    <MessageSquare className="w-3 h-3" /> WhatsApp
                   </Button>
                 )}
               </div>
             </div>
 
-            <div
-              className="p-3 rounded-xl bg-slate-100 dark:bg-slate-900/70 border border-border text-xs overflow-y-auto max-h-64 shadow-inner"
-              dangerouslySetInnerHTML={{
-                __html: extraNote.trim()
-                  ? emailHtml.replace(
-                      '<!-- EXTRA_NOTE_SLOT -->',
-                      `<div style="margin:14px 0;padding:12px 14px;background-color:#f8fafc;border-left:4px solid ${activeBrandConfig.accentColor};border-radius:8px;font-size:13px;color:#1e293b;"><strong>Nota:</strong> ${extraNote.replace(/\n/g, '<br/>')}</div>`
-                    )
-                  : emailHtml,
-              }}
-            />
+            {/* Faixa informativa de edição direta + Badge de anexo */}
+            <div className="px-3.5 py-1.5 bg-blue-500/10 border-b border-blue-500/20 flex flex-wrap items-center justify-between gap-2 text-[11px]">
+              <span className="text-blue-700 dark:text-blue-300 font-medium flex items-center gap-1.5">
+                <Pencil className="w-3 h-3 shrink-0" />
+                {editorMode === 'visual'
+                  ? 'Clique diretamente em qualquer frase, saudação ou tópico do e-mail abaixo para alterar o texto antes de enviar.'
+                  : 'Edite o código-fonte HTML completo do e-mail abaixo.'}
+              </span>
+              {attachPdfFile && currentBuiltinMaterial && (
+                <Badge variant="outline" className="text-[10px] bg-background border-blue-500/30 text-blue-600 dark:text-blue-400 gap-1">
+                  <Paperclip className="w-2.5 h-2.5" />
+                  Anexo: {currentBuiltinMaterial.pdfFilename}
+                  {currentBuiltinMaterial.secondaryPdfFilename ? ' + Apresentação' : ''}
+                </Badge>
+              )}
+            </div>
+
+            {/* Área Principal do E-mail (Visual Editável ou Código HTML) */}
+            <div className="flex-1 overflow-y-auto p-4 bg-slate-100 dark:bg-slate-900/80 min-h-0">
+              {editorMode === 'visual' ? (
+                <div
+                  ref={(el) => {
+                    visualEditorRef.current = el;
+                    if (el && el.innerHTML === '' && emailHtml) {
+                      el.innerHTML = emailHtml;
+                    }
+                  }}
+                  contentEditable={isVisualEditable}
+                  suppressContentEditableWarning
+                  onInput={(e) => {
+                    setEmailHtml(e.currentTarget.innerHTML);
+                    setHasCustomEdits(true);
+                  }}
+                  className="outline-none focus:ring-2 focus:ring-blue-500/60 rounded-2xl transition-shadow cursor-text"
+                />
+              ) : (
+                <Textarea
+                  value={emailHtml}
+                  onChange={(e) => {
+                    setEmailHtml(e.target.value);
+                    setHasCustomEdits(true);
+                  }}
+                  className="w-full h-full min-h-[460px] font-mono text-xs bg-background text-foreground p-3 leading-relaxed resize-none"
+                />
+              )}
+            </div>
           </div>
         </div>
 
-        <DialogFooter className="p-4 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center gap-2">
+        <DialogFooter className="px-5 py-3.5 border-t border-border bg-muted/20 flex flex-col sm:flex-row justify-between items-center gap-2 shrink-0">
           <div className="flex items-center gap-2 w-full sm:w-auto justify-between sm:justify-start">
             <Button
               type="button"
@@ -1390,7 +1598,7 @@ export function SendMaterialModal({
             type="button"
             onClick={handleSendViaM365}
             disabled={isSendingM365 || isSubmitting}
-            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-6 py-2.5 gap-2 shadow-lg shadow-blue-600/25 transition-all"
+            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-7 py-2.5 gap-2 shadow-lg shadow-blue-600/25 transition-all"
           >
             {isSendingM365 ? (
               <>
