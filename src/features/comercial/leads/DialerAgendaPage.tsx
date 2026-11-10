@@ -23,7 +23,12 @@ import {
   Italic,
   Underline,
   List,
-  Tag
+  Tag,
+  Plus,
+  X,
+  Layers,
+  CheckSquare,
+  Square
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -55,27 +60,53 @@ import {
 import { ptBR, es, fr } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/providers/AuthProvider';
-import { useDialerAgenda, useMutateDialer, type ScheduledAppointmentItem } from './hooks/useDialer';
+import {
+  useDialerAgenda,
+  useMutateDialer,
+  useSalesScripts,
+  extractTagsFromAppointment,
+  type ScheduledAppointmentItem
+} from './hooks/useDialer';
 import { useSalespeople, useCommercialScope } from './hooks/useLeads';
 import { useComercialLanguage } from './utils/comercialI18n';
+
+const CUSTOM_TAGS_STORAGE_KEY = 'mcs_dialer_custom_callback_tags';
 
 export function DialerAgendaPage() {
   const { tr, lang } = useComercialLanguage();
   const dateLocale = lang === 'fr' ? fr : lang === 'es' ? es : ptBR;
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isCommercialOperator } = useCommercialScope();
+  const { isCommercialOperator, activeProfile } = useCommercialScope();
   const { data: agenda = [] } = useDialerAgenda();
   const { data: salespeople = [] } = useSalespeople();
-  const { updateAppointment, deleteAppointment, isUpdatingAppointment } = useMutateDialer();
+  const { data: scripts = [] } = useSalesScripts();
+  const {
+    updateAppointment,
+    deleteAppointment,
+    isUpdatingAppointment,
+    createCampaignFromAgenda,
+    isCreatingCampaignFromAgenda
+  } = useMutateDialer();
+
+  const [savedCustomTags, setSavedCustomTags] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_TAGS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   const quickTags = useMemo(() => [
     tr('Decisor em reunião', 'Decisor en reunión', 'Décideur en réunion'),
-    tr('Pediu ligar após o almoço', 'Pidió llamar después de comer', 'A demandé d’appeler après déjeuner'),
-    tr('Parada técnica prevista', 'Parada técnica prevista', 'Arrêt technique prévu'),
-    tr('Aguardando aprovação de compras', 'Esperando aprobación de compras', 'En attente d’approbation achats'),
-    tr('Ligar direto no celular do engenheiro', 'Llamar directo al móvil del ingeniero', 'Appeler directement sur le mobile de l’ingénieur'),
-    tr('Enviar portfólio de caldeiraria e tubulação', 'Enviar dossier de calderería y tubería', 'Envoyer présentation chaudronnerie et tuyauterie'),
+    tr('Ligar à tarde', 'Llamar por la tarde', 'Appeler l’après-midi'),
+    tr('Parada técnica', 'Parada técnica', 'Arrêt technique'),
+    tr('Aguardando compras', 'Esperando compras', 'En attente achats'),
+    tr('Pediu orçamento', 'Pidió presupuesto', 'A demandé un devis'),
+    tr('Soldadores TIG/MIG', 'Soldadores TIG/MIG', 'Soudeurs TIG/MIG'),
+    tr('Tubistas / Montadores', 'Tuberos / Montadores', 'Tuyauteurs / Monteurs'),
+    tr('Urgente Obra', 'Urgente Obra', 'Urgent Chantier'),
   ], [tr]);
 
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
@@ -83,7 +114,11 @@ export function DialerAgendaPage() {
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | 'today' | 'overdue' | 'upcoming' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
+  const [tagFilter, setTagFilter] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Multi-select state for appointments
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   // Calendar State
   const [currentMonth, setCurrentMonth] = useState<Date>(new Date());
@@ -96,9 +131,23 @@ export function DialerAgendaPage() {
   const [editTime, setEditTime] = useState('');
   const [editPriority, setEditPriority] = useState<'high' | 'normal' | 'low'>('normal');
   const [editNotes, setEditNotes] = useState('');
+  const [editTags, setEditTags] = useState<string[]>([]);
+  const [editCustomTagInput, setEditCustomTagInput] = useState('');
   const [editAssignedTo, setEditAssignedTo] = useState('');
   const [editStatus, setEditStatus] = useState('scheduled');
   const editEditorRef = useRef<HTMLDivElement>(null);
+
+  // Create Queue from Agenda Modal State
+  const [isCreateQueueModalOpen, setIsCreateQueueModalOpen] = useState(false);
+  const [newQueueTitle, setNewQueueTitle] = useState('');
+  const [newQueueDescription, setNewQueueDescription] = useState('');
+  const [newQueueAssignedTo, setNewQueueAssignedTo] = useState('');
+  const [newQueueScriptId, setNewQueueScriptId] = useState('');
+  const [queueTargetIds, setQueueTargetIds] = useState<string[]>([]);
+
+  // Quick New Tag creation on Agenda Filter Bar
+  const [newGlobalTagInput, setNewGlobalTagInput] = useState('');
+  const [isAddingGlobalTag, setIsAddingGlobalTag] = useState(false);
 
   // Operator Scoping
   const myAppointmentsCount = useMemo(() => {
@@ -120,6 +169,24 @@ export function DialerAgendaPage() {
       return true;
     });
   }, [agenda, operatorScope, selectedOperatorId, user?.id]);
+
+  // Compute all unique tags and their counts across scopedAgenda + savedCustomTags
+  const allAvailableTags = useMemo(() => {
+    const counts = new Map<string, number>();
+    scopedAgenda.forEach(item => {
+      const itemTags = extractTagsFromAppointment(item.tags, item.scheduled_notes);
+      itemTags.forEach(t => {
+        counts.set(t, (counts.get(t) || 0) + 1);
+      });
+    });
+    savedCustomTags.forEach(raw => {
+      const clean = `#${raw.replace(/^#+/, '').trim()}`;
+      if (clean.length > 1 && !counts.has(clean)) {
+        counts.set(clean, 0);
+      }
+    });
+    return Array.from(counts.entries()).sort((a, b) => b[1] - a[1]);
+  }, [scopedAgenda, savedCustomTags]);
 
   // KPI Calculations
   const todayStart = startOfToday();
@@ -148,7 +215,7 @@ export function DialerAgendaPage() {
     return { todayCount, overdueCount, upcomingCount, completedCount, total: scopedAgenda.length };
   }, [scopedAgenda, todayStart]);
 
-  // Filtered List
+  // Filtered List (used by both List view and Calendar filter)
   const filteredAgenda = useMemo(() => {
     return scopedAgenda.filter(item => {
       if (!item.scheduled_for) return false;
@@ -163,6 +230,13 @@ export function DialerAgendaPage() {
       // Priority filter
       if (priorityFilter !== 'all' && item.priority !== priorityFilter) return false;
 
+      // Tag filter
+      if (tagFilter !== 'all') {
+        const itemTags = extractTagsFromAppointment(item.tags, item.scheduled_notes);
+        const matchesTag = itemTags.some(t => t.toLowerCase() === tagFilter.toLowerCase());
+        if (!matchesTag) return false;
+      }
+
       // Search Query
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
@@ -170,14 +244,27 @@ export function DialerAgendaPage() {
         const contact = (item.lead?.name || '').toLowerCase();
         const phone = (item.lead?.phone || '').toLowerCase();
         const notes = (item.scheduled_notes || '').toLowerCase();
-        if (!company.includes(query) && !contact.includes(query) && !phone.includes(query) && !notes.includes(query)) {
+        const itemTags = extractTagsFromAppointment(item.tags, item.scheduled_notes).join(' ').toLowerCase();
+        if (
+          !company.includes(query) &&
+          !contact.includes(query) &&
+          !phone.includes(query) &&
+          !notes.includes(query) &&
+          !itemTags.includes(query)
+        ) {
           return false;
         }
       }
 
       return true;
     });
-  }, [scopedAgenda, statusFilter, priorityFilter, searchQuery, todayStart]);
+  }, [scopedAgenda, statusFilter, priorityFilter, tagFilter, searchQuery, todayStart]);
+
+  // Appointments for currently selected day in Calendar view (respecting tagFilter and searchQuery)
+  const selectedDayAppointments = useMemo(() => {
+    if (!selectedDay) return [];
+    return filteredAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay));
+  }, [filteredAgenda, selectedDay]);
 
   // Calendar calculations
   const monthStart = startOfMonth(currentMonth);
@@ -192,6 +279,38 @@ export function DialerAgendaPage() {
       editEditorRef.current.innerHTML = editNotes || '';
     }
   }, [isEditModalOpen]);
+
+  const handleToggleSelectId = (id: string) => {
+    setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
+  };
+
+  const handleSelectAllFiltered = () => {
+    const targetList = viewMode === 'calendar' ? selectedDayAppointments : filteredAgenda;
+    const targetIds = targetList.map(it => it.id);
+    const allSelected = targetIds.length > 0 && targetIds.every(id => selectedIds.includes(id));
+    if (allSelected) {
+      setSelectedIds(prev => prev.filter(id => !targetIds.includes(id)));
+    } else {
+      setSelectedIds(prev => Array.from(new Set([...prev, ...targetIds])));
+    }
+  };
+
+  const handleCreateGlobalCustomTag = () => {
+    const raw = newGlobalTagInput.replace(/^#+/, '').trim();
+    if (!raw) return;
+    if (!savedCustomTags.includes(raw)) {
+      const next = [...savedCustomTags, raw];
+      setSavedCustomTags(next);
+      try {
+        localStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+    }
+    setNewGlobalTagInput('');
+    setIsAddingGlobalTag(false);
+    toast.success(tr(`Tag #${raw} criada e pronta para uso!`, `¡Etiqueta #${raw} creada!`, `Tag #${raw} créé !`));
+  };
 
   const handleFormatEditCommand = (command: string, value: string | undefined = undefined) => {
     document.execCommand(command, false, value);
@@ -219,12 +338,40 @@ export function DialerAgendaPage() {
     }
   };
 
-  const handleInsertEditTag = (tagText: string) => {
-    if (editEditorRef.current) {
-      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">#${tagText}</span> `;
-      document.execCommand('insertHTML', false, tagHtml);
+  const handleToggleEditTag = (tagText: string) => {
+    const cleanTag = `#${tagText.replace(/^#+/, '').trim()}`;
+    setEditTags(prev =>
+      prev.includes(cleanTag) ? prev.filter(t => t !== cleanTag) : [...prev, cleanTag]
+    );
+    if (editEditorRef.current && !editEditorRef.current.innerHTML.includes(cleanTag)) {
+      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">${cleanTag}</span> `;
+      editEditorRef.current.innerHTML = `${tagHtml}${editEditorRef.current.innerHTML}`;
       setEditNotes(editEditorRef.current.innerHTML);
     }
+  };
+
+  const handleAddEditCustomTag = () => {
+    const raw = editCustomTagInput.replace(/^#+/, '').trim();
+    if (!raw) return;
+    const cleanTag = `#${raw}`;
+    if (!editTags.includes(cleanTag)) {
+      setEditTags(prev => [...prev, cleanTag]);
+    }
+    if (!savedCustomTags.includes(raw)) {
+      const next = [...savedCustomTags, raw];
+      setSavedCustomTags(next);
+      try {
+        localStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+    }
+    if (editEditorRef.current && !editEditorRef.current.innerHTML.includes(cleanTag)) {
+      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">${cleanTag}</span> `;
+      editEditorRef.current.innerHTML = `${tagHtml}${editEditorRef.current.innerHTML}`;
+      setEditNotes(editEditorRef.current.innerHTML);
+    }
+    setEditCustomTagInput('');
   };
 
   // Open Edit Modal
@@ -241,6 +388,8 @@ export function DialerAgendaPage() {
     setEditPriority(item.priority || 'normal');
     const noteText = item.scheduled_notes || '';
     setEditNotes(noteText);
+    setEditTags(extractTagsFromAppointment(item.tags, item.scheduled_notes));
+    setEditCustomTagInput('');
     if (editEditorRef.current) {
       editEditorRef.current.innerHTML = noteText;
     }
@@ -263,6 +412,7 @@ export function DialerAgendaPage() {
         priority: editPriority,
         status: editStatus,
         assigned_to: editAssignedTo || null,
+        tags: editTags,
       });
 
       toast.success(
@@ -284,6 +434,7 @@ export function DialerAgendaPage() {
     )) return;
     try {
       await deleteAppointment(queueItemId);
+      setSelectedIds(prev => prev.filter(id => id !== queueItemId));
       toast.success(tr('Agendamento cancelado com sucesso.', 'Agendamiento cancelado con éxito.', 'Rendez-vous annulé avec succès.'));
     } catch (err: any) {
       toast.error(tr('Erro ao cancelar agendamento', 'Error al cancelar agendamiento', 'Erreur lors de l’annulation'));
@@ -302,8 +453,104 @@ export function DialerAgendaPage() {
     }
   };
 
+  // Call a single appointment in the Cockpit (works even if campaign_id is null!)
   const handleStartDialer = (item: ScheduledAppointmentItem) => {
-    navigate(`/comercial/discador?campaignId=${item.campaign_id}&queueItemId=${item.id}`);
+    if (item.campaign_id) {
+      navigate(`/comercial/discador?campaignId=${item.campaign_id}&queueItemId=${item.id}`);
+    } else {
+      navigate(`/comercial/discador?queueItemId=${item.id}`);
+    }
+  };
+
+  // Call multiple selected or filtered appointments directly in the Cockpit
+  const handleStartDialerBatch = (idsToCall?: string[]) => {
+    const ids = idsToCall && idsToCall.length > 0
+      ? idsToCall
+      : selectedIds.length > 0
+      ? selectedIds
+      : (viewMode === 'calendar' ? selectedDayAppointments : filteredAgenda).map(it => it.id);
+
+    if (ids.length === 0) {
+      toast.error(
+        tr(
+          'Selecione pelo menos 1 agendamento para atender no Cockpit.',
+          'Seleccione al menos 1 agendamiento para atender en el Cockpit.',
+          'Sélectionnez au moins 1 rendez-vous à appeler dans le Cockpit.'
+        )
+      );
+      return;
+    }
+
+    navigate(`/comercial/discador?queueItemIds=${ids.join(',')}`);
+  };
+
+  // Open Modal to Create a Work Queue (dialer_campaigns) from selected/filtered appointments
+  const handleOpenCreateQueueModal = (customIds?: string[]) => {
+    const ids = customIds && customIds.length > 0
+      ? customIds
+      : selectedIds.length > 0
+      ? selectedIds
+      : (viewMode === 'calendar' ? selectedDayAppointments : filteredAgenda).map(it => it.id);
+
+    if (ids.length === 0) {
+      toast.error(
+        tr(
+          'Selecione pelo menos 1 agendamento na Agenda para criar uma fila de trabalho.',
+          'Seleccione al menos 1 agendamiento en la Agenda para crear una cola de trabajo.',
+          'Sélectionnez au moins 1 rendez-vous dans l’Agenda pour créer une file de travail.'
+        )
+      );
+      return;
+    }
+
+    setQueueTargetIds(ids);
+    const dateLabel = format(selectedDay || new Date(), 'dd/MM/yyyy');
+    const tagSuffix = tagFilter !== 'all' ? ` • ${tagFilter}` : '';
+    setNewQueueTitle(`Fila de Retornos Agendados${tagSuffix} (${dateLabel})`);
+    setNewQueueDescription(
+      `Fila gerada a partir de ${ids.length} agendamento(s) da Agenda${tagSuffix}`
+    );
+    setNewQueueAssignedTo(activeProfile?.userId || user?.id || '');
+    const defaultScript = scripts.find(s => s.is_default) || scripts[0];
+    setNewQueueScriptId(defaultScript?.id || '');
+    setIsCreateQueueModalOpen(true);
+  };
+
+  const handleConfirmCreateQueueFromAgenda = async (openCockpitAfter: boolean) => {
+    if (!newQueueTitle.trim() || queueTargetIds.length === 0) return;
+
+    try {
+      const createdCampaign = await createCampaignFromAgenda({
+        title: newQueueTitle.trim(),
+        description: newQueueDescription.trim() || undefined,
+        assigned_to: newQueueAssignedTo || null,
+        script_id: newQueueScriptId || null,
+        queue_item_ids: queueTargetIds,
+      });
+
+      setIsCreateQueueModalOpen(false);
+      setSelectedIds([]);
+      toast.success(
+        tr(
+          `🎉 Fila de trabalho "${createdCampaign.title}" criada com ${queueTargetIds.length} agendamento(s)!`,
+          `🎉 ¡Cola de trabajo "${createdCampaign.title}" creada con ${queueTargetIds.length} agendamiento(s)!`,
+          `🎉 File de travail "${createdCampaign.title}" créée avec ${queueTargetIds.length} rendez-vous !`
+        )
+      );
+
+      if (openCockpitAfter) {
+        navigate(`/comercial/discador?campaignId=${createdCampaign.id}&queueItemId=${queueTargetIds[0]}`);
+      }
+    } catch (err: any) {
+      toast.error(
+        err.message ||
+          tr(
+            'Erro ao criar fila de trabalho a partir da Agenda',
+            'Error al crear cola de trabajo desde la Agenda',
+            'Erreur lors de la création de la file de travail'
+          )
+      );
+    }
   };
 
   const dayHeaders = useMemo(() => [
@@ -317,7 +564,7 @@ export function DialerAgendaPage() {
   ], [tr]);
 
   return (
-    <div className="flex flex-col space-y-6 p-4 lg:p-8 max-w-7xl mx-auto w-full">
+    <div className="flex flex-col space-y-5 p-4 lg:p-8 max-w-7xl mx-auto w-full">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b border-border pb-5">
         <div className="flex items-center gap-3">
@@ -333,15 +580,15 @@ export function DialerAgendaPage() {
             </h1>
             <p className="text-xs text-muted-foreground">
               {tr(
-                'Acompanhe, reagende e atenda todos os retornos marcados com decisores de compras e engenheiros.',
-                'Siga, reagende y atienda todos los retornos programados con decisores de compras e ingenieros.',
-                'Suivez, replanifiez et traitez tous les rappels fixés avec les décideurs achats et ingénieurs.'
+                'Organize por Tags, selecione clientes para ligar direto no Cockpit ou gere uma nova Fila de Trabalho a partir da Agenda.',
+                'Organice por Etiquetas, seleccione clientes para llamar directo en el Cockpit o genere una nueva Cola de Trabajo desde la Agenda.',
+                'Organisez par Tags, sélectionnez des clients à appeler dans le Cockpit ou créez une File de Travail depuis l’Agenda.'
               )}
             </p>
           </div>
         </div>
 
-        <div className="flex items-center gap-3 flex-wrap">
+        <div className="flex items-center gap-2.5 flex-wrap">
           {/* Operator Scope Switcher */}
           {!isCommercialOperator && (
             <div className="flex items-center gap-2">
@@ -403,16 +650,31 @@ export function DialerAgendaPage() {
                 viewMode === 'list' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'
               }`}
             >
-              <ListFilter className="w-3.5 h-3.5 text-indigo-500" /> {tr('Modo Lista', 'Modo Lista', 'Vue Liste')} ({scopedAgenda.length})
+              <ListFilter className="w-3.5 h-3.5 text-indigo-500" /> {tr('Modo Lista', 'Modo Lista', 'Vue Liste')} ({filteredAgenda.length})
             </Button>
           </div>
 
           <Button
+            variant="outline"
             size="sm"
-            onClick={() => navigate('/comercial/discador')}
+            onClick={() => handleOpenCreateQueueModal()}
+            className="h-9 border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold text-xs gap-1.5"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            {selectedIds.length > 0
+              ? tr(`Criar Fila (${selectedIds.length})`, `Crear Cola (${selectedIds.length})`, `Créer File (${selectedIds.length})`)
+              : tr('Criar Fila da Agenda', 'Crear Cola de Agenda', 'Créer File de l’Agenda')}
+          </Button>
+
+          <Button
+            size="sm"
+            onClick={() => handleStartDialerBatch()}
             className="h-9 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-600/20"
           >
-            <Play className="w-3.5 h-3.5 fill-current" /> {tr('Abrir Cockpit Discador', 'Abrir Cockpit Marcador', 'Ouvrir Cockpit Dialer')}
+            <PhoneCall className="w-3.5 h-3.5" />
+            {selectedIds.length > 0
+              ? tr(`Ligar Selecionados (${selectedIds.length})`, `Llamar Seleccionados (${selectedIds.length})`, `Appeler Sélectionnés (${selectedIds.length})`)
+              : tr('Atender no Cockpit', 'Atender en Cockpit', 'Appeler dans le Cockpit')}
           </Button>
         </div>
       </div>
@@ -421,7 +683,7 @@ export function DialerAgendaPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Hoje */}
         <div 
-          onClick={() => { setStatusFilter('today'); setViewMode('list'); }}
+          onClick={() => { setStatusFilter(statusFilter === 'today' ? 'all' : 'today'); setViewMode('list'); }}
           className={`p-4 rounded-2xl bg-card border border-border shadow-sm cursor-pointer transition-all hover:border-amber-500/50 ${
             statusFilter === 'today' ? 'ring-2 ring-amber-500' : ''
           }`}
@@ -444,7 +706,7 @@ export function DialerAgendaPage() {
 
         {/* Atrasados */}
         <div 
-          onClick={() => { setStatusFilter('overdue'); setViewMode('list'); }}
+          onClick={() => { setStatusFilter(statusFilter === 'overdue' ? 'all' : 'overdue'); setViewMode('list'); }}
           className={`p-4 rounded-2xl bg-card border border-border shadow-sm cursor-pointer transition-all hover:border-rose-500/50 ${
             statusFilter === 'overdue' ? 'ring-2 ring-rose-500' : ''
           }`}
@@ -465,16 +727,16 @@ export function DialerAgendaPage() {
           </div>
         </div>
 
-        {/* Próximos 7 Dias */}
+        {/* Próximos */}
         <div 
-          onClick={() => { setStatusFilter('upcoming'); setViewMode('list'); }}
+          onClick={() => { setStatusFilter(statusFilter === 'upcoming' ? 'all' : 'upcoming'); setViewMode('list'); }}
           className={`p-4 rounded-2xl bg-card border border-border shadow-sm cursor-pointer transition-all hover:border-indigo-500/50 ${
             statusFilter === 'upcoming' ? 'ring-2 ring-indigo-500' : ''
           }`}
         >
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold text-muted-foreground uppercase">
-              {tr('Próximos 7 Dias', 'Próximos 7 Días', '7 Prochains Jours')}
+              {tr('Próximos Agendamentos', 'Próximos Agendamientos', 'Prochains Rendez-vous')}
             </span>
             <div className="w-8 h-8 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
               <CalendarDays className="w-4 h-4" />
@@ -490,7 +752,7 @@ export function DialerAgendaPage() {
 
         {/* Concluídos */}
         <div 
-          onClick={() => { setStatusFilter('completed'); setViewMode('list'); }}
+          onClick={() => { setStatusFilter(statusFilter === 'completed' ? 'all' : 'completed'); setViewMode('list'); }}
           className={`p-4 rounded-2xl bg-card border border-border shadow-sm cursor-pointer transition-all hover:border-emerald-500/50 ${
             statusFilter === 'completed' ? 'ring-2 ring-emerald-500' : ''
           }`}
@@ -509,6 +771,174 @@ export function DialerAgendaPage() {
               {tr('Convertidos ou concluídos', 'Convertidos o completados', 'Convertis ou terminés')}
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* Tags Filter & Search Bar (Always visible in both Calendar & List modes) */}
+      <div className="p-4 rounded-2xl bg-card border border-border shadow-sm space-y-3">
+        <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1 max-w-md">
+            <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              placeholder={tr(
+                'Buscar por empresa, decisor, telefone, #tag ou anotação...',
+                'Buscar por empresa, decisor, teléfono, #etiqueta o nota...',
+                'Rechercher par entreprise, contact, téléphone, #tag ou note...'
+              )}
+              className="pl-8 h-9 text-xs bg-background border-input"
+            />
+          </div>
+
+          {/* Selection Actions Banner */}
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleSelectAllFiltered}
+              className="h-8 text-xs border-input gap-1.5"
+            >
+              <CheckSquare className="w-3.5 h-3.5 text-indigo-500" />
+              {selectedIds.length > 0
+                ? tr(`Selecionados: ${selectedIds.length}`, `Seleccionados: ${selectedIds.length}`, `Sélectionnés : ${selectedIds.length}`)
+                : viewMode === 'calendar'
+                ? tr('Selecionar Todos do Dia', 'Seleccionar Todos del Día', 'Tout Sélectionner (Jour)')
+                : tr('Selecionar Todos Filtrados', 'Seleccionar Todos Filtrados', 'Tout Sélectionner (Filtrés)')}
+            </Button>
+
+            {selectedIds.length > 0 && (
+              <>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleStartDialerBatch(selectedIds)}
+                  className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5"
+                >
+                  <PhoneCall className="w-3.5 h-3.5" />
+                  {tr(
+                    `Ir para o Cockpit com ${selectedIds.length} Agendamento(s)`,
+                    `Ir al Cockpit con ${selectedIds.length} Agendamiento(s)`,
+                    `Ouvrir dans le Cockpit (${selectedIds.length})`
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => handleOpenCreateQueueModal(selectedIds)}
+                  className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5"
+                >
+                  <Layers className="w-3.5 h-3.5" />
+                  {tr(
+                    `Criar Fila de Trabalho (${selectedIds.length})`,
+                    `Crear Cola de Trabajo (${selectedIds.length})`,
+                    `Créer File de Travail (${selectedIds.length})`
+                  )}
+                </Button>
+
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setSelectedIds([])}
+                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <X className="w-3.5 h-3.5 mr-1" />
+                  {tr('Limpar Seleção', 'Limpiar Selección', 'Effacer')}
+                </Button>
+              </>
+            )}
+          </div>
+        </div>
+
+        {/* Tag Filter Pills + Create Custom Tag */}
+        <div className="flex flex-wrap items-center gap-1.5 pt-2 border-t border-border">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1 mr-1">
+            <Tag className="w-3.5 h-3.5 text-indigo-500" />
+            {tr('Filtrar por Tag:', 'Filtrar por Etiqueta:', 'Filtrer par Tag :')}
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setTagFilter('all')}
+            className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all ${
+              tagFilter === 'all'
+                ? 'bg-indigo-600 text-white shadow-sm'
+                : 'bg-muted/60 hover:bg-muted text-muted-foreground'
+            }`}
+          >
+            {tr('Todas as Tags', 'Todas las Etiquetas', 'Tous les Tags')} ({scopedAgenda.length})
+          </button>
+
+          {allAvailableTags.map(([tag, count]) => {
+            const isSelected = tagFilter.toLowerCase() === tag.toLowerCase();
+            return (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => setTagFilter(isSelected ? 'all' : tag)}
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all flex items-center gap-1 ${
+                  isSelected
+                    ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm font-bold'
+                    : 'bg-background hover:bg-muted text-foreground border-border'
+                }`}
+              >
+                <span>{tag}</span>
+                <span className={`text-[10px] px-1 rounded-full ${isSelected ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}`}>
+                  {count}
+                </span>
+              </button>
+            );
+          })}
+
+          {isAddingGlobalTag ? (
+            <div className="flex items-center gap-1 ml-1">
+              <Input
+                value={newGlobalTagInput}
+                onChange={e => setNewGlobalTagInput(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') {
+                    e.preventDefault();
+                    handleCreateGlobalCustomTag();
+                  } else if (e.key === 'Escape') {
+                    setIsAddingGlobalTag(false);
+                  }
+                }}
+                placeholder={tr('Nome da tag...', 'Nombre de etiqueta...', 'Nom du tag...')}
+                className="h-7 w-40 text-xs bg-background border-input"
+                autoFocus
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleCreateGlobalCustomTag}
+                className="h-7 px-2 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold"
+              >
+                <Check className="w-3 h-3" />
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setIsAddingGlobalTag(false)}
+                className="h-7 px-1.5 text-xs"
+              >
+                <X className="w-3 h-3" />
+              </Button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setIsAddingGlobalTag(true)}
+              className="px-2.5 py-1 rounded-lg text-xs font-bold border border-dashed border-indigo-500/50 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-500/10 flex items-center gap-1 transition-colors"
+            >
+              <Plus className="w-3 h-3" />
+              {tr('Nova Tag', 'Nueva Etiqueta', 'Nouveau Tag')}
+            </button>
+          )}
         </div>
       </div>
 
@@ -570,7 +1000,7 @@ export function DialerAgendaPage() {
                 const isSelected = selectedDay && isSameDay(day, selectedDay);
                 const isDayToday = isToday(day);
 
-                const dayAppointments = scopedAgenda.filter(item => {
+                const dayAppointments = filteredAgenda.filter(item => {
                   if (!item.scheduled_for) return false;
                   return isSameDay(parseISO(item.scheduled_for), day);
                 });
@@ -636,7 +1066,7 @@ export function DialerAgendaPage() {
 
           {/* Selected Day Agenda Side Panel (4 cols) */}
           <div className="lg:col-span-4 p-5 rounded-2xl bg-card border border-border shadow-sm space-y-4">
-            <div className="flex items-center justify-between border-b border-border pb-3">
+            <div className="flex items-center justify-between border-b border-border pb-3 gap-2">
               <div>
                 <h4 className="text-sm font-bold text-foreground capitalize">
                   {selectedDay
@@ -644,54 +1074,89 @@ export function DialerAgendaPage() {
                     : tr('Selecione um Dia', 'Seleccione un Día', 'Sélectionnez un Jour')}
                 </h4>
                 <p className="text-[11px] text-muted-foreground">
-                  {tr('Compromissos agendados para este dia', 'Compromisos agendados para este día', 'Rendez-vous planifiés pour ce jour')}
+                  {tr('Selecione clientes para ligar ou criar fila', 'Seleccione clientes para llamar o crear cola', 'Sélectionnez des clients à appeler ou mettre en file')}
                 </p>
               </div>
 
-              {selectedDay && (
-                <Badge className="bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 text-xs">
-                  {scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length}{' '}
-                  {tr('Agendados', 'Agendados', 'Planifiés')}
-                </Badge>
+              {selectedDayAppointments.length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleOpenCreateQueueModal(selectedDayAppointments.map(a => a.id))}
+                    className="h-7 px-2 text-[11px] border-indigo-500/30 text-indigo-600 dark:text-indigo-400 font-bold gap-1"
+                    title={tr('Criar Fila com os Agendamentos deste Dia', 'Crear Cola con los Agendamientos de este Día', 'Créer File avec les Rendez-vous du Jour')}
+                  >
+                    <Layers className="w-3 h-3" />
+                    {tr('Criar Fila do Dia', 'Cola del Día', 'File du Jour')}
+                  </Button>
+                </div>
               )}
             </div>
 
-            <div className="space-y-3 max-h-[500px] overflow-y-auto pr-1">
-              {scopedAgenda
-                .filter(it => it.scheduled_for && selectedDay && isSameDay(parseISO(it.scheduled_for), selectedDay))
-                .map(item => (
+            <div className="space-y-3 max-h-[540px] overflow-y-auto pr-1">
+              {selectedDayAppointments.map(item => {
+                const isChecked = selectedIds.includes(item.id);
+                const itemTags = extractTagsFromAppointment(item.tags, item.scheduled_notes);
+
+                return (
                   <div
                     key={item.id}
-                    className="p-4 rounded-xl bg-muted/40 border border-border hover:border-amber-500/50 transition-all space-y-3"
+                    className={`p-4 rounded-xl border transition-all space-y-3 ${
+                      isChecked
+                        ? 'bg-indigo-500/10 border-indigo-500 shadow-sm'
+                        : 'bg-muted/40 border-border hover:border-amber-500/50'
+                    }`}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">
-                            {format(parseISO(item.scheduled_for), 'HH:mm')}
-                          </span>
-                          {item.priority === 'high' && (
-                            <Badge className="bg-rose-500 text-white text-[9px] px-1 py-0">
-                              🔥 {tr('Urgente', 'Urgente', 'Urgent')}
-                            </Badge>
+                      <div className="flex items-start gap-2.5">
+                        <button
+                          type="button"
+                          onClick={() => handleToggleSelectId(item.id)}
+                          className="mt-0.5 text-indigo-600 dark:text-indigo-400 hover:scale-110 transition-transform"
+                          title={tr('Selecionar agendamento', 'Seleccionar agendamiento', 'Sélectionner ce rendez-vous')}
+                        >
+                          {isChecked ? (
+                            <CheckSquare className="w-4 h-4 fill-indigo-600/20" />
+                          ) : (
+                            <Square className="w-4 h-4 text-muted-foreground" />
                           )}
-                          <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
-                            item.assigned_to === user?.id 
-                              ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30' 
-                              : 'bg-muted text-muted-foreground'
-                          }`}>
-                            <User className="w-2.5 h-2.5" />
-                            {item.assigned_to === user?.id 
-                              ? tr('Você', 'Tú', 'Vous')
-                              : (item.assigned_user?.display_name || tr('Equipe Geral', 'Equipo General', 'Équipe'))}
-                          </span>
+                        </button>
+
+                        <div>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-xs font-black text-amber-600 dark:text-amber-400 font-mono">
+                              {format(parseISO(item.scheduled_for), 'HH:mm')}
+                            </span>
+                            {item.priority === 'high' && (
+                              <Badge className="bg-rose-500 text-white text-[9px] px-1 py-0">
+                                🔥 {tr('Urgente', 'Urgente', 'Urgent')}
+                              </Badge>
+                            )}
+                            <span className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                              item.assigned_to === user?.id 
+                                ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 font-bold border border-amber-500/30' 
+                                : 'bg-muted text-muted-foreground'
+                            }`}>
+                              <User className="w-2.5 h-2.5" />
+                              {item.assigned_to === user?.id 
+                                ? tr('Você', 'Tú', 'Vous')
+                                : (item.assigned_user?.display_name || tr('Equipe Geral', 'Equipo General', 'Équipe'))}
+                            </span>
+                          </div>
+                          <h5 className="text-sm font-bold text-foreground mt-0.5">
+                            {item.lead?.company_name || item.lead?.name}
+                          </h5>
+                          <p className="text-[11px] text-muted-foreground">
+                            {item.lead?.name || tr('Responsável', 'Responsable', 'Responsable')} • {item.lead?.city || tr('Espanha', 'España', 'Espagne')}
+                          </p>
+                          {(item.campaign?.title || item.origin_campaign_title) && (
+                            <p className="text-[10px] text-muted-foreground/80 mt-0.5 flex items-center gap-1">
+                              <Layers className="w-2.5 h-2.5 text-indigo-400" />
+                              {item.campaign?.title || `${item.origin_campaign_title} (${tr('Preservado', 'Preservado', 'Conservé')})`}
+                            </p>
+                          )}
                         </div>
-                        <h5 className="text-sm font-bold text-foreground mt-0.5">
-                          {item.lead?.company_name || item.lead?.name}
-                        </h5>
-                        <p className="text-[11px] text-muted-foreground">
-                          {item.lead?.name || tr('Responsável', 'Responsable', 'Responsable')} • {item.lead?.city || tr('Espanha', 'España', 'Espagne')}
-                        </p>
                       </div>
 
                       <Badge className="bg-muted text-muted-foreground text-[10px] uppercase">
@@ -699,10 +1164,27 @@ export function DialerAgendaPage() {
                       </Badge>
                     </div>
 
+                    {/* Tags Badges */}
+                    {itemTags.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {itemTags.map(tag => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => setTagFilter(tagFilter === tag ? 'all' : tag)}
+                            className="px-2 py-0.5 rounded-md bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 text-[10px] font-bold flex items-center gap-1 hover:bg-indigo-500/25 transition-colors"
+                          >
+                            <Tag className="w-2.5 h-2.5" />
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+
                     {/* Phone & contact */}
                     {item.lead?.phone && (
                       <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t border-border">
-                        <span className="font-mono">{item.lead.phone}</span>
+                        <span className="font-mono font-semibold text-foreground">{item.lead.phone}</span>
                         <div className="flex gap-1">
                           <Button
                             variant="ghost"
@@ -735,7 +1217,7 @@ export function DialerAgendaPage() {
                         onClick={() => handleOpenEdit(item)}
                         className="h-7 text-xs border-input gap-1"
                       >
-                        <Edit3 className="w-3 h-3" /> {tr('Editar', 'Editar', 'Modifier')}
+                        <Edit3 className="w-3 h-3" /> {tr('Editar / Tags', 'Editar / Tags', 'Modifier / Tags')}
                       </Button>
 
                       <Button
@@ -747,9 +1229,10 @@ export function DialerAgendaPage() {
                       </Button>
                     </div>
                   </div>
-                ))}
+                );
+              })}
 
-              {selectedDay && scopedAgenda.filter(it => it.scheduled_for && isSameDay(parseISO(it.scheduled_for), selectedDay)).length === 0 && (
+              {selectedDay && selectedDayAppointments.length === 0 && (
                 <div className="p-8 text-center rounded-xl border border-dashed border-border space-y-2">
                   <CalendarDays className="w-8 h-8 text-muted-foreground/40 mx-auto" />
                   <p className="text-xs text-muted-foreground">
@@ -765,20 +1248,9 @@ export function DialerAgendaPage() {
       {/* View 2: List / Table View */}
       {viewMode === 'list' && (
         <div className="space-y-4">
-          {/* Filter Bar */}
-          <div className="p-4 rounded-2xl bg-card border border-border shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
+          {/* Status & Priority Sub-Filter Bar */}
+          <div className="p-3.5 rounded-2xl bg-card border border-border shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
-              <div className="relative w-64">
-                <Search className="w-3.5 h-3.5 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  value={searchQuery}
-                  onChange={e => setSearchQuery(e.target.value)}
-                  placeholder={tr('Buscar empresa, contato ou nota...', 'Buscar empresa, contacto o nota...', 'Rechercher entreprise, contact ou note...')}
-                  className="pl-8 h-8 text-xs bg-background border-input"
-                />
-              </div>
-
-              {/* Status pills */}
               <div className="bg-muted/60 p-0.5 rounded-xl flex items-center border border-border">
                 <button
                   type="button"
@@ -842,13 +1314,26 @@ export function DialerAgendaPage() {
               <table className="w-full text-left border-collapse">
                 <thead>
                   <tr className="border-b border-border bg-muted/40 text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+                    <th className="py-3 px-3 w-10 text-center">
+                      <button
+                        type="button"
+                        onClick={handleSelectAllFiltered}
+                        className="text-indigo-600 dark:text-indigo-400"
+                        title={tr('Selecionar Todos', 'Seleccionar Todos', 'Tout Sélectionner')}
+                      >
+                        {filteredAgenda.length > 0 && filteredAgenda.every(it => selectedIds.includes(it.id)) ? (
+                          <CheckSquare className="w-4 h-4 mx-auto" />
+                        ) : (
+                          <Square className="w-4 h-4 mx-auto text-muted-foreground" />
+                        )}
+                      </button>
+                    </th>
                     <th className="py-3 px-4">{tr('Data & Horário', 'Fecha y Hora', 'Date & Heure')}</th>
-                    <th className="py-3 px-4">{tr('Empresa & Cidade', 'Empresa y Ciudad', 'Entreprise & Ville')}</th>
+                    <th className="py-3 px-4">{tr('Empresa & Origem', 'Empresa y Origen', 'Entreprise & Origine')}</th>
                     <th className="py-3 px-4">{tr('Contato & Telefone', 'Contacto y Teléfono', 'Contact & Téléphone')}</th>
-                    <th className="py-3 px-4">{tr('Prioridade', 'Prioridad', 'Priorité')}</th>
+                    <th className="py-3 px-4">{tr('Tags & Prioridade', 'Etiquetas y Prioridad', 'Tags & Priorité')}</th>
                     <th className="py-3 px-4">{tr('Observações do Agendamento', 'Observaciones del Agendamiento', 'Notes du Rendez-vous')}</th>
                     <th className="py-3 px-4">{tr('Operador', 'Operador', 'Opérateur')}</th>
-                    <th className="py-3 px-4">{tr('Status', 'Estado', 'Statut')}</th>
                     <th className="py-3 px-4 text-right">{tr('Ações', 'Acciones', 'Actions')}</th>
                   </tr>
                 </thead>
@@ -857,9 +1342,30 @@ export function DialerAgendaPage() {
                     const date = parseISO(item.scheduled_for);
                     const isDueToday = isToday(date);
                     const isOverdue = isBefore(date, todayStart) && item.status === 'scheduled';
+                    const isChecked = selectedIds.includes(item.id);
+                    const itemTags = extractTagsFromAppointment(item.tags, item.scheduled_notes);
 
                     return (
-                      <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                      <tr
+                        key={item.id}
+                        className={`transition-colors ${
+                          isChecked ? 'bg-indigo-500/10' : 'hover:bg-muted/30'
+                        }`}
+                      >
+                        <td className="py-3.5 px-3 text-center">
+                          <button
+                            type="button"
+                            onClick={() => handleToggleSelectId(item.id)}
+                            className="text-indigo-600 dark:text-indigo-400"
+                          >
+                            {isChecked ? (
+                              <CheckSquare className="w-4 h-4 mx-auto fill-indigo-600/20" />
+                            ) : (
+                              <Square className="w-4 h-4 mx-auto text-muted-foreground" />
+                            )}
+                          </button>
+                        </td>
+
                         <td className="py-3.5 px-4 font-mono">
                           <div className="flex flex-col">
                             <span className="font-bold text-foreground">
@@ -884,6 +1390,12 @@ export function DialerAgendaPage() {
                             <MapPin className="w-3 h-3 text-emerald-500" />
                             {item.lead?.city || tr('Espanha', 'España', 'Espagne')} • {item.lead?.sector || tr('Geral', 'General', 'Général')}
                           </div>
+                          {(item.campaign?.title || item.origin_campaign_title) && (
+                            <div className="text-[10px] text-indigo-600 dark:text-indigo-400 font-medium mt-0.5 flex items-center gap-1">
+                              <Layers className="w-2.5 h-2.5" />
+                              {item.campaign?.title || `${item.origin_campaign_title} (${tr('Preservado', 'Preservado', 'Conservé')})`}
+                            </div>
+                          )}
                         </td>
 
                         <td className="py-3.5 px-4">
@@ -892,19 +1404,32 @@ export function DialerAgendaPage() {
                         </td>
 
                         <td className="py-3.5 px-4">
-                          <Badge className={
-                            item.priority === 'high' 
-                              ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30' 
-                              : item.priority === 'low'
-                              ? 'bg-muted text-muted-foreground'
-                              : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30'
-                          }>
-                            {item.priority === 'high'
-                              ? `🔥 ${tr('Alta', 'Alta', 'Haute')}`
-                              : item.priority === 'low'
-                              ? `⏳ ${tr('Baixa', 'Baja', 'Basse')}`
-                              : '⚡ Normal'}
-                          </Badge>
+                          <div className="flex flex-wrap items-center gap-1">
+                            <Badge className={
+                              item.priority === 'high' 
+                                ? 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30 text-[10px]' 
+                                : item.priority === 'low'
+                                ? 'bg-muted text-muted-foreground text-[10px]'
+                                : 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30 text-[10px]'
+                            }>
+                              {item.priority === 'high'
+                                ? `🔥 ${tr('Alta', 'Alta', 'Haute')}`
+                                : item.priority === 'low'
+                                ? `⏳ ${tr('Baixa', 'Baja', 'Basse')}`
+                                : '⚡ Normal'}
+                            </Badge>
+
+                            {itemTags.map(tag => (
+                              <button
+                                key={tag}
+                                type="button"
+                                onClick={() => setTagFilter(tagFilter === tag ? 'all' : tag)}
+                                className="px-1.5 py-0.5 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 text-[10px] font-bold hover:bg-indigo-500/25"
+                              >
+                                {tag}
+                              </button>
+                            ))}
+                          </div>
                         </td>
 
                         <td className="py-3.5 px-4 max-w-xs">
@@ -933,19 +1458,13 @@ export function DialerAgendaPage() {
                           </span>
                         </td>
 
-                        <td className="py-3.5 px-4">
-                          <Badge className="bg-muted text-foreground text-[10px] uppercase">
-                            {item.status}
-                          </Badge>
-                        </td>
-
                         <td className="py-3.5 px-4 text-right">
                           <div className="flex items-center justify-end gap-1.5">
                             <Button
                               size="sm"
                               onClick={() => handleStartDialer(item)}
                               className="h-7 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1 shadow-sm"
-                              title={tr('Abrir no Cockpit do Discador', 'Abrir en el Cockpit del Marcador', 'Ouvrir dans le Cockpit Dialer')}
+                              title={tr('Abrir no Cockpit do Discador com este cliente selecionado', 'Abrir en el Cockpit del Marcador con este cliente seleccionado', 'Ouvrir dans le Cockpit Dialer')}
                             >
                               <PhoneCall className="w-3 h-3" /> {tr('Atender', 'Atender', 'Appeler')}
                             </Button>
@@ -955,7 +1474,7 @@ export function DialerAgendaPage() {
                               size="sm"
                               onClick={() => handleOpenEdit(item)}
                               className="h-7 text-xs border-input"
-                              title={tr('Editar / Reagendar', 'Editar / Reagendar', 'Modifier / Replanifier')}
+                              title={tr('Editar / Tags / Reagendar', 'Editar / Etiquetas / Reagendar', 'Modifier / Tags / Replanifier')}
                             >
                               <Edit3 className="w-3 h-3" />
                             </Button>
@@ -1005,9 +1524,9 @@ export function DialerAgendaPage() {
         </div>
       )}
 
-      {/* Full Edit / Reschedule Modal */}
+      {/* Modal 1: Full Edit / Reschedule + Tags Modal */}
       <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
-        <DialogContent className="sm:max-w-2xl bg-card border-border text-foreground p-0 shadow-2xl">
+        <DialogContent className="sm:max-w-2xl max-h-[92vh] overflow-y-auto bg-card border-border text-foreground p-0 shadow-2xl">
           <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-600 dark:text-amber-400">
@@ -1015,12 +1534,12 @@ export function DialerAgendaPage() {
               </div>
               <div>
                 <DialogTitle className="text-lg font-bold text-foreground">
-                  {tr('Editar / Reagendar Retorno Comercial', 'Editar / Reagendar Retorno Comercial', 'Modifier / Replanifier le Rappel Commercial')}
+                  {tr('Editar / Reagendar Retorno & Tags', 'Editar / Reagendar Retorno y Etiquetas', 'Modifier / Replanifier le Rappel & Tags')}
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
                   {editingItem
                     ? `${tr('Empresa:', 'Empresa:', 'Entreprise :')} ${editingItem.lead?.company_name || editingItem.lead?.name}`
-                    : tr('Ajuste a data, horário e instruções', 'Ajuste la fecha, hora e instrucciones', 'Ajustez la date, l’heure et les instructions')}
+                    : tr('Ajuste a data, horário, tags e instruções', 'Ajuste la fecha, hora, etiquetas e instrucciones', 'Ajustez la date, l’heure, les tags et les instructions')}
                 </DialogDescription>
               </div>
             </div>
@@ -1106,6 +1625,75 @@ export function DialerAgendaPage() {
                 <option value="no_answer">📞 {tr('Tentado / Sem Resposta', 'Intentado / Sin Respuesta', 'Tenté / Sans Réponse')}</option>
                 <option value="pending">🔄 {tr('Retornar à Fila Geral', 'Devolver a la Cola General', 'Remettre dans la File Générale')}</option>
               </select>
+            </div>
+
+            {/* Structured Tags Manager in Edit Modal */}
+            <div className="p-3.5 rounded-xl bg-muted/30 border border-border space-y-2.5">
+              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Tag className="w-3.5 h-3.5 text-indigo-500" />
+                {tr('Tags do Agendamento (Para Achar e Filtrar na Agenda)', 'Etiquetas del Agendamiento', 'Tags du Rendez-vous')}
+              </Label>
+
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={editCustomTagInput}
+                  onChange={e => setEditCustomTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddEditCustomTag();
+                    }
+                  }}
+                  placeholder={tr('Criar nova tag personalizada (ex: Obra Bilbao, Ligar Sexta)...', 'Crear nueva etiqueta personalizada...', 'Créer un nouveau tag personnalisé...')}
+                  className="h-8 text-xs bg-background border-input"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddEditCustomTag}
+                  disabled={!editCustomTagInput.trim()}
+                  className="h-8 px-3 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {tr('Criar Tag', 'Crear Tag', 'Créer Tag')}
+                </Button>
+              </div>
+
+              {editTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {editTags.map(t => (
+                    <Badge
+                      key={t}
+                      onClick={() => setEditTags(prev => prev.filter(x => x !== t))}
+                      className="bg-indigo-600 text-white hover:bg-indigo-500 text-[11px] font-bold px-2 py-0.5 flex items-center gap-1 cursor-pointer"
+                    >
+                      {t}
+                      <X className="w-3 h-3" />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {Array.from(new Set([...quickTags, ...savedCustomTags])).map(tagText => {
+                  const cleanTag = `#${tagText.replace(/^#+/, '').trim()}`;
+                  const isActive = editTags.includes(cleanTag);
+                  return (
+                    <button
+                      key={tagText}
+                      type="button"
+                      onClick={() => handleToggleEditTag(tagText)}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium border transition-colors ${
+                        isActive
+                          ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500 font-bold'
+                          : 'bg-background hover:bg-muted text-foreground border-border'
+                      }`}
+                    >
+                      {isActive ? `✓ ${cleanTag}` : `+ ${cleanTag}`}
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             <div className="space-y-1.5">
@@ -1200,23 +1788,6 @@ export function DialerAgendaPage() {
                   className="p-3.5 min-h-[120px] max-h-[200px] overflow-y-auto text-xs text-foreground leading-relaxed focus:outline-none"
                 />
               </div>
-
-              {/* Quick Tags */}
-              <div className="pt-1 flex flex-wrap gap-1.5 items-center">
-                <span className="text-[10px] font-bold text-muted-foreground uppercase flex items-center gap-1 mr-1">
-                  <Tag className="w-3 h-3" /> Tags:
-                </span>
-                {quickTags.map(tagText => (
-                  <button
-                    key={tagText}
-                    type="button"
-                    onClick={() => handleInsertEditTag(tagText)}
-                    className="px-2 py-0.5 rounded-md bg-muted/60 hover:bg-muted text-[10px] text-foreground border border-border hover:border-amber-500/50 transition-colors"
-                  >
-                    + {tagText}
-                  </button>
-                ))}
-              </div>
             </div>
 
             <DialogFooter className="p-4 border-t border-border bg-muted/20 flex justify-between items-center">
@@ -1238,6 +1809,133 @@ export function DialerAgendaPage() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal 2: Create Work Queue (dialer_campaigns) from Selected Agenda Appointments */}
+      <Dialog open={isCreateQueueModalOpen} onOpenChange={setIsCreateQueueModalOpen}>
+        <DialogContent className="sm:max-w-lg bg-card border-border text-foreground p-0 shadow-2xl">
+          <DialogHeader className="p-6 pb-4 border-b border-border bg-muted/30">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <Layers className="w-5 h-5" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg font-bold text-foreground">
+                  {tr(
+                    'Criar Fila de Trabalho a partir da Agenda',
+                    'Crear Cola de Trabajo desde la Agenda',
+                    'Créer une File de Travail depuis l’Agenda'
+                  )}
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  {tr(
+                    `${queueTargetIds.length} agendamento(s) serão agrupados em um novo Trabalho no Power Dialer mantendo suas datas, notas e tags.`,
+                    `${queueTargetIds.length} agendamiento(s) se agruparán en un nuevo Trabajo en el Power Dialer manteniendo sus fechas, notas y etiquetas.`,
+                    `${queueTargetIds.length} rendez-vous seront regroupés dans un nouveau Lot Power Dialer en conservant dates, notes et tags.`
+                  )}
+                </DialogDescription>
+              </div>
+            </div>
+          </DialogHeader>
+
+          <div className="p-6 space-y-4">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">
+                {tr('Nome da Nova Fila / Trabalho', 'Nombre de la Nueva Cola / Trabajo', 'Nom de la Nouvelle File / Lot')}
+              </Label>
+              <Input
+                value={newQueueTitle}
+                onChange={e => setNewQueueTitle(e.target.value)}
+                placeholder={tr('Ex: Retornos Agendados - Orçamentos Pendentes', 'Ej: Seguimientos Agendados - Presupuestos', 'Ex: Rappels Planifiés')}
+                className="bg-background border-input text-xs h-9"
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-bold text-foreground">
+                {tr('Descrição / Objetivo (Opcional)', 'Descripción / Objetivo (Opcional)', 'Description / Objectif (Optionnel)')}
+              </Label>
+              <Input
+                value={newQueueDescription}
+                onChange={e => setNewQueueDescription(e.target.value)}
+                placeholder={tr('Ex: Clientes que pediram retorno esta semana', 'Ej: Clientes que pidieron llamada esta semana', 'Ex: Clients à rappeler cette semaine')}
+                className="bg-background border-input text-xs h-9"
+              />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">
+                  {tr('Operador Responsável', 'Operador Responsable', 'Opérateur Responsable')}
+                </Label>
+                <select
+                  value={newQueueAssignedTo}
+                  onChange={e => setNewQueueAssignedTo(e.target.value)}
+                  className="w-full h-9 rounded-lg bg-background border border-input text-foreground text-xs px-2"
+                >
+                  {user && (
+                    <option value={user.id}>👤 {tr('Atribuir a Mim (Você)', 'Asignarme a Mí (Tú)', 'M’attribuer (Vous)')}</option>
+                  )}
+                  {salespeople
+                    .filter(sp => sp.id !== user?.id)
+                    .map(sp => (
+                      <option key={sp.id} value={sp.id}>{sp.display_name}</option>
+                    ))}
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label className="text-xs font-bold text-foreground">
+                  {tr('Script de Abordagem', 'Guion de Abordaje', 'Script d’Appel')}
+                </Label>
+                <select
+                  value={newQueueScriptId}
+                  onChange={e => setNewQueueScriptId(e.target.value)}
+                  className="w-full h-9 rounded-lg bg-background border border-input text-foreground text-xs px-2"
+                >
+                  <option value="">{tr('Padrão / Sem Script Fixo', 'Estándar / Sin Guion Fijo', 'Standard / Sans Script')}</option>
+                  {scripts.map(sc => (
+                    <option key={sc.id} value={sc.id}>{sc.title}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="p-4 border-t border-border bg-muted/20 flex flex-wrap justify-between items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setIsCreateQueueModalOpen(false)}
+              className="border-input text-xs"
+            >
+              {tr('Cancelar', 'Cancelar', 'Annuler')}
+            </Button>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isCreatingCampaignFromAgenda || !newQueueTitle.trim()}
+                onClick={() => handleConfirmCreateQueueFromAgenda(false)}
+                className="border-indigo-500/40 text-indigo-700 dark:text-indigo-300 text-xs font-bold"
+              >
+                <Layers className="w-3.5 h-3.5 mr-1.5" />
+                {tr('Apenas Criar Fila', 'Solo Crear Cola', 'Créer la File Seule')}
+              </Button>
+
+              <Button
+                type="button"
+                disabled={isCreatingCampaignFromAgenda || !newQueueTitle.trim()}
+                onClick={() => handleConfirmCreateQueueFromAgenda(true)}
+                className="bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs gap-1.5 shadow-md shadow-emerald-600/20"
+              >
+                <PhoneCall className="w-3.5 h-3.5" />
+                {tr('Criar Fila & Ligar no Cockpit', 'Crear Cola y Llamar en Cockpit', 'Créer File & Appeler')}
+              </Button>
+            </div>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

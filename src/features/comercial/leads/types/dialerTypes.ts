@@ -88,7 +88,7 @@ export interface DialerCampaign {
 
 export interface DialerQueueItem {
   id: string;
-  campaign_id: string;
+  campaign_id: string | null;
   lead_id: string;
   assigned_to?: string | null;
   status: DialerQueueStatus;
@@ -97,6 +97,8 @@ export interface DialerQueueItem {
   scheduled_for?: string | null;
   scheduled_notes?: string | null;
   priority?: 'high' | 'normal' | 'low';
+  tags?: string[] | null;
+  origin_campaign_title?: string | null;
   sort_order: number;
   last_attempt_at?: string | null;
   created_at: string;

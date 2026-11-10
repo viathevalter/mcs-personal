@@ -77,15 +77,22 @@ export function DialerCampaignsListPage() {
   const handleDelete = async (id: string) => {
     if (!confirm(
       tr(
-        'Deseja realmente excluir este trabalho e sua fila de discagem?',
-        '¿Desea realmente eliminar este trabajo y su cola de marcado?',
-        'Voulez-vous vraiment supprimer ce lot et sa file d’appels ?'
+        'Deseja excluir este trabalho? Nota: Todos os agendamentos de retorno (callbacks) deste trabalho serão mantidos intactos na Agenda.',
+        '¿Desea eliminar este trabajo? Nota: Todos los agendamientos de seguimiento (callbacks) de este trabajo se mantendrán intactos en la Agenda.',
+        'Voulez-vous supprimer ce lot ? Note : Tous les rappels planifiés (callbacks) de ce lot seront conservés dans l’Agenda.'
       )
     )) return;
     try {
-      await deleteCampaign(id);
+      const res = await deleteCampaign(id);
+      const preserved = res?.preservedCount || 0;
       toast.success(
-        tr('Trabalho excluído com sucesso!', '¡Trabajo eliminado con éxito!', 'Lot supprimé avec succès !')
+        preserved > 0
+          ? tr(
+              `Trabalho excluído! ${preserved} agendamento(s) preservado(s) na Agenda.`,
+              `¡Trabajo eliminado! ${preserved} agendamiento(s) preservado(s) en la Agenda.`,
+              `Lot supprimé ! ${preserved} rendez-vous conservé(s) dans l’Agenda.`
+            )
+          : tr('Trabalho excluído com sucesso!', '¡Trabajo eliminado con éxito!', 'Lot supprimé avec succès !')
       );
     } catch (err: any) {
       toast.error(

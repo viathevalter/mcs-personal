@@ -26,7 +26,9 @@ import {
   AlertCircle, 
   Tag, 
   Building2,
-  CalendarDays
+  CalendarDays,
+  Plus,
+  X
 } from 'lucide-react';
 import { 
   format, 
@@ -50,7 +52,12 @@ interface ScheduleCallbackModalProps {
   isOpen: boolean;
   onClose: () => void;
   lead?: Lead | null;
-  onConfirm: (scheduledDateIso: string, formattedNotes: string, priority: 'high' | 'normal' | 'low') => void;
+  onConfirm: (
+    scheduledDateIso: string,
+    formattedNotes: string,
+    priority: 'high' | 'normal' | 'low',
+    tags: string[]
+  ) => void;
   isSubmitting?: boolean;
 }
 
@@ -61,12 +68,16 @@ const POPULAR_TIMES = [
 
 const QUICK_TAGS = [
   'Decisor em reunião',
-  'Pediu ligar após o almoço',
-  'Parada técnica prevista',
-  'Aguardando aprovação de compras',
-  'Ligar direto para celular do engenheiro',
-  'Interessado em soldadores TIG/MIG'
+  'Ligar à tarde',
+  'Parada técnica',
+  'Aguardando compras',
+  'Pediu orçamento',
+  'Soldadores TIG/MIG',
+  'Tubistas / Montadores',
+  'Urgente Obra'
 ];
+
+const CUSTOM_TAGS_STORAGE_KEY = 'mcs_dialer_custom_callback_tags';
 
 export function ScheduleCallbackModal({
   isOpen,
@@ -80,6 +91,16 @@ export function ScheduleCallbackModal({
   const [selectedDate, setSelectedDate] = useState<Date>(addDays(new Date(), 1));
   const [selectedTime, setSelectedTime] = useState<string>('10:00');
   const [priority, setPriority] = useState<'high' | 'normal' | 'low'>('high');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [customTagInput, setCustomTagInput] = useState<string>('');
+  const [savedCustomTags, setSavedCustomTags] = useState<string[]>(() => {
+    try {
+      const raw = localStorage.getItem(CUSTOM_TAGS_STORAGE_KEY);
+      return raw ? JSON.parse(raw) : [];
+    } catch {
+      return [];
+    }
+  });
 
   // Rich Text Editor State (contentEditable)
   const editorRef = useRef<HTMLDivElement>(null);
@@ -129,11 +150,40 @@ export function ScheduleCallbackModal({
   };
 
   const handleInsertTag = (tagText: string) => {
-    if (editorRef.current) {
-      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">#${tagText}</span> `;
-      document.execCommand('insertHTML', false, tagHtml);
+    const cleanTag = `#${tagText.replace(/^#+/, '').trim()}`;
+    setSelectedTags(prev =>
+      prev.includes(cleanTag) ? prev.filter(t => t !== cleanTag) : [...prev, cleanTag]
+    );
+    if (editorRef.current && !editorRef.current.innerHTML.includes(cleanTag)) {
+      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">${cleanTag}</span> `;
+      editorRef.current.innerHTML = `${tagHtml}${editorRef.current.innerHTML}`;
       setEditorHtml(editorRef.current.innerHTML);
     }
+  };
+
+  const handleAddCustomTag = () => {
+    const raw = customTagInput.replace(/^#+/, '').trim();
+    if (!raw) return;
+    const cleanTag = `#${raw}`;
+    if (!selectedTags.includes(cleanTag)) {
+      setSelectedTags(prev => [...prev, cleanTag]);
+    }
+    if (!QUICK_TAGS.includes(raw) && !savedCustomTags.includes(raw)) {
+      const nextCustom = [...savedCustomTags, raw];
+      setSavedCustomTags(nextCustom);
+      try {
+        localStorage.setItem(CUSTOM_TAGS_STORAGE_KEY, JSON.stringify(nextCustom));
+      } catch {
+        // ignore storage errors
+      }
+    }
+    if (editorRef.current && !editorRef.current.innerHTML.includes(cleanTag)) {
+      const tagHtml = `<span style="background-color: #3b82f620; color: #3b82f6; padding: 2px 6px; border-radius: 4px; font-weight: bold; border: 1px solid #3b82f640; margin-right: 4px;">${cleanTag}</span> `;
+      editorRef.current.innerHTML = `${tagHtml}${editorRef.current.innerHTML}`;
+      setEditorHtml(editorRef.current.innerHTML);
+    }
+    setCustomTagInput('');
+    toast.success(`Tag ${cleanTag} adicionada ao agendamento!`);
   };
 
   const handleSave = () => {
@@ -141,7 +191,7 @@ export function ScheduleCallbackModal({
     const combinedIso = new Date(`${dateStr}T${selectedTime}:00`).toISOString();
     const finalContent = editorRef.current?.innerHTML || editorHtml;
 
-    onConfirm(combinedIso, finalContent, priority);
+    onConfirm(combinedIso, finalContent, priority, selectedTags);
   };
 
   return (
@@ -495,22 +545,81 @@ export function ScheduleCallbackModal({
               </div>
             </div>
 
-            {/* Quick Tags Palette */}
-            <div className="space-y-1.5">
-              <span className="text-[11px] font-bold text-muted-foreground uppercase flex items-center gap-1">
-                <Tag className="w-3 h-3" /> Inserir Tag Rápida:
-              </span>
-              <div className="flex flex-wrap gap-1.5">
-                {QUICK_TAGS.map((tText) => (
-                  <button
-                    key={tText}
-                    type="button"
-                    onClick={() => handleInsertTag(tText)}
-                    className="px-2 py-1 rounded-md bg-muted/60 hover:bg-muted text-[11px] text-foreground border border-border hover:border-indigo-500/50 transition-colors"
-                  >
-                    + {tText}
-                  </button>
-                ))}
+            {/* Quick Tags Palette + Custom Tag Creator */}
+            <div className="space-y-2 p-3 rounded-xl bg-muted/30 border border-border">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-foreground uppercase flex items-center gap-1.5">
+                  <Tag className="w-3.5 h-3.5 text-indigo-500" /> Tags do Agendamento (Para Filtrar na Agenda):
+                </span>
+                {selectedTags.length > 0 && (
+                  <span className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400">
+                    {selectedTags.length} selecionada(s)
+                  </span>
+                )}
+              </div>
+
+              {/* Create Custom Tag Input */}
+              <div className="flex items-center gap-1.5">
+                <Input
+                  value={customTagInput}
+                  onChange={e => setCustomTagInput(e.target.value)}
+                  onKeyDown={e => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      handleAddCustomTag();
+                    }
+                  }}
+                  placeholder="Criar nova tag personalizada (ex: Obra Bilbao, Ligar Sexta...)"
+                  className="h-8 text-xs bg-background border-input"
+                />
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleAddCustomTag}
+                  disabled={!customTagInput.trim()}
+                  className="h-8 px-3 text-xs font-bold bg-indigo-600 hover:bg-indigo-500 text-white gap-1 shrink-0"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  Criar Tag
+                </Button>
+              </div>
+
+              {/* Selected Tags */}
+              {selectedTags.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {selectedTags.map(tag => (
+                    <Badge
+                      key={tag}
+                      className="bg-indigo-600 text-white hover:bg-indigo-500 text-[11px] font-bold px-2 py-0.5 flex items-center gap-1 cursor-pointer"
+                      onClick={() => setSelectedTags(prev => prev.filter(t => t !== tag))}
+                    >
+                      {tag}
+                      <X className="w-3 h-3" />
+                    </Badge>
+                  ))}
+                </div>
+              )}
+
+              {/* Quick & Saved Custom Tags */}
+              <div className="flex flex-wrap gap-1.5 pt-1">
+                {[...QUICK_TAGS, ...savedCustomTags].map((tText) => {
+                  const cleanTag = `#${tText.replace(/^#+/, '').trim()}`;
+                  const isActive = selectedTags.includes(cleanTag);
+                  return (
+                    <button
+                      key={tText}
+                      type="button"
+                      onClick={() => handleInsertTag(tText)}
+                      className={`px-2 py-1 rounded-md text-[11px] font-medium border transition-all ${
+                        isActive
+                          ? 'bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 border-indigo-500 font-bold'
+                          : 'bg-background hover:bg-muted text-foreground border-border hover:border-indigo-500/50'
+                      }`}
+                    >
+                      {isActive ? `✓ ${cleanTag}` : `+ #${tText}`}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 

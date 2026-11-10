@@ -25,7 +25,8 @@ import {
   ExternalLink,
   Wrench,
   FileText,
-  Edit
+  Edit,
+  Tag
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -40,6 +41,8 @@ import {
   useDialerCampaigns, 
   useDialerCampaign, 
   useDialerQueue, 
+  useDialerDirectQueueItems,
+  extractTagsFromAppointment,
   useLeadCallLogs, 
   useMutateDialer 
 } from './hooks/useDialer';
@@ -74,6 +77,25 @@ export function PowerDialerPage() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const campaignIdParam = searchParams.get('campaignId');
+  const queueItemIdParam = searchParams.get('queueItemId');
+  const queueItemIdsParam = searchParams.get('queueItemIds');
+
+  const directAgendaItemIds = useMemo(() => {
+    const ids: string[] = [];
+    if (queueItemIdsParam) {
+      queueItemIdsParam
+        .split(',')
+        .map(s => s.trim())
+        .filter(Boolean)
+        .forEach(id => {
+          if (!ids.includes(id)) ids.push(id);
+        });
+    }
+    if (queueItemIdParam && !ids.includes(queueItemIdParam)) {
+      ids.push(queueItemIdParam);
+    }
+    return ids;
+  }, [queueItemIdParam, queueItemIdsParam]);
 
   const {
     activeProfile,
@@ -90,11 +112,35 @@ export function PowerDialerPage() {
     if (campaignIdParam && campaigns.some(c => c.id === campaignIdParam)) {
       return campaignIdParam;
     }
+    // If direct agenda items are requested without a valid campaign, don't force a random campaign
+    if (directAgendaItemIds.length > 0 && !campaignIdParam) {
+      return null;
+    }
     return campaigns.length > 0 ? campaigns[0].id : null;
-  }, [campaignIdParam, campaigns]);
+  }, [campaignIdParam, campaigns, directAgendaItemIds.length]);
 
   const { data: activeCampaign } = useDialerCampaign(activeCampaignId);
-  const { data: queue = [] } = useDialerQueue(activeCampaignId);
+  const { data: campaignQueue = [] } = useDialerQueue(activeCampaignId);
+  const { data: directQueueItems = [] } = useDialerDirectQueueItems(directAgendaItemIds);
+
+  // Unified queue: if directAgendaItemIds are specified and either no campaignId is set OR multiple items are selected from Agenda,
+  // use directQueueItems; if a single queueItemId was requested inside an active campaign, ensure it's in the queue (or prepend it if detached).
+  const isDirectAgendaMode = useMemo(() => {
+    return (
+      directAgendaItemIds.length > 0 &&
+      (!activeCampaignId ||
+        Boolean(queueItemIdsParam) ||
+        (directQueueItems.length > 0 && !campaignQueue.some(q => q.id === directQueueItems[0]?.id)))
+    );
+  }, [directAgendaItemIds.length, activeCampaignId, queueItemIdsParam, directQueueItems, campaignQueue]);
+
+  const queue = useMemo(() => {
+    if (isDirectAgendaMode && directQueueItems.length > 0) {
+      return directQueueItems;
+    }
+    return campaignQueue;
+  }, [isDirectAgendaMode, directQueueItems, campaignQueue]);
+
   const { logCallAndAdvance, isLoggingCall, createQuickPresupuesto } = useMutateDialer();
 
   // Active Lead Pointer in Queue
@@ -118,9 +164,6 @@ export function PowerDialerPage() {
   const [activeLeadOverride, setActiveLeadOverride] = useState<Lead | null>(null);
 
   const queryClient = useQueryClient();
-
-  // Check if a specific queueItemId was requested from Agenda
-  const queueItemIdParam = searchParams.get('queueItemId');
 
   useEffect(() => {
     if (queueItemIdParam && queue.length > 0) {
@@ -146,6 +189,7 @@ export function PowerDialerPage() {
   const handleLeadUpdated = (updatedLead: Lead) => {
     setActiveLeadOverride(updatedLead);
     queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
+    queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
   };
 
   // History Logs for current lead
@@ -287,7 +331,8 @@ export function PowerDialerPage() {
     outcome: CallOutcome, 
     customCallback?: string,
     customPriority: 'high' | 'normal' | 'low' = 'normal',
-    customNotes?: string
+    customNotes?: string,
+    customTags?: string[]
   ) => {
     if (!currentQueueItem || !currentLead) return;
 
@@ -295,7 +340,7 @@ export function PowerDialerPage() {
       setIsCalling(false);
       await logCallAndAdvance({
         queueItemId: currentQueueItem.id,
-        campaignId: activeCampaignId!,
+        campaignId: currentQueueItem.campaign_id || activeCampaignId || null,
         leadId: currentLead.id,
         outcome,
         durationSeconds: callDuration,
@@ -304,6 +349,7 @@ export function PowerDialerPage() {
         contactPerson: currentLead.name,
         scheduledCallbackAt: customCallback || null,
         priority: customPriority,
+        tags: customTags,
         rejectionReason: outcome === 'answered_rejected' ? rejectionReason : null,
       });
 
@@ -361,11 +407,12 @@ export function PowerDialerPage() {
   const handleConfirmScheduleCallback = async (
     scheduledIso: string, 
     richNotes: string, 
-    priority: 'high' | 'normal' | 'low'
+    priority: 'high' | 'normal' | 'low',
+    tags: string[]
   ) => {
     setIsCallbackModalOpen(false);
     setCallNotes(richNotes);
-    await handleOutcomeSubmit('answered_callback', scheduledIso, priority, richNotes);
+    await handleOutcomeSubmit('answered_callback', scheduledIso, priority, richNotes, tags);
   };
 
   const handleConfirmSendMaterial = async (materialTitle: string, emailUsed: string, notes: string) => {
@@ -539,6 +586,54 @@ export function PowerDialerPage() {
 
       {/* Main Viewport */}
       <main className="flex-1 p-4 lg:p-6 max-w-[1600px] mx-auto w-full flex flex-col gap-4">
+        {/* Direct Agenda Selection Mode Banner */}
+        {isDirectAgendaMode && (
+          <div className="p-3.5 rounded-2xl bg-indigo-500/10 dark:bg-indigo-950/40 border border-indigo-500/40 shadow-sm flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-xl bg-indigo-500/20 border border-indigo-500/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400">
+                <CalendarDays className="w-5 h-5" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-2">
+                  {tr(
+                    `Modo Atendimento da Agenda (${queue.length} agendamento${queue.length > 1 ? 's' : ''} selecionado${queue.length > 1 ? 's' : ''})`,
+                    `Modo Atención de Agenda (${queue.length} agendamiento${queue.length > 1 ? 's' : ''} seleccionado${queue.length > 1 ? 's' : ''})`,
+                    `Mode Appels de l’Agenda (${queue.length} rappel${queue.length > 1 ? 's' : ''} sélectionné${queue.length > 1 ? 's' : ''})`
+                  )}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    'Você está atendendo diretamente os retornos selecionados na Agenda, com todas as tags e anotações preservadas.',
+                    'Está atendiendo directamente los seguimientos seleccionados en la Agenda, con todas las etiquetas y notas preservadas.',
+                    'Vous traitez directement les rappels sélectionnés dans l’Agenda, avec tous les tags et notes conservés.'
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate('/comercial/discador/agenda')}
+                className="h-8 text-xs border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 font-semibold"
+              >
+                <CalendarDays className="w-3.5 h-3.5 mr-1.5" />
+                {tr('Voltar à Agenda', 'Volver a la Agenda', 'Retour à l’Agenda')}
+              </Button>
+              {campaigns.length > 0 && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => handleSelectCampaign(campaigns[0].id)}
+                  className="h-8 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {tr('Ir para Fila de Trabalhos', 'Ir a Cola de Trabajos', 'Aller aux Files')}
+                </Button>
+              )}
+            </div>
+          </div>
+        )}
+
         {/* Priority Callback Alert Banner */}
         {dueCallback && (
           <div className="p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/40 border border-amber-500/50 shadow-md flex items-center justify-between gap-4 animate-bounce-short">
@@ -753,19 +848,48 @@ export function PowerDialerPage() {
                       </Badge>
                     </div>
 
-                    <div className="flex items-center gap-1.5 text-xs font-bold text-foreground font-mono">
-                      <Clock className="w-3.5 h-3.5 text-amber-500" />
-                      {(() => {
-                        try {
-                          const d = typeof currentQueueItem.scheduled_for === 'string'
-                            ? parseISO(currentQueueItem.scheduled_for)
-                            : new Date(currentQueueItem.scheduled_for);
-                          return format(d, "dd/MM/yyyy '•' HH:mm");
-                        } catch {
-                          return String(currentQueueItem.scheduled_for);
-                        }
-                      })()}
+                    <div className="flex items-center justify-between gap-2 flex-wrap">
+                      <div className="flex items-center gap-1.5 text-xs font-bold text-foreground font-mono">
+                        <Clock className="w-3.5 h-3.5 text-amber-500" />
+                        {(() => {
+                          try {
+                            const d = typeof currentQueueItem.scheduled_for === 'string'
+                              ? parseISO(currentQueueItem.scheduled_for)
+                              : new Date(currentQueueItem.scheduled_for);
+                            return format(d, "dd/MM/yyyy '•' HH:mm");
+                          } catch {
+                            return String(currentQueueItem.scheduled_for);
+                          }
+                        })()}
+                      </div>
+                      {currentQueueItem.origin_campaign_title && (
+                        <span className="text-[10px] font-medium text-muted-foreground bg-background/80 px-2 py-0.5 rounded-md border border-border">
+                          {currentQueueItem.origin_campaign_title}
+                        </span>
+                      )}
                     </div>
+
+                    {/* Appointment Tags */}
+                    {(() => {
+                      const itemTags = extractTagsFromAppointment(
+                        currentQueueItem.tags,
+                        currentQueueItem.scheduled_notes
+                      );
+                      if (itemTags.length === 0) return null;
+                      return (
+                        <div className="flex flex-wrap gap-1 pt-1">
+                          {itemTags.map(tag => (
+                            <Badge
+                              key={tag}
+                              className="bg-indigo-600/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1"
+                            >
+                              <Tag className="w-2.5 h-2.5" />
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      );
+                    })()}
 
                     {currentQueueItem.scheduled_notes && (
                       <div className="pt-2 border-t border-amber-500/20 space-y-1">
