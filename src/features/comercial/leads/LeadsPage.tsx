@@ -1045,6 +1045,15 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'CANARIAS - Alba',
+      'CANTABRIA - Alba',
+      'Sin Correo - CANARIAS - Alba',
+      'Sin Correo - CANTABRIA - Alba',
+      'Sem E-mail - CANARIAS - Alba',
+      'Sem E-mail - CANTABRIA - Alba',
+      'Mailing Alba - Canarias 2026',
+      'Mailing Alba - Cantabria 2026',
+      'Mailing Alba - Canarias & Cantabria 2026',
       'Madrid - Liseth',
       'Sin Correo - Madrid - Liseth',
       'Barcelona - Liseth',
