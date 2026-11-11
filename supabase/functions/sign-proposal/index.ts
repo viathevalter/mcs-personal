@@ -182,12 +182,13 @@ async function sendMailViaGraph(
   ccEmails: string[],
   subject: string,
   htmlContent: string,
-  attachments: EmailAttachment[] = []
+  attachments: EmailAttachment[] = [],
+  microsoftCredentials?: { tenantId?: string; clientId?: string; clientSecret?: string }
 ): Promise<{ success: boolean; error?: string }> {
   try {
-    const tenantId = Deno.env.get('SHAREPOINT_TENANT_ID');
-    const clientId = Deno.env.get('SHAREPOINT_CLIENT_ID');
-    const clientSecret = Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+    const tenantId = microsoftCredentials?.tenantId || Deno.env.get('SHAREPOINT_TENANT_ID');
+    const clientId = microsoftCredentials?.clientId || Deno.env.get('SHAREPOINT_CLIENT_ID');
+    const clientSecret = microsoftCredentials?.clientSecret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
 
     if (!tenantId || !clientId || !clientSecret) {
       console.warn("Microsoft Graph configurations are missing in Supabase secrets.");
@@ -1215,8 +1216,32 @@ serve(async (req) => {
         });
       }
 
+      // Credenciais dedicadas da empresa caso existam (ex.: Stocco, Genio)
+      let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
+      if (
+        empresa.microsoft_tenant_id &&
+        empresa.microsoft_client_id &&
+        !empresa.microsoft_client_id.includes("@") &&
+        empresa.microsoft_client_secret
+      ) {
+        msCredentials = {
+          tenantId: empresa.microsoft_tenant_id,
+          clientId: empresa.microsoft_client_id,
+          clientSecret: empresa.microsoft_client_secret,
+        };
+      }
+
       // Envia para o cliente com cópia oculta/CC para a empresa
-      const mailRes = await sendMailViaGraph(senderEmail, senderName, emailUsed, [senderEmail], subject, htmlContent, attachments);
+      const mailRes = await sendMailViaGraph(
+        senderEmail,
+        senderName,
+        emailUsed,
+        [senderEmail],
+        subject,
+        htmlContent,
+        attachments,
+        msCredentials
+      );
       if (!mailRes.success) {
         console.error("Erro no envio do e-mail de conclusão:", mailRes.error);
       }

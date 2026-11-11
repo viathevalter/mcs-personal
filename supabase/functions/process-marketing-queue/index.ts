@@ -239,6 +239,7 @@ serve(async (req) => {
       const isTriangulo = companyTrade.includes("TRIANGULO") || companyTrade.includes("TRIÂNGULO") || campaign.empresa_id === 'a798620a-358a-4c6c-9db2-3a507c583cac';
       const isWiseowe = companyTrade.includes("WISEOWE") || campaign.empresa_id === 'dae64d51-2181-4510-b14f-e63d2f111a8e';
       const isLuminous = companyTrade.includes("LUMINOUS") || campaign.empresa_id === '847796c4-b253-4e53-9e6b-34a127ec7d85';
+      const isGenio = companyTrade.includes("GENIO") || companyTrade.includes("GÉNIO") || campaign.empresa_id === '4a507974-f922-409f-83c0-9ef8cbf982cb';
 
       const leadTags = Array.isArray(lead.tags) ? lead.tags.join(' ').toLowerCase() : (typeof lead.tags === 'string' ? lead.tags.toLowerCase() : '');
       const leadEmail = (lead.email || '').toLowerCase();
@@ -254,6 +255,7 @@ serve(async (req) => {
       const FATUMATA_ID = '2a25dd76-8a1b-44ea-8ea9-47e9232beee2';
       const LISETH_ID = 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa';
       const ALEX_ID = 'efc6c631-f22a-4ce6-b662-9309a50a4cb7';
+      const AYSLAN_ID = '9cba947d-432d-4622-89f0-18c5750581d9';
 
       const isItalyLead = leadTags.includes('itália') || leadTags.includes('italia') || leadTags.includes('italy') || leadTags.includes('giada') || leadEmail.endsWith('.it') || leadPhone.startsWith('+39') || leadPhone.startsWith('0039');
       const tplTitleLower = (template.title || '').toLowerCase();
@@ -309,6 +311,7 @@ serve(async (req) => {
       const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Alba, quisiera más información sobre sus servicios")}`;
       const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
       const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
+      const waAyslanUrl = `https://wa.me/351913417249?text=${encodeURIComponent("Hola Ayslan, quisiera más información sobre sus servicios")}`;
 
       // Resolução inteligente do WhatsApp padrão (Hierarquia: Vendedor Atribuído -> País/Mercado -> Empresa)
       let defaultWaUrl = waMichelleUrl;
@@ -317,6 +320,9 @@ serve(async (req) => {
       if (assignedUserId === GIADA_ID) {
         defaultWaUrl = waGiadaUrl;
         effectiveAssignedTo = GIADA_ID;
+      } else if (assignedUserId === AYSLAN_ID) {
+        defaultWaUrl = waAyslanUrl;
+        effectiveAssignedTo = AYSLAN_ID;
       } else if (assignedUserId === LISETH_ID || (isWiseowe && isSpainWiseowe)) {
         defaultWaUrl = waLisethUrl;
         effectiveAssignedTo = LISETH_ID;
@@ -329,6 +335,9 @@ serve(async (req) => {
       } else if (assignedUserId === ALEX_ID) {
         defaultWaUrl = waAlexUrl;
         effectiveAssignedTo = ALEX_ID;
+      } else if (isGenio) {
+        defaultWaUrl = waAyslanUrl;
+        effectiveAssignedTo = AYSLAN_ID;
       } else if (isItalyLead) {
         defaultWaUrl = waGiadaUrl;
         effectiveAssignedTo = GIADA_ID;
@@ -383,6 +392,7 @@ serve(async (req) => {
           .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, waMichelleUrl)
           .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, waGiadaUrl)
           .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, waAlexUrl)
+          .replace(/\{\{\s*whatsapp_url_ayslan\s*\}\}/g, waAyslanUrl)
           // Variável genérica inteligente (respeita template/vendedor atribuído, país do lead e empresa)
           .replace(/\{\{\s*whatsapp_url\s*\}\}/g, defaultWaUrl);
 
@@ -436,12 +446,17 @@ serve(async (req) => {
         validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email_es || "comercial1@mail.luminousalley.com";
         senderName = "Alex - Luminous Alley";
         validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial1@luminousalley.com";
+      } else if (isGenio || assignedUserId === AYSLAN_ID) {
+        validSenderEmail = campaign.sender_email || assignedUser?.marketing_sender_email || company?.marketing_sender_email || "comercial5@es.geniomontagens.com";
+        senderName = "Génio Montagens Industriales";
+        validReplyTo = campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email || "comercial5@geniomontagens.com";
       } else {
         const lowerSender = validSenderEmail.toLowerCase();
         if (
           !lowerSender.includes("triangulolda.com") &&
           !lowerSender.includes("wiseowe.com") &&
           !lowerSender.includes("luminousalley.com") &&
+          !lowerSender.includes("geniomontagens.com") &&
           !lowerSender.includes("gestaologinpro.com") &&
           !lowerSender.includes("universatv.com") &&
           !lowerSender.includes("mastercorp")
@@ -557,7 +572,7 @@ serve(async (req) => {
 
           // 4. Trava de 1 E-mail por Domínio Corporativo no Lote + Cooldown Anti-Repetição (21 dias)
           // Domínios internos da empresa ficam liberados da trava de mesmo domínio e do cooldown de 21 dias para permitir testes da diretoria/equipe
-          const internalWhitelistedDomains = new Set(["gestaologinpro.com", "luminousalley.com", "wiseowe.com", "triangulolda.com"]);
+          const internalWhitelistedDomains = new Set(["gestaologinpro.com", "luminousalley.com", "wiseowe.com", "triangulolda.com", "geniomontagens.com"]);
           const isInternalTestDomain = internalWhitelistedDomains.has(emailDomain);
           const genericWebmailsEs = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.es", "yahoo.com", "hotmail.es", "outlook.es", "live.com", "icloud.com"]);
           const isCorporateDomain = emailDomain && !isInternalTestDomain && !genericWebmailsEs.has(emailDomain) && !frenchPersonalWebmails.has(emailDomain);
@@ -633,6 +648,20 @@ serve(async (req) => {
             const fallbackPayload = {
               ...emailPayload,
               from: `${senderName} <comercial3@fr.wiseowe.com>`,
+            };
+            res = await fetch("https://api.resend.com/emails", {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json",
+                "Authorization": `Bearer ${resendApiKey}`,
+              },
+              body: JSON.stringify(fallbackPayload),
+            });
+          } else if ((res.status === 403 || res.status === 422) && validSenderEmail.includes("geniomontagens.com")) {
+            console.warn(`[DNS Fallback] Domínio geniomontagens.com não verificado no Resend. Utilizando fallback verificado alex@mail.gestaologinpro.com (mantendo Reply-To ${validReplyTo}) para ${lead.email}...`);
+            const fallbackPayload = {
+              ...emailPayload,
+              from: `${senderName} <alex@mail.gestaologinpro.com>`,
             };
             res = await fetch("https://api.resend.com/emails", {
               method: "POST",
