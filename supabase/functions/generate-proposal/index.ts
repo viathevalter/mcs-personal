@@ -44,8 +44,9 @@ async function normalizeDocxTemplates(
               .replace(/www\.\s*luminous\s*alley\s*\.\s*com/gi, brandGuard.website)
               .replace(/www\.\s*triangulolda\s*\.\s*com/gi, brandGuard.website)
               .replace(/www\.\s*wiseowe\s*\.\s*com/gi, brandGuard.website)
+              .replace(/www\.\s*geniomontagens\s*\.\s*com/gi, brandGuard.website)
               .replace(/www\.\s*stocc?o\s*\.\s*(pt|es|com)/gi, brandGuard.website)
-              .replace(/\b(Hexagon|Luminous|Triangulo|Wiseowe|Stocco)\b(?=\s*·|\s*<\/w:t>)/gi, brandGuard.brandName);
+              .replace(/\b(Hexagon|Luminous|Triangulo|Wiseowe|Genio(?:\s+Montagens)?|Stocco)\b(?=\s*·|\s*<\/w:t>)/gi, brandGuard.brandName);
           }
           if (!brandGuard.isHexagon && path === 'word/document.xml') {
             if (content.includes('Tarancón')) {
@@ -670,6 +671,7 @@ serve(async (req) => {
         (empresa.trade_name || "").toLowerCase().includes("luminous") ? "www.luminousalley.com" :
         (empresa.trade_name || "").toLowerCase().includes("wise") ? "www.wiseowe.com" :
         (empresa.trade_name || "").toLowerCase().includes("triangulo") ? "www.triangulolda.com" :
+        (empresa.trade_name || "").toLowerCase().includes("genio") ? "www.geniomontagens.com" :
         "www.stoco.es"
       ),
     };
@@ -680,6 +682,7 @@ serve(async (req) => {
                  tradeLower.includes("luminous") ? "Luminous" :
                  tradeLower.includes("wise") ? "Wiseowe" :
                  tradeLower.includes("triangulo") ? "Triangulo" :
+                 tradeLower.includes("genio") ? "Genio Montagens" :
                  tradeLower.includes("stocco") ? "Stocco" :
                  (empresa.trade_name || "MCS"),
       website: mergeData.WEB_EMPRESA,
