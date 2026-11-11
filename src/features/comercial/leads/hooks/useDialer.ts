@@ -241,49 +241,151 @@ export function useDialerCampaigns() {
       (users || []).forEach(u => userMap.set(u.id, u));
 
       const campaignIds = (campaigns || []).map(c => c.id);
-      let statsMap = new Map<string, any>();
+      const statsMap = new Map<string, {
+        total: number;
+        pending: number;
+        callable: number;
+        completed: number;
+        attempted_leads: number;
+        calls_count: number;
+        total_duration_seconds: number;
+        interested: number;
+        converted: number;
+        scheduled: number;
+        rejected: number;
+        no_answer: number;
+        skipped: number;
+      }>();
+
+      const ensureStats = (campId: string) => {
+        let cur = statsMap.get(campId);
+        if (!cur) {
+          cur = {
+            total: 0,
+            pending: 0,
+            callable: 0,
+            completed: 0,
+            attempted_leads: 0,
+            calls_count: 0,
+            total_duration_seconds: 0,
+            interested: 0,
+            converted: 0,
+            scheduled: 0,
+            rejected: 0,
+            no_answer: 0,
+            skipped: 0,
+          };
+          statsMap.set(campId, cur);
+        }
+        return cur;
+      };
 
       if (campaignIds.length > 0) {
-        const { data: queueItems } = await supabase
-          .schema("core_comercial")
-          .from("dialer_queue_items")
-          .select("campaign_id, status")
-          .in("campaign_id", campaignIds);
+        // Fetch all queue items across batches (PostgREST 1000-row pagination)
+        let fromIdx = 0;
+        const pageSize = 1000;
+        const allQueueItems: any[] = [];
+        while (true) {
+          const { data: chunk, error: qErr } = await supabase
+            .schema("core_comercial")
+            .from("dialer_queue_items")
+            .select("campaign_id, status, attempts_count, scheduled_for")
+            .in("campaign_id", campaignIds)
+            .range(fromIdx, fromIdx + pageSize - 1);
+          if (qErr || !chunk || chunk.length === 0) break;
+          allQueueItems.push(...chunk);
+          if (chunk.length < pageSize) break;
+          fromIdx += pageSize;
+        }
 
-        if (queueItems) {
-          queueItems.forEach(item => {
-            const current = statsMap.get(item.campaign_id) || {
-              total: 0,
-              pending: 0,
-              converted: 0,
-              scheduled: 0,
-              rejected: 0,
-              no_answer: 0,
-            };
-            current.total += 1;
-            if (item.status === "pending" || item.status === "in_progress") current.pending += 1;
-            else if (item.status === "converted") current.converted += 1;
-            else if (item.status === "scheduled") current.scheduled += 1;
-            else if (item.status === "rejected") current.rejected += 1;
-            else if (item.status === "no_answer") current.no_answer += 1;
-            statsMap.set(item.campaign_id, current);
+        const nowMs = Date.now();
+        allQueueItems.forEach(item => {
+          const current = ensureStats(item.campaign_id);
+          current.total += 1;
+          if ((item.attempts_count || 0) > 0 || item.status !== "pending") {
+            current.attempted_leads += 1;
+          }
+
+          if (item.status === "pending" || item.status === "in_progress") {
+            if ((item.attempts_count || 0) > 0 && item.status === "pending") {
+              // Historical leads where material was sent before 'interested' status existed
+              current.interested += 1;
+              current.completed += 1;
+            } else {
+              current.pending += 1;
+              current.callable += 1;
+            }
+          } else if (item.status === "no_answer") {
+            current.no_answer += 1;
+            current.callable += 1;
+          } else if (item.status === "scheduled") {
+            current.scheduled += 1;
+            const isDue = item.scheduled_for && new Date(item.scheduled_for).getTime() <= nowMs;
+            if (isDue) {
+              current.callable += 1;
+            } else {
+              current.completed += 1;
+            }
+          } else if (item.status === "interested") {
+            current.interested += 1;
+            current.completed += 1;
+          } else if (item.status === "converted") {
+            current.converted += 1;
+            current.completed += 1;
+          } else if (item.status === "rejected") {
+            current.rejected += 1;
+            current.completed += 1;
+          } else if (item.status === "skipped") {
+            current.skipped += 1;
+            current.completed += 1;
+          }
+        });
+
+        // Fetch call logs count & duration per campaign
+        let logFrom = 0;
+        while (true) {
+          const { data: logChunk, error: lErr } = await supabase
+            .schema("core_comercial")
+            .from("lead_call_logs")
+            .select("campaign_id, duration_seconds")
+            .in("campaign_id", campaignIds)
+            .range(logFrom, logFrom + pageSize - 1);
+          if (lErr || !logChunk || logChunk.length === 0) break;
+          logChunk.forEach((lg: any) => {
+            if (!lg.campaign_id) return;
+            const current = ensureStats(lg.campaign_id);
+            current.calls_count += 1;
+            current.total_duration_seconds += Number(lg.duration_seconds) || 0;
           });
+          if (logChunk.length < pageSize) break;
+          logFrom += pageSize;
         }
       }
 
       const enriched = (campaigns || []).map(c => {
         const assignedUser = c.assigned_to ? userMap.get(c.assigned_to) || null : null;
+        const fallbackTotal = c.total_leads || 0;
+        const fallbackCompleted = c.completed_leads || 0;
         const stats = statsMap.get(c.id) || {
-          total: c.total_leads || 0,
-          pending: (c.total_leads || 0) - (c.completed_leads || 0),
+          total: fallbackTotal,
+          pending: Math.max(0, fallbackTotal - fallbackCompleted),
+          callable: Math.max(0, fallbackTotal - fallbackCompleted),
+          completed: fallbackCompleted,
+          attempted_leads: fallbackCompleted,
+          calls_count: 0,
+          total_duration_seconds: 0,
+          interested: 0,
           converted: 0,
           scheduled: 0,
           rejected: 0,
           no_answer: 0,
+          skipped: 0,
         };
 
         return {
           ...c,
+          total_leads: stats.total > 0 ? stats.total : fallbackTotal,
+          completed_leads: stats.total > 0 ? stats.completed : fallbackCompleted,
           assigned_user: assignedUser,
           items_count: stats,
         };
@@ -359,25 +461,27 @@ export function useDialerQueue(campaignId?: string | null, userId?: string | nul
 
       const now = new Date().getTime();
 
+      const getQueueItemPriority = (item: DialerQueueItem): number => {
+        const isDueScheduled =
+          item.status === 'scheduled' &&
+          item.scheduled_for &&
+          new Date(item.scheduled_for).getTime() <= now;
+        if (isDueScheduled) return 1;
+        if (item.status === 'in_progress') return 2;
+        if (item.status === 'pending' && (item.attempts_count || 0) === 0) return 3;
+        if (item.status === 'no_answer') return 4;
+        // Already processed / future scheduled items
+        if (item.status === 'scheduled') return 5;
+        if (item.status === 'interested' || (item.status === 'pending' && (item.attempts_count || 0) > 0)) return 6;
+        if (item.status === 'converted') return 7;
+        if (item.status === 'rejected') return 8;
+        if (item.status === 'skipped') return 9;
+        return 99;
+      };
+
       return items.sort((a, b) => {
-        const isADueScheduled = a.status === 'scheduled' && a.scheduled_for && new Date(a.scheduled_for).getTime() <= now;
-        const isBDueScheduled = b.status === 'scheduled' && b.scheduled_for && new Date(b.scheduled_for).getTime() <= now;
-
-        if (isADueScheduled && !isBDueScheduled) return -1;
-        if (!isADueScheduled && isBDueScheduled) return 1;
-
-        const statusPriority: Record<string, number> = {
-          'scheduled': 1,
-          'in_progress': 2,
-          'pending': 3,
-          'no_answer': 4,
-          'converted': 5,
-          'rejected': 6,
-          'skipped': 7
-        };
-
-        const prioA = statusPriority[a.status] || 99;
-        const prioB = statusPriority[b.status] || 99;
+        const prioA = getQueueItemPriority(a);
+        const prioB = getQueueItemPriority(b);
 
         if (prioA !== prioB) return prioA - prioB;
 
@@ -457,6 +561,68 @@ export function useLeadCallLogs(leadId?: string | null) {
       return enriched as LeadCallLog[];
     },
     enabled: !!leadId,
+  });
+}
+
+export function useDialerTodaySessionStats() {
+  const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
+  const targetUserId = isCommercialOperator
+    ? loggedCommercialProfile?.userId || null
+    : activeCommercialProfile?.userId || null;
+
+  return useQuery({
+    queryKey: ['dialer_today_session_stats', selectedEmpresaId, targetUserId || 'all'],
+    queryFn: async () => {
+      const now = new Date();
+      const startOfDayIso = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate(),
+        0,
+        0,
+        0
+      ).toISOString();
+
+      let q = supabase
+        .schema('core_comercial')
+        .from('lead_call_logs')
+        .select('id, campaign_id, duration_seconds, outcome, created_at')
+        .gte('created_at', startOfDayIso);
+
+      if (targetUserId) {
+        q = q.eq('user_id', targetUserId);
+      }
+
+      const { data, error } = await q;
+      if (error) throw error;
+
+      const rows = data || [];
+      let todayCallsCount = 0;
+      let todayDurationSeconds = 0;
+      const byCampaign: Record<string, { callsCount: number; durationSeconds: number }> = {};
+
+      rows.forEach((r: any) => {
+        todayCallsCount += 1;
+        const dur = Number(r.duration_seconds) || 0;
+        todayDurationSeconds += dur;
+        if (r.campaign_id) {
+          if (!byCampaign[r.campaign_id]) {
+            byCampaign[r.campaign_id] = { callsCount: 0, durationSeconds: 0 };
+          }
+          byCampaign[r.campaign_id].callsCount += 1;
+          byCampaign[r.campaign_id].durationSeconds += dur;
+        }
+      });
+
+      return {
+        todayCallsCount,
+        todayDurationSeconds,
+        byCampaign,
+      };
+    },
+    enabled: !!selectedEmpresaId,
+    refetchInterval: 30000,
   });
 }
 
@@ -556,6 +722,7 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
       let totalDuration = 0;
       let answeredDurationTotal = 0;
       let timedCallsCount = 0;
+      let timedAnsweredCount = 0;
 
       const sdrMap = new Map<string, {
         userId: string;
@@ -563,6 +730,7 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         flag?: string;
         empresaName?: string;
         totalCalls: number;
+        timedCalls: number;
         todayCalls: number;
         answeredCalls: number;
         convertedCalls: number;
@@ -597,6 +765,7 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         if (isAnswered) {
           answeredCount += 1;
           answeredDurationTotal += dur;
+          if (dur > 0) timedAnsweredCount += 1;
         }
 
         if (log.outcome === 'answered_converted') convertedCount += 1;
@@ -620,6 +789,7 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
           flag: prof?.flag,
           empresaName: prof?.empresaName,
           totalCalls: 0,
+          timedCalls: 0,
           todayCalls: 0,
           answeredCalls: 0,
           convertedCalls: 0,
@@ -631,6 +801,7 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         };
 
         sdr.totalCalls += 1;
+        if (dur > 0) sdr.timedCalls += 1;
         if (isToday) sdr.todayCalls += 1;
         if (isAnswered) sdr.answeredCalls += 1;
         if (log.outcome === 'answered_converted') sdr.convertedCalls += 1;
@@ -638,7 +809,10 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         if (log.outcome === 'answered_interested') sdr.materialCalls += 1;
         if (log.outcome === 'answered_rejected') sdr.rejectedCalls += 1;
         sdr.totalDuration += dur;
-        sdr.avgDurationSeconds = sdr.totalCalls > 0 ? Math.round(sdr.totalDuration / sdr.totalCalls) : 0;
+        sdr.avgDurationSeconds =
+          sdr.timedCalls > 0
+            ? Math.round(sdr.totalDuration / sdr.timedCalls)
+            : 0;
 
         sdrMap.set(uId, sdr);
 
@@ -666,7 +840,12 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
       const contactRate = totalCalls > 0 ? (answeredCount / totalCalls) * 100 : 0;
       const conversionRate = totalCalls > 0 ? (convertedCount / totalCalls) * 100 : 0;
       const avgDuration = timedCallsCount > 0 ? Math.round(totalDuration / timedCallsCount) : (totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0);
-      const answeredAvgDuration = answeredCount > 0 ? Math.round(answeredDurationTotal / answeredCount) : 0;
+      const answeredAvgDuration =
+        timedAnsweredCount > 0
+          ? Math.round(answeredDurationTotal / timedAnsweredCount)
+          : answeredCount > 0
+          ? Math.round(answeredDurationTotal / answeredCount)
+          : 0;
 
       const sortedSdrs = Array.from(sdrMap.values()).sort((a, b) => b.totalCalls - a.totalCalls);
 
@@ -1004,9 +1183,21 @@ export function useMutateDialer() {
 
       if (logError) throw logError;
 
-      // 2. Calculate New Queue Item Status & Order
+      // 2. Fetch current queue item attempts & state first so we never overwrite an active callback
+      const { data: currentQueueItem } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select('status, scheduled_for, scheduled_notes, attempts_count, sort_order, assigned_to, tags')
+        .eq('id', queueItemId)
+        .single();
+
+      const newAttempts = (currentQueueItem?.attempts_count || 0) + 1;
+      const currentSort = currentQueueItem?.sort_order || 0;
+
+      // 3. Calculate New Queue Item Status & Order
       let nextStatus: string = 'pending';
       let nextScheduledFor: string | null = null;
+      let nextScheduledNotes: string | null = notes || null;
       let nextSortOrderModifier = 0;
 
       if (outcome === 'answered_converted') {
@@ -1016,23 +1207,23 @@ export function useMutateDialer() {
       } else if (outcome === 'answered_callback') {
         nextStatus = 'scheduled';
         nextScheduledFor = scheduledCallbackAt || null;
+      } else if (outcome === 'answered_interested') {
+        // Material sent! Preserve 'converted' or existing future 'scheduled' callback if already set
+        if (currentQueueItem?.status === 'converted') {
+          nextStatus = 'converted';
+        } else if (currentQueueItem?.status === 'scheduled' && currentQueueItem?.scheduled_for) {
+          nextStatus = 'scheduled';
+          nextScheduledFor = currentQueueItem.scheduled_for;
+          nextScheduledNotes = currentQueueItem.scheduled_notes || notes || null;
+        } else {
+          nextStatus = 'interested';
+        }
       } else if (outcome === 'no_answer' || outcome === 'busy' || outcome === 'gatekeeper_blocked') {
         nextStatus = 'no_answer';
         nextSortOrderModifier = 10000;
       } else {
         nextStatus = 'pending';
       }
-
-      // 3. Fetch current queue item attempts
-      const { data: currentQueueItem } = await supabase
-        .schema('core_comercial')
-        .from('dialer_queue_items')
-        .select('attempts_count, sort_order, assigned_to, tags')
-        .eq('id', queueItemId)
-        .single();
-
-      const newAttempts = (currentQueueItem?.attempts_count || 0) + 1;
-      const currentSort = currentQueueItem?.sort_order || 0;
 
       if (nextStatus === 'no_answer' && newAttempts >= maxAttempts) {
         nextStatus = 'skipped';
@@ -1043,7 +1234,7 @@ export function useMutateDialer() {
         status: nextStatus,
         attempts_count: newAttempts,
         scheduled_for: nextScheduledFor,
-        scheduled_notes: notes || null,
+        scheduled_notes: nextScheduledNotes,
         priority: priority || 'normal',
         sort_order: currentSort + nextSortOrderModifier,
         last_attempt_at: new Date().toISOString(),
@@ -1129,39 +1320,115 @@ export function useMutateDialer() {
         .update(leadUpdatePayload)
         .eq('id', leadId);
 
-      // 5. Update Campaign Progress Counter (only if campaignId exists)
-      if (campaignId && ['converted', 'rejected', 'skipped'].includes(nextStatus)) {
-        const { data: campData } = await supabase
+      // 5. Recompute Accurate Campaign Progress & Auto-Complete when no callable leads remain
+      let campaignAutoCompleted = false;
+      if (campaignId) {
+        const { data: campItems } = await supabase
           .schema('core_comercial')
-          .from('dialer_campaigns')
-          .select('completed_leads')
-          .eq('id', campaignId)
-          .maybeSingle();
+          .from('dialer_queue_items')
+          .select('status, attempts_count, scheduled_for')
+          .eq('campaign_id', campaignId);
 
-        if (campData) {
+        if (campItems && campItems.length > 0) {
+          const nowMs = Date.now();
+          let totalCount = campItems.length;
+          let completedCount = 0;
+          let callableCount = 0;
+
+          campItems.forEach((it: any) => {
+            if (it.status === 'pending' || it.status === 'in_progress') {
+              if ((it.attempts_count || 0) > 0 && it.status === 'pending') {
+                completedCount += 1;
+              } else {
+                callableCount += 1;
+              }
+            } else if (it.status === 'no_answer') {
+              callableCount += 1;
+            } else if (it.status === 'scheduled') {
+              const isDue = it.scheduled_for && new Date(it.scheduled_for).getTime() <= nowMs;
+              if (isDue) callableCount += 1;
+              else completedCount += 1;
+            } else {
+              // interested, converted, rejected, skipped
+              completedCount += 1;
+            }
+          });
+
+          const campUpdate: Record<string, any> = {
+            total_leads: totalCount,
+            completed_leads: completedCount,
+            updated_at: new Date().toISOString(),
+          };
+
+          if (callableCount === 0) {
+            campUpdate.status = 'completed';
+            campaignAutoCompleted = true;
+          }
+
           await supabase
             .schema('core_comercial')
             .from('dialer_campaigns')
-            .update({
-              completed_leads: (campData?.completed_leads || 0) + 1,
-              updated_at: new Date().toISOString(),
-            })
+            .update(campUpdate)
             .eq('id', campaignId);
         }
       }
 
-      return log;
+      return { ...log, _campaignAutoCompleted: campaignAutoCompleted };
     },
     onSuccess: (_, vars) => {
       if (vars.campaignId) {
         queryClient.invalidateQueries({ queryKey: ['dialer_queue_items', vars.campaignId] });
+        queryClient.invalidateQueries({ queryKey: ['dialer_campaign', vars.campaignId] });
       }
       queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['lead_call_logs', vars.leadId] });
       queryClient.invalidateQueries({ queryKey: ['dialer_supervisor_kpis'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_today_session_stats'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+
+  const completeCampaign = useMutation({
+    mutationFn: async (campaignId: string) => {
+      // Mark any leftover pending / no_answer items as skipped so the job closes cleanly (preserving scheduled, interested, converted, rejected)
+      await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .update({
+          status: 'skipped',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('campaign_id', campaignId)
+        .in('status', ['pending', 'in_progress', 'no_answer']);
+
+      const { count: totalCount } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_campaigns')
+        .update({
+          status: 'completed',
+          completed_leads: totalCount || 0,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', campaignId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as DialerCampaign;
+    },
+    onSuccess: (_, campaignId) => {
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_campaign', campaignId] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_queue_items', campaignId] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
     },
   });
 
@@ -1587,6 +1854,8 @@ export function useMutateDialer() {
     isCreatingCampaignFromAgenda: createCampaignFromAgenda.isPending,
     updateCampaignStatus: updateCampaignStatus.mutateAsync,
     isUpdatingCampaignStatus: updateCampaignStatus.isPending,
+    completeCampaign: completeCampaign.mutateAsync,
+    isCompletingCampaign: completeCampaign.isPending,
     deleteCampaign: deleteCampaign.mutateAsync,
     isDeletingCampaign: deleteCampaign.isPending,
     logCallAndAdvance: logCallAndAdvance.mutateAsync,

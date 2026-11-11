@@ -30,7 +30,8 @@ import {
   Play,
   Square,
   RotateCcw,
-  Timer
+  Timer,
+  Plus
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -46,6 +47,7 @@ import {
   useDialerCampaign, 
   useDialerQueue, 
   useDialerDirectQueueItems,
+  useDialerTodaySessionStats,
   useSalesScripts,
   extractTagsFromAppointment,
   useLeadCallLogs, 
@@ -119,10 +121,24 @@ export function PowerDialerPage() {
     return ids;
   }, [queueItemIdParam, queueItemIdsParam]);
 
-  const { data: campaigns = [] } = useDialerCampaigns();
+  const { data: rawCampaigns = [] } = useDialerCampaigns();
   const { data: allScripts = [] } = useSalesScripts();
+  const { data: todaySession } = useDialerTodaySessionStats();
 
-  // Active Campaign State
+  // Sort campaigns so active jobs with available numbers come first
+  const campaigns = useMemo(() => {
+    return [...rawCampaigns].sort((a, b) => {
+      const aActiveCallable = a.status === 'active' && (a.items_count?.callable || 0) > 0 ? 1 : 0;
+      const bActiveCallable = b.status === 'active' && (b.items_count?.callable || 0) > 0 ? 1 : 0;
+      if (aActiveCallable !== bActiveCallable) return bActiveCallable - aActiveCallable;
+      const aActive = a.status === 'active' ? 1 : 0;
+      const bActive = b.status === 'active' ? 1 : 0;
+      if (aActive !== bActive) return bActive - aActive;
+      return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+    });
+  }, [rawCampaigns]);
+
+  // Active Campaign State (prefers campaignIdParam, otherwise first active campaign with callable numbers)
   const activeCampaignId = useMemo(() => {
     if (campaignIdParam && campaigns.some(c => c.id === campaignIdParam)) {
       return campaignIdParam;
@@ -130,11 +146,31 @@ export function PowerDialerPage() {
     if (directAgendaItemIds.length > 0 && !campaignIdParam) {
       return null;
     }
+    const firstWithNumbers = campaigns.find(
+      c => c.status === 'active' && (c.items_count?.callable || 0) > 0
+    );
+    if (firstWithNumbers) return firstWithNumbers.id;
     return campaigns.length > 0 ? campaigns[0].id : null;
   }, [campaignIdParam, campaigns, directAgendaItemIds.length]);
 
+  const activeCampaignSummary = useMemo(
+    () => campaigns.find(c => c.id === activeCampaignId) || null,
+    [campaigns, activeCampaignId]
+  );
+
+  const otherAvailableCampaigns = useMemo(
+    () =>
+      campaigns.filter(
+        c =>
+          c.id !== activeCampaignId &&
+          c.status === 'active' &&
+          (c.items_count?.callable || 0) > 0
+      ),
+    [campaigns, activeCampaignId]
+  );
+
   const { data: activeCampaign } = useDialerCampaign(activeCampaignId);
-  const { data: campaignQueue = [] } = useDialerQueue(activeCampaignId);
+  const { data: campaignQueue = [], isLoading: isLoadingQueue } = useDialerQueue(activeCampaignId);
   const { data: directQueueItems = [] } = useDialerDirectQueueItems(directAgendaItemIds);
 
   const isDirectAgendaMode = useMemo(() => {
@@ -146,14 +182,29 @@ export function PowerDialerPage() {
     );
   }, [directAgendaItemIds.length, activeCampaignId, queueItemIdsParam, directQueueItems, campaignQueue]);
 
+  // In Campaign Mode, filter to ONLY callable leads (due callbacks, fresh pending, and no_answer retries)
+  // so already-completed or future-scheduled leads never block or sit at Lead 1 of the active queue!
+  const callableCampaignQueue = useMemo(() => {
+    const nowMs = Date.now();
+    return campaignQueue.filter(item => {
+      if (item.status === 'in_progress') return true;
+      if (item.status === 'pending' && (item.attempts_count || 0) === 0) return true;
+      if (item.status === 'no_answer') return true;
+      if (item.status === 'scheduled' && item.scheduled_for) {
+        return new Date(item.scheduled_for).getTime() <= nowMs;
+      }
+      return false;
+    });
+  }, [campaignQueue]);
+
   const queue = useMemo(() => {
     if (isDirectAgendaMode && directQueueItems.length > 0) {
       return directQueueItems;
     }
-    return campaignQueue;
-  }, [isDirectAgendaMode, directQueueItems, campaignQueue]);
+    return callableCampaignQueue;
+  }, [isDirectAgendaMode, directQueueItems, callableCampaignQueue]);
 
-  const { logCallAndAdvance, isLoggingCall, createQuickPresupuesto } = useMutateDialer();
+  const { logCallAndAdvance, isLoggingCall, createQuickPresupuesto, completeCampaign, isCompletingCampaign } = useMutateDialer();
 
   // Script selection & expanded mode
   const [selectedScriptIdOverride, setSelectedScriptIdOverride] = useState<string | null>(null);
@@ -188,8 +239,6 @@ export function PowerDialerPage() {
   const [isCalling, setIsCalling] = useState(false);
   const [callDuration, setCallDuration] = useState(0);
   const [leadScreenSeconds, setLeadScreenSeconds] = useState(0);
-  const [sessionCallsCount, setSessionCallsCount] = useState(0);
-  const [sessionTotalSeconds, setSessionTotalSeconds] = useState(0);
   const timerRef = useRef<any>(null);
   const screenTimerRef = useRef<any>(null);
 
@@ -204,6 +253,11 @@ export function PowerDialerPage() {
   const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
   const [isEditLeadModalOpen, setIsEditLeadModalOpen] = useState(false);
   const [activeLeadOverride, setActiveLeadOverride] = useState<Lead | null>(null);
+  const [lockedCallbackTarget, setLockedCallbackTarget] = useState<{
+    queueItem: DialerQueueItem;
+    lead: Lead;
+    materialNotes?: string;
+  } | null>(null);
 
   const queryClient = useQueryClient();
 
@@ -314,6 +368,8 @@ export function PowerDialerPage() {
         return tr('Em Curso', 'En Curso', 'En cours', 'In corso');
       case 'scheduled':
         return tr('Agendado', 'Agendado', 'Planifié', 'Pianificato');
+      case 'interested':
+        return tr('Material Enviado', 'Material Enviado', 'Dossier Envoyé', 'Materiale Inviato');
       case 'no_answer':
         return tr('Sem Resposta', 'Sin Respuesta', 'Sans réponse', 'Senza risposta');
       case 'converted':
@@ -424,21 +480,25 @@ export function PowerDialerPage() {
     customCallback?: string,
     customPriority: 'high' | 'normal' | 'low' = 'normal',
     customNotes?: string,
-    customTags?: string[]
+    customTags?: string[],
+    stayOnCurrentLead = false
   ) => {
     if (!currentQueueItem || !currentLead) return;
 
-    // Use explicit stopwatch duration if started, or passive screen time if an answered call happened without pressing Start
+    // Smart duration measurement: explicit stopwatch if >= 5s, otherwise passive call/ringing time on lead card
+    const isAnsweredLike = outcome.startsWith('answered') || outcome === 'gatekeeper_blocked';
     const effectiveDuration =
-      callDuration > 0
+      callDuration >= 5
         ? callDuration
-        : outcome.startsWith('answered') || outcome === 'gatekeeper_blocked'
-        ? Math.min(leadScreenSeconds, 1800)
-        : 0;
+        : isAnsweredLike
+        ? Math.max(callDuration, Math.min(Math.max(leadScreenSeconds, 12), 1800))
+        : callDuration > 0
+        ? callDuration
+        : Math.min(Math.max(leadScreenSeconds, 5), 45);
 
     try {
       setIsCalling(false);
-      await logCallAndAdvance({
+      const result: any = await logCallAndAdvance({
         queueItemId: currentQueueItem.id,
         campaignId: currentQueueItem.campaign_id || activeCampaignId || null,
         leadId: currentLead.id,
@@ -453,33 +513,52 @@ export function PowerDialerPage() {
         rejectionReason: outcome === 'answered_rejected' ? rejectionReason : null,
       });
 
-      setSessionCallsCount(prev => prev + 1);
-      setSessionTotalSeconds(prev => prev + effectiveDuration);
+      if (stayOnCurrentLead) {
+        return;
+      }
 
       // Clear local states
       setCallNotes('');
       setCallDuration(0);
       setLeadScreenSeconds(0);
 
-      toast.success(
-        outcome === 'answered_converted' 
-          ? tr('🎉 Lead convertido com sucesso!', '🎉 ¡Lead convertido con éxito!', '🎉 Lead converti avec succès !', '🎉 Cliente convertito con successo!')
-          : outcome === 'answered_callback'
-          ? tr('📅 Retorno agendado com sucesso na Agenda!', '📅 ¡Llamada de seguimiento agendada con éxito!', '📅 Rappel planifié avec succès dans l’Agenda !', '📅 Richiamo pianificato con successo in Agenda!')
-          : outcome === 'answered_interested'
-          ? tr('E-mail com material comercial registrado!', '¡Correo con material comercial registrado!', 'E-mail avec documentation commerciale enregistré !', 'E-mail con materiale commerciale registrata!')
-          : outcome === 'gatekeeper_blocked'
-          ? tr('Contato com a recepção registrado!', '¡Contacto con recepción registrado!', 'Contact avec la réception enregistré !', 'Contatto con la reception registrato!')
-          : outcome === 'no_answer'
-          ? tr('Lead movido para o rodízio no fim da fila.', 'Lead movido al final de la cola.', 'Lead déplacé à la fin de la file.', 'Lead spostato in fondo alla coda.')
-          : tr('Atendimento registrado!', '¡Atención registrada!', 'Appel enregistré !', 'Chiamata registrata!')
-      );
-
-      // Advance to next lead
-      if (currentQueueIndex < queue.length - 1) {
-        setCurrentQueueIndex(prev => prev + 1);
+      if (result?._campaignAutoCompleted) {
+        toast.success(
+          tr(
+            '🏁 Trabalho concluído! Todos os números deste lote foram atendidos.',
+            '🏁 ¡Trabajo completado! Todos los números de este lote fueron atendidos.',
+            '🏁 Lot terminé ! Tous les numéros de cette file ont été traités.',
+            '🏁 Lavoro completato! Tutti i numeri di questa coda sono stati chiamati.'
+          )
+        );
       } else {
-        setCurrentQueueIndex(0);
+        toast.success(
+          outcome === 'answered_converted' 
+            ? tr('🎉 Lead convertido com sucesso!', '🎉 ¡Lead convertido con éxito!', '🎉 Lead converti avec succès !', '🎉 Cliente convertito con successo!')
+            : outcome === 'answered_callback'
+            ? tr('📅 Retorno agendado com sucesso na Agenda!', '📅 ¡Llamada de seguimiento agendada con éxito!', '📅 Rappel planifié avec succès dans l’Agenda !', '📅 Richiamo pianificato con successo in Agenda!')
+            : outcome === 'answered_interested'
+            ? tr('📧 Material enviado e atendimento concluído!', '📧 ¡Material enviado y atención completada!', '📧 Dossier envoyé et appel traité !', '📧 Materiale inviato e chiamata completata!')
+            : outcome === 'gatekeeper_blocked'
+            ? tr('Contato com a recepção registrado!', '¡Contacto con recepción registrado!', 'Contact avec la réception enregistré !', 'Contatto con la reception registrato!')
+            : outcome === 'no_answer'
+            ? tr('Lead movido para o rodízio no fim da fila.', 'Lead movido al final de la cola.', 'Lead déplacé à la fin de la file.', 'Lead spostato in fondo alla coda.')
+            : tr('Atendimento registrado!', '¡Atención registrada!', 'Appel enregistré !', 'Chiamata registrata!')
+        );
+      }
+
+      // Advance pointer cleanly:
+      // In Campaign Mode, the finished/requeued item leaves its current slot so the next lead slides right into currentQueueIndex!
+      if (isDirectAgendaMode) {
+        if (currentQueueIndex < queue.length - 1) {
+          setCurrentQueueIndex(prev => prev + 1);
+        } else {
+          setCurrentQueueIndex(0);
+        }
+      } else {
+        if (currentQueueIndex >= Math.max(0, queue.length - 1)) {
+          setCurrentQueueIndex(0);
+        }
       }
     } catch (err: any) {
       console.error(err);
@@ -531,6 +610,41 @@ export function PowerDialerPage() {
     tags: string[]
   ) => {
     setIsCallbackModalOpen(false);
+    if (lockedCallbackTarget) {
+      const target = lockedCallbackTarget;
+      setLockedCallbackTarget(null);
+      const combinedNotes = target.materialNotes
+        ? `${richNotes}\n\n${target.materialNotes}`
+        : richNotes;
+      try {
+        await logCallAndAdvance({
+          queueItemId: target.queueItem.id,
+          campaignId: target.queueItem.campaign_id || activeCampaignId || null,
+          leadId: target.lead.id,
+          outcome: 'answered_callback',
+          durationSeconds: 0,
+          notes: combinedNotes,
+          phoneCalled: target.lead.phone,
+          contactPerson: target.lead.name,
+          scheduledCallbackAt: scheduledIso,
+          priority,
+          tags,
+          rejectionReason: null,
+        });
+        toast.success(
+          tr(
+            '📧 Material enviado + 📅 Retorno agendado na Agenda!',
+            '📧 ¡Material enviado + 📅 Seguimiento agendado en la Agenda!',
+            '📧 Dossier envoyé + 📅 Rappel planifié dans l’Agenda !',
+            '📧 Materiale inviato + 📅 Richiamo pianificato in Agenda!'
+          )
+        );
+      } catch (err: any) {
+        console.error(err);
+        toast.error(err.message || tr('Erro ao agendar retorno', 'Error al agendar seguimiento', 'Erreur lors de la planification', 'Errore nella pianificazione'));
+      }
+      return;
+    }
     setCallNotes(richNotes);
     await handleOutcomeSubmit('answered_callback', scheduledIso, priority, richNotes, tags);
   };
@@ -538,6 +652,47 @@ export function PowerDialerPage() {
   const handleConfirmSendMaterial = async (_materialTitle: string, _emailUsed: string, notes: string) => {
     setIsMaterialModalOpen(false);
     await handleOutcomeSubmit('answered_interested', undefined, 'normal', notes);
+  };
+
+  const handleConfirmSendMaterialAndSchedule = async (_materialTitle: string, _emailUsed: string, notes: string) => {
+    setIsMaterialModalOpen(false);
+    if (currentQueueItem && currentLead) {
+      setLockedCallbackTarget({
+        queueItem: currentQueueItem,
+        lead: currentLead,
+        materialNotes: notes,
+      });
+    }
+    await handleOutcomeSubmit('answered_interested', undefined, 'normal', notes, undefined, true);
+    setIsCallbackModalOpen(true);
+  };
+
+  const handleFinalizeCurrentCampaign = async () => {
+    if (!activeCampaignId) return;
+    try {
+      await completeCampaign(activeCampaignId);
+      toast.success(
+        tr(
+          '✅ Trabalho finalizado com sucesso!',
+          '✅ ¡Trabajo finalizado con éxito!',
+          '✅ Lot clôturé avec succès !',
+          '✅ Lavoro finalizzato con successo!'
+        )
+      );
+      if (otherAvailableCampaigns.length > 0) {
+        handleSelectCampaign(otherAvailableCampaigns[0].id);
+      }
+    } catch (err: any) {
+      console.error(err);
+      toast.error(
+        tr(
+          'Erro ao finalizar trabalho',
+          'Error al finalizar trabajo',
+          'Erreur lors de la clôture du lot',
+          'Errore nella chiusura del lavoro'
+        )
+      );
+    }
   };
 
   const handleConfirmGatekeeper = async (notes: string, actionType: 'requeue_end' | 'schedule_tomorrow', scheduledIso?: string) => {
@@ -565,10 +720,32 @@ export function PowerDialerPage() {
     }
   };
 
-  // Queue Statistics
+  // Queue & Campaign Real-Time Statistics
   const totalQueue = queue.length;
-  const completedCount = queue.filter(q => ['converted', 'rejected', 'skipped'].includes(q.status)).length;
-  const progressPercent = totalQueue > 0 ? Math.round((completedCount / totalQueue) * 100) : 0;
+  const totalCampaignLeads = isDirectAgendaMode
+    ? queue.length
+    : activeCampaignSummary?.items_count?.total || campaignQueue.length;
+  const completedCount = isDirectAgendaMode
+    ? queue.filter(q => ['converted', 'interested', 'rejected', 'skipped'].includes(q.status)).length
+    : activeCampaignSummary?.items_count?.completed ??
+      campaignQueue.filter(q => {
+        if (['converted', 'interested', 'rejected', 'skipped'].includes(q.status)) return true;
+        if (q.status === 'pending' && (q.attempts_count || 0) > 0) return true;
+        if (q.status === 'scheduled' && (!q.scheduled_for || new Date(q.scheduled_for).getTime() > Date.now())) return true;
+        return false;
+      }).length;
+  const freshPendingCount = isDirectAgendaMode
+    ? queue.length
+    : queue.filter(q => q.status === 'in_progress' || (q.status === 'pending' && (q.attempts_count || 0) === 0)).length;
+  const retryNoAnswerCount = isDirectAgendaMode
+    ? 0
+    : queue.filter(q => q.status === 'no_answer').length;
+  const campaignCallsCount = activeCampaignSummary?.items_count?.calls_count || 0;
+  const progressPercent = totalCampaignLeads > 0 ? Math.min(100, Math.round((completedCount / totalCampaignLeads) * 100)) : 0;
+
+  // Persisted Today Session Stats from Supabase
+  const sessionCallsCount = todaySession?.todayCallsCount || 0;
+  const sessionTotalSeconds = todaySession?.todayDurationSeconds || 0;
 
   // Render Outcomes Panel (reusable so it sits cleanly in col-span-3 or stacked when script is ultra-expanded)
   const outcomesPanel = (
@@ -835,11 +1012,17 @@ export function PowerDialerPage() {
                 <SelectValue placeholder={tr('Selecione o Trabalho / Fila...', 'Seleccione el Trabajo / Cola...', 'Sélectionnez le Lot / File...', 'Seleziona Lavoro / Coda...')} />
               </SelectTrigger>
               <SelectContent className="bg-card text-card-foreground border-border">
-                {campaigns.map(c => (
-                  <SelectItem key={c.id} value={c.id} className="text-xs">
-                    {c.title} ({c.items_count?.pending || 0} {tr('pend.', 'pend.', 'att.', 'att.')})
-                  </SelectItem>
-                ))}
+                {campaigns.map(c => {
+                  const avail = c.items_count?.callable ?? c.items_count?.pending ?? 0;
+                  const done = c.items_count?.completed ?? c.completed_leads ?? 0;
+                  const tot = c.items_count?.total ?? c.total_leads ?? 0;
+                  return (
+                    <SelectItem key={c.id} value={c.id} className="text-xs">
+                      {c.status === 'completed' || avail === 0 ? '✅ ' : '🟢 '}
+                      {c.title} ({done}/{tot} • {avail} {tr('disp.', 'disp.', 'disp.', 'disp.')})
+                    </SelectItem>
+                  );
+                })}
               </SelectContent>
             </Select>
           </div>
@@ -981,20 +1164,27 @@ export function PowerDialerPage() {
         {/* Compact Top Queue Progress & Session Productivity Bar */}
         <div className="px-4 py-2.5 rounded-2xl bg-card border border-border shadow-xs flex flex-wrap items-center justify-between gap-3">
           {/* Queue Counter & Progress */}
-          <div className="flex items-center gap-4 flex-wrap">
+          <div className="flex items-center gap-3.5 flex-wrap">
             <div className="flex items-center gap-2">
               <span className="text-[11px] font-bold text-muted-foreground uppercase">
-                {tr('Fila:', 'Cola:', 'File :', 'Coda:')}
+                {tr('Restam:', 'Restan:', 'Restent :', 'Restano:')}
               </span>
               <span className="text-sm font-black text-foreground px-2.5 py-0.5 rounded-xl bg-muted/60 border border-border">
-                Lead {totalQueue > 0 ? currentQueueIndex + 1 : 0}{' '}
-                <span className="text-muted-foreground font-normal">
-                  {tr('de', 'de', 'sur', 'di')} {totalQueue}
-                </span>
+                {totalQueue > 0 ? `${currentQueueIndex + 1} ${tr('de', 'de', 'sur', 'di')} ${totalQueue}` : '0'}
               </span>
+              {!isDirectAgendaMode && totalCampaignLeads > 0 && (
+                <Badge variant="outline" className="font-mono text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
+                  ✓ {completedCount}/{totalCampaignLeads} {tr('concluídos', 'completados', 'traités', 'completati')}
+                </Badge>
+              )}
+              {!isDirectAgendaMode && campaignCallsCount > 0 && (
+                <Badge variant="outline" className="hidden sm:inline-flex font-mono text-[11px] bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/25">
+                  📞 {campaignCallsCount} {tr('chamadas no lote', 'llamadas en el lote', 'appels sur ce lot', 'chiamate nel lotto')}
+                </Badge>
+              )}
             </div>
 
-            <div className="hidden md:flex items-center gap-2 w-44">
+            <div className="hidden md:flex items-center gap-2 w-36">
               <div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-border">
                 <div 
                   className="h-full bg-gradient-to-r from-blue-500 to-teal-400 transition-all duration-300"
@@ -1004,19 +1194,17 @@ export function PowerDialerPage() {
               <span className="text-xs font-mono font-bold text-muted-foreground">{progressPercent}%</span>
             </div>
 
-            {/* Session Stats Pill */}
-            <div className="hidden xl:flex items-center gap-3 pl-3 border-l border-border text-xs">
-              <span className="text-muted-foreground">
-                {tr('Sessão hoje:', 'Sesión hoy:', 'Session :', 'Sessione:')}
+            {/* Persisted Session Stats Pill (from Supabase today logs) */}
+            <div className="flex items-center gap-2 pl-2.5 border-l border-border text-xs">
+              <span className="text-muted-foreground hidden sm:inline">
+                {tr('Hoje:', 'Hoy:', 'Aujourd’hui :', 'Oggi:')}
               </span>
-              <Badge variant="outline" className="font-mono text-[11px] bg-indigo-500/5 text-indigo-700 dark:text-indigo-300 border-indigo-500/20">
-                📞 {sessionCallsCount} {tr('atendimentos', 'atenciones', 'appels', 'chiamate')}
+              <Badge variant="outline" className="font-mono text-[11px] bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/25">
+                📞 {sessionCallsCount} {tr('chamadas', 'llamadas', 'appels', 'chiamate')}
               </Badge>
-              {sessionTotalSeconds > 0 && (
-                <Badge variant="outline" className="font-mono text-[11px] bg-emerald-500/5 text-emerald-700 dark:text-emerald-300 border-emerald-500/20">
-                  ⏱ {formatTimerMMSS(sessionTotalSeconds)} {tr('acumulado', 'acumulado', 'cumulé', 'totale')}
-                </Badge>
-              )}
+              <Badge variant="outline" className="font-mono text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
+                ⏱ {formatTimerMMSS(sessionTotalSeconds)}
+              </Badge>
             </div>
           </div>
 
@@ -1099,39 +1287,249 @@ export function PowerDialerPage() {
           </div>
         </div>
 
+        {/* Retry-Only Mode Banner: All fresh numbers called, only no_answer retries left */}
+        {!isDirectAgendaMode && currentLead && freshPendingCount === 0 && retryNoAnswerCount > 0 && (
+          <div className="p-3 rounded-2xl bg-sky-500/10 dark:bg-sky-950/35 border border-sky-500/40 shadow-xs flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-xl bg-sky-500/20 border border-sky-500/40 flex items-center justify-center text-sky-600 dark:text-sky-400">
+                <RotateCcw className="w-4 h-4" />
+              </div>
+              <div>
+                <h4 className="text-xs font-bold text-sky-700 dark:text-sky-300 uppercase tracking-wider">
+                  {tr(
+                    `Rodízio de Repescagem (${retryNoAnswerCount} sem resposta)`,
+                    `Ronda de Reintentos (${retryNoAnswerCount} sin respuesta)`,
+                    `Tour de Relance (${retryNoAnswerCount} sans réponse)`,
+                    `Giro di Richiamo (${retryNoAnswerCount} senza risposta)`
+                  )}
+                </h4>
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    'Todos os números inéditos deste trabalho já foram chamados! Você pode tentar novamente estes contatos ou finalizar este trabalho agora.',
+                    '¡Todos los números nuevos de este trabajo ya fueron llamados! Puede reintentar estos contactos o finalizar este trabajo ahora.',
+                    'Tous les nouveaux numéros de ce lot ont déjà été appelés ! Vous pouvez relancer ces contacts ou clôturer ce lot maintenant.',
+                    'Tutti i nuovi numeri di questo lavoro sono già stati chiamati! Puoi riprovare questi contatti o finalizzare il lavoro ora.'
+                  )}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {otherAvailableCampaigns.length > 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => handleSelectCampaign(otherAvailableCampaigns[0].id)}
+                  className="h-8 text-xs font-semibold gap-1.5"
+                >
+                  <Play className="w-3.5 h-3.5 text-emerald-500" />
+                  {tr('Ir p/ Próximo Trabalho', 'Ir al Siguiente Trabajo', 'Passer au Lot Suivant', 'Vai al Prossimo Lavoro')}
+                </Button>
+              )}
+              <Button
+                size="sm"
+                onClick={handleFinalizeCurrentCampaign}
+                disabled={isCompletingCampaign}
+                className="h-8 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 shadow-sm"
+              >
+                <CheckCircle2 className="w-3.5 h-3.5" />
+                {tr('Finalizar Trabalho', 'Finalizar Trabajo', 'Clôturer ce Lot', 'Finalizza Lavoro')}
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Core Cockpit Grid: Wide Asymmetric Layout */}
-        {!currentLead ? (
-          <div className="p-12 text-center rounded-2xl bg-card border border-border space-y-4 my-8">
-            <PhoneOff className="w-12 h-12 text-muted-foreground/40 mx-auto" />
-            <h3 className="text-base font-bold text-foreground">
-              {tr(
-                'Nenhum lead pendente nesta fila',
-                'Ningún lead pendiente en esta cola',
-                'Aucun lead en attente dans cette file',
-                'Nessun cliente in attesa in questa coda'
-              )}
-            </h3>
-            <p className="text-xs text-muted-foreground max-w-md mx-auto">
-              {tr(
-                'Todos os leads deste lote foram processados ou a fila está vazia. Selecione outro trabalho ou gere um novo lote na base de leads.',
-                'Todos los leads de este lote fueron procesados o la cola está vacía. Seleccione otro trabajo o genere un nuevo lote en la base de leads.',
-                'Tous les leads de ce lot ont été traités ou la file est vide. Sélectionnez un autre lot ou créez-en un nouveau depuis la base de leads.',
-                'Tutti i contatti di questo lavoro sono stati elaborati o la coda è vuota. Seleziona un altro lavoro o genera una nuova coda.'
-              )}
+        {isLoadingQueue ? (
+          <div className="p-12 text-center rounded-2xl bg-card border border-border space-y-3 my-8">
+            <Clock className="w-10 h-10 text-blue-500 animate-spin mx-auto" />
+            <p className="text-sm font-medium text-muted-foreground">
+              {tr('Carregando fila de atendimento...', 'Cargando cola de llamadas...', 'Chargement de la file d’appels...', 'Caricamento coda chiamate...')}
             </p>
-            <div className="flex justify-center gap-3">
+          </div>
+        ) : !currentLead ? (
+          <div className="p-8 sm:p-12 text-center rounded-3xl bg-card border border-border shadow-sm space-y-6 my-6 max-w-3xl mx-auto w-full">
+            <div className="w-16 h-16 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 flex items-center justify-center text-emerald-600 dark:text-emerald-400 mx-auto shadow-inner">
+              <CheckCircle2 className="w-9 h-9" />
+            </div>
+
+            {activeCampaign ? (
+              <div className="space-y-2">
+                <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 text-xs font-bold uppercase px-3 py-1">
+                  {tr('🏁 Trabalho Concluído', '🏁 Trabajo Finalizado', '🏁 Lot Terminé', '🏁 Lavoro Completato')}
+                </Badge>
+                <h3 className="text-xl font-black text-foreground">
+                  {tr(
+                    `Todos os números deste trabalho foram atendidos!`,
+                    `¡Todos los números de este trabajo fueron atendidos!`,
+                    `Tous les numéros de ce lot ont été traités !`,
+                    `Tutti i numeri di questo lavoro sono stati elaborati!`
+                  )}
+                </h3>
+                <p className="text-xs sm:text-sm text-muted-foreground max-w-xl mx-auto font-medium">
+                  {activeCampaign.title}
+                </p>
+
+                {/* Summary Metrics of the Finished Campaign */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-3 max-w-2xl mx-auto">
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      {tr('Concluídos', 'Completados', 'Traités', 'Completati')}
+                    </span>
+                    <span className="text-lg font-black text-emerald-600 dark:text-emerald-400">
+                      {completedCount}/{totalCampaignLeads}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      {tr('Chamadas Feitas', 'Llamadas Hechas', 'Appels Passés', 'Chiamate Fatte')}
+                    </span>
+                    <span className="text-lg font-black text-blue-600 dark:text-blue-400">
+                      {campaignCallsCount}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      {tr('Agendados', 'Agendados', 'Planifiés', 'Pianificati')}
+                    </span>
+                    <span className="text-lg font-black text-amber-600 dark:text-amber-400">
+                      {activeCampaignSummary?.items_count?.scheduled || 0}
+                    </span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-muted/40 border border-border">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                      {tr('Materiais / Orçam.', 'Material / Presup.', 'Dossiers / Devis', 'Materiali / Prev.')}
+                    </span>
+                    <span className="text-lg font-black text-indigo-600 dark:text-indigo-400">
+                      {(activeCampaignSummary?.items_count?.interested || 0) + (activeCampaignSummary?.items_count?.converted || 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <h3 className="text-lg font-black text-foreground">
+                  {tr(
+                    'Nenhum trabalho ativo com números pendentes',
+                    'Ningún trabajo activo con números pendientes',
+                    'Aucun lot actif avec des numéros en attente',
+                    'Nessun lavoro attivo con numeri in attesa'
+                  )}
+                </h3>
+              </div>
+            )}
+
+            {/* Branch 1: Operator HAS another active campaign with numbers -> Prompt to switch right away! */}
+            {otherAvailableCampaigns.length > 0 ? (
+              <div className="p-5 rounded-2xl bg-indigo-500/10 dark:bg-indigo-950/40 border-2 border-indigo-500/30 space-y-3.5 text-left max-w-xl mx-auto">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300 flex items-center gap-1.5">
+                    <Layers className="w-4 h-4" />
+                    {tr(
+                      `Você possui ${otherAvailableCampaigns.length} trabalho(s) ativo(s) disponível(is):`,
+                      `Tiene ${otherAvailableCampaigns.length} trabajo(s) activo(s) disponible(s):`,
+                      `Vous avez ${otherAvailableCampaigns.length} lot(s) actif(s) disponible(s) :`,
+                      `Hai ${otherAvailableCampaigns.length} lavoro/i attivo/i disponibile/i:`
+                    )}
+                  </span>
+                </div>
+
+                <div className="space-y-2">
+                  {otherAvailableCampaigns.slice(0, 3).map((nextCamp, idx) => (
+                    <div
+                      key={nextCamp.id}
+                      className="p-3 rounded-xl bg-card border border-border flex items-center justify-between gap-3"
+                    >
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">{nextCamp.title}</p>
+                        <p className="text-[11px] text-muted-foreground">
+                          {nextCamp.items_count?.callable || 0}{' '}
+                          {tr('números disponíveis para ligar', 'números disponibles para llamar', 'numéros disponibles à appeler', 'numeri disponibili da chiamare')}
+                        </p>
+                      </div>
+                      <Button
+                        size="sm"
+                        onClick={() => handleSelectCampaign(nextCamp.id)}
+                        className={
+                          idx === 0
+                            ? 'bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs gap-1.5 shrink-0 shadow-md shadow-emerald-600/20'
+                            : 'bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs gap-1.5 shrink-0'
+                        }
+                      >
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                        {idx === 0
+                          ? tr('Iniciar Agora', 'Iniciar Ahora', 'Démarrer', 'Inizia Ora')
+                          : tr('Abrir', 'Abrir', 'Ouvrir', 'Apri')}
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              /* Branch 2: Operator has NO other active campaigns -> Finalize & Generate new work from Leads! */
+              <div className="p-5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/30 border-2 border-amber-500/30 space-y-3 max-w-xl mx-auto">
+                <p className="text-xs sm:text-sm font-bold text-foreground">
+                  {tr(
+                    'Você não possui outros trabalhos com números pendentes no momento.',
+                    'No tiene otros trabajos con números pendientes en este momento.',
+                    'Vous n’avez aucun autre lot avec des numéros en attente pour le moment.',
+                    'Non hai altri lavori con numeri in attesa al momento.'
+                  )}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  {tr(
+                    'Finalize a etapa atual e acesse a Base de Leads para filtrar novas empresas/regiões e gerar seu próximo trabalho de prospecção.',
+                    'Finalice esta etapa y vaya a la Base de Leads para seleccionar nuevas empresas/provincias y generar su próximo trabajo de llamadas.',
+                    'Clôturez cette étape et accédez à la Base de Leads pour générer votre prochain lot d’appels.',
+                    'Completa questa fase e vai alla Base Contatti per generare un nuovo lavoro di chiamate.'
+                  )}
+                </p>
+
+                <div className="flex flex-wrap justify-center gap-3 pt-2">
+                  {activeCampaign && activeCampaign.status === 'active' && (
+                    <Button
+                      onClick={handleFinalizeCurrentCampaign}
+                      disabled={isCompletingCampaign}
+                      className="bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black gap-1.5 shadow-sm"
+                    >
+                      <CheckCircle2 className="w-4 h-4" />
+                      {tr('Finalizar Este Trabalho', 'Finalizar Este Trabajo', 'Clôturer ce Lot', 'Finalizza Questo Lavoro')}
+                    </Button>
+                  )}
+
+                  <Button
+                    onClick={() => navigate('/comercial/leads')}
+                    className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-black gap-1.5 shadow-md shadow-blue-600/20"
+                  >
+                    <Plus className="w-4 h-4" />
+                    {tr(
+                      'Gerar Novo Trabalho na Base de Leads',
+                      'Generar Nuevo Trabajo desde Leads',
+                      'Créer un Nouveau Lot depuis les Leads',
+                      'Genera Nuovo Lavoro dai Contatti'
+                    )}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            <div className="flex flex-wrap justify-center gap-2.5 pt-1">
+              <Button
+                onClick={() => navigate('/comercial/discador/agenda')}
+                variant="outline"
+                size="sm"
+                className="text-xs font-semibold gap-1.5"
+              >
+                <CalendarDays className="w-3.5 h-3.5 text-amber-500" />
+                {tr('Ver Minha Agenda de Retornos', 'Ver Mi Agenda de Seguimientos', 'Voir Mon Agenda de Rappels', 'Vedi Agenda Richiami')}
+              </Button>
               <Button
                 onClick={() => navigate('/comercial/discador/trabalhos')}
                 variant="outline"
-                className="text-xs font-semibold"
+                size="sm"
+                className="text-xs font-semibold gap-1.5"
               >
-                {tr('Ver Outros Trabalhos', 'Ver Otros Trabajos', 'Voir les Autres Lots', 'Vedi Altri Lavori')}
-              </Button>
-              <Button
-                onClick={() => navigate('/comercial/leads')}
-                className="bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold"
-              >
-                {tr('Ir para Base de Leads', 'Ir a Base de Leads', 'Aller à la Base de Leads', 'Vai ai Contatti')}
+                <Layers className="w-3.5 h-3.5 text-blue-500" />
+                {tr('Gerenciar Todos os Trabalhos', 'Gestionar Todos los Trabajos', 'Gérer Tous les Lots', 'Gestisci Tutti i Lavori')}
               </Button>
             </div>
           </div>
@@ -1592,10 +1990,13 @@ export function PowerDialerPage() {
 
       {/* Schedule Callback Modal */}
       <ScheduleCallbackModal
-        key={`callback-${currentLead?.id || 'none'}`}
+        key={`callback-${(lockedCallbackTarget?.lead || currentLead)?.id || 'none'}`}
         isOpen={isCallbackModalOpen}
-        onClose={() => setIsCallbackModalOpen(false)}
-        lead={currentLead}
+        onClose={() => {
+          setIsCallbackModalOpen(false);
+          setLockedCallbackTarget(null);
+        }}
+        lead={lockedCallbackTarget?.lead || currentLead}
         onConfirm={handleConfirmScheduleCallback}
         isSubmitting={isLoggingCall}
       />
@@ -1608,6 +2009,7 @@ export function PowerDialerPage() {
         lead={currentLead}
         queueItemId={currentQueueItem?.id}
         onConfirm={handleConfirmSendMaterial}
+        onConfirmAndSchedule={handleConfirmSendMaterialAndSchedule}
         onLeadUpdated={handleLeadUpdated}
         isSubmitting={isLoggingCall}
       />

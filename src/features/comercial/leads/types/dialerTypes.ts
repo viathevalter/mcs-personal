@@ -7,6 +7,7 @@ export type DialerQueueStatus =
   | 'in_progress' 
   | 'no_answer' 
   | 'scheduled' 
+  | 'interested'
   | 'converted' 
   | 'rejected' 
   | 'skipped';
@@ -79,10 +80,17 @@ export interface DialerCampaign {
   items_count?: {
     total: number;
     pending: number;
+    callable: number;
+    completed: number;
+    attempted_leads: number;
+    calls_count: number;
+    total_duration_seconds: number;
+    interested: number;
     converted: number;
     scheduled: number;
     rejected: number;
     no_answer: number;
+    skipped: number;
   };
 }
 

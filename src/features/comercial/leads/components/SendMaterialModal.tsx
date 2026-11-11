@@ -35,6 +35,7 @@ import {
   Italic,
   Underline,
   List,
+  Calendar,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/shared/supabase/client';
@@ -56,6 +57,7 @@ interface SendMaterialModalProps {
   lead?: Lead | null;
   queueItemId?: string | null;
   onConfirm: (materialSent: string, emailUsed: string, notes: string) => void;
+  onConfirmAndSchedule?: (materialSent: string, emailUsed: string, notes: string) => void;
   onLeadUpdated?: (updatedLead: Lead) => void;
   isSubmitting?: boolean;
 }
@@ -762,6 +764,7 @@ export function SendMaterialModal({
   lead,
   queueItemId,
   onConfirm,
+  onConfirmAndSchedule,
   onLeadUpdated,
   isSubmitting = false,
 }: SendMaterialModalProps) {
@@ -1005,7 +1008,7 @@ export function SendMaterialModal({
   }, [selectedSourceType, currentBuiltinMaterial, activeBrandConfig.companyFull, selectedId, dbTemplates]);
 
   // Direct Send via Microsoft 365 Edge Function with PDF Attachment
-  const handleSendViaM365 = async () => {
+  const handleSendViaM365 = async (andScheduleCallback = false) => {
     if (!recipientEmail || !recipientEmail.includes('@')) {
       toast.error('Informe um e-mail de destino válido.');
       return;
@@ -1097,7 +1100,11 @@ export function SendMaterialModal({
       const notesSummary = `E-mail M365 enviado: "${currentMaterialTitle}" de ${senderEmail} para ${recipientEmail}${
         attachments.length > 0 ? ` [Anexo: ${attachments.map((a) => a.name).join(', ')}]` : ''
       }.`;
-      onConfirm(currentMaterialTitle, recipientEmail, notesSummary);
+      if (andScheduleCallback && onConfirmAndSchedule) {
+        onConfirmAndSchedule(currentMaterialTitle, recipientEmail, notesSummary);
+      } else {
+        onConfirm(currentMaterialTitle, recipientEmail, notesSummary);
+      }
       onClose();
     } catch (err: any) {
       console.error('Erro ao enviar e-mail comercial via M365:', err);
@@ -1633,24 +1640,39 @@ export function SendMaterialModal({
             </Button>
           </div>
 
-          <Button
-            type="button"
-            onClick={handleSendViaM365}
-            disabled={isSendingM365 || isSubmitting}
-            className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-7 py-2.5 gap-2 shadow-lg shadow-blue-600/25 transition-all"
-          >
-            {isSendingM365 ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" />
-                Enviando via {senderEmail}...
-              </>
-            ) : (
-              <>
-                <Send className="w-4 h-4" />
-                Enviar por {senderEmail} e Avançar
-              </>
+          <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto">
+            {onConfirmAndSchedule && (
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => handleSendViaM365(true)}
+                disabled={isSendingM365 || isSubmitting}
+                className="w-full sm:w-auto border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-bold text-xs px-4 py-2.5 gap-1.5"
+              >
+                <Calendar className="w-3.5 h-3.5" />
+                Enviar + Agendar Retorno
+              </Button>
             )}
-          </Button>
+
+            <Button
+              type="button"
+              onClick={() => handleSendViaM365(false)}
+              disabled={isSendingM365 || isSubmitting}
+              className="w-full sm:w-auto bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs px-6 py-2.5 gap-2 shadow-lg shadow-blue-600/25 transition-all"
+            >
+              {isSendingM365 ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" />
+                  Enviando via {senderEmail}...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4" />
+                  Enviar por {senderEmail} e Avançar
+                </>
+              )}
+            </Button>
+          </div>
         </DialogFooter>
       </DialogContent>
     </Dialog>

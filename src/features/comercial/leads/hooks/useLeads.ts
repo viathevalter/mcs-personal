@@ -230,6 +230,7 @@ export function useSalespeople() {
 }
 
 const COMMERCIAL_FILTER_STORAGE_KEY = 'mcs_active_commercial_owner_filter';
+const COMMERCIAL_SCOPE_CHANGE_EVENT = 'mcs-commercial-scope-change';
 
 export function useCommercialScope() {
   const { user } = useAuth();
@@ -285,6 +286,21 @@ export function useCommercialScope() {
     }
   }, [loggedCommercialProfile, selectedEmpresaId, setSelectedEmpresaId, i18n]);
 
+  // Sync across multiple useCommercialScope() instances mounted on the same page
+  useEffect(() => {
+    if (loggedCommercialProfile) return;
+    const handleScopeChange = (e: Event) => {
+      const customEvt = e as CustomEvent<CommercialOwnerKey | 'all'>;
+      if (customEvt.detail) {
+        setSelectedOwnerKeyState(customEvt.detail);
+      }
+    };
+    window.addEventListener(COMMERCIAL_SCOPE_CHANGE_EVENT, handleScopeChange);
+    return () => {
+      window.removeEventListener(COMMERCIAL_SCOPE_CHANGE_EVENT, handleScopeChange);
+    };
+  }, [loggedCommercialProfile]);
+
   // For Admin: when top bar selectedEmpresaId changes, sync commercial filter if current filter belongs to a different company
   useEffect(() => {
     if (loggedCommercialProfile || !selectedEmpresaId) return;
@@ -294,6 +310,7 @@ export function useCommercialScope() {
       const nextKey = defaultOwnerForEmpresa(selectedEmpresaId, selectedOwnerKey);
       setSelectedOwnerKeyState(nextKey);
       localStorage.setItem(COMMERCIAL_FILTER_STORAGE_KEY, nextKey);
+      window.dispatchEvent(new CustomEvent(COMMERCIAL_SCOPE_CHANGE_EVENT, { detail: nextKey }));
     }
   }, [selectedEmpresaId, loggedCommercialProfile]);
 
@@ -305,6 +322,7 @@ export function useCommercialScope() {
       }
       setSelectedOwnerKeyState(nextKey);
       localStorage.setItem(COMMERCIAL_FILTER_STORAGE_KEY, nextKey);
+      window.dispatchEvent(new CustomEvent(COMMERCIAL_SCOPE_CHANGE_EVENT, { detail: nextKey }));
       if (nextKey !== 'all') {
         const targetProfile = ACTIVE_COMMERCIAL_PROFILES.find(p => p.ownerKey === nextKey);
         if (targetProfile && selectedEmpresaId !== targetProfile.empresaId) {
