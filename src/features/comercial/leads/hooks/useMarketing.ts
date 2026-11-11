@@ -188,8 +188,17 @@ export function useMutateMarketing() {
             tTitle.includes('espanha') ||
             tTitle.includes('españa') ||
             tHtml.includes('whatsapp_url_liseth');
+          const isGiadaTemplate =
+            tTitle.includes('giada') ||
+            tTitle.includes('itália') ||
+            tTitle.includes('italia') ||
+            tHtml.includes('whatsapp_url_giada');
 
-          if (isLisethTemplate) {
+          if (isGiadaTemplate) {
+            targetAssignedTo = '76f9a2f5-116a-456e-a7d9-9a6a0401ac65';
+            targetSenderEmail = 'comercial4@it.wiseowe.com';
+            targetReplyToEmail = 'comercial4@wiseowe.com';
+          } else if (isLisethTemplate) {
             targetAssignedTo = 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa';
             targetSenderEmail = 'comercial2@es.wiseowe.com';
             targetReplyToEmail = 'comercial2@wiseowe.com';

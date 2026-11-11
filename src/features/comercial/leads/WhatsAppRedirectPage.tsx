@@ -39,7 +39,7 @@ export function WhatsAppRedirectPage() {
       const waLisethDefault = 'https://wa.me/34937371540?text=Hola%20Liseth,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
       const waAlbaDefault = 'https://wa.me/34937374830?text=Hola%20Alba,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
       const waAlexDefault = 'https://wa.me/34937374180?text=Hola%20Alex,%20quisiera%20m%C3%A1s%20informaci%C3%B3n%20sobre%20sus%20servicios';
-      const waGiadaDefault = 'https://wa.me/393000000000?text=Ciao%20Giada,%20vorrei%20maggiori%20informazioni%20sui%20vostri%20servizi';
+      const waGiadaDefault = 'https://wa.me/393933060003?text=Ciao%20Giada,%20vorrei%20maggiori%20informazioni%20sui%20vostri%20servizi';
 
       let currentWaUrl = waAlbaDefault;
       let currentLang: 'fr' | 'es' | 'it' = 'es';
@@ -75,7 +75,7 @@ export function WhatsAppRedirectPage() {
       } else if (sellerParam === 'giada') {
         currentLang = 'it';
         currentSalesperson = 'Giada';
-        currentCompany = 'Triangolo Servizi Industriali';
+        currentCompany = 'Wiseowe Servizi Industriali';
         currentWaUrl = waGiadaDefault;
         hasExplicitSeller = true;
       }
@@ -89,10 +89,11 @@ export function WhatsAppRedirectPage() {
           explicitDest = destParam;
         }
 
-        // Migração automática de links antigos (Omar -> Fatumata, Michelle -> Alba, Liseth antigo -> novo)
+        // Migração automática de links antigos (Omar -> Fatumata, Michelle -> Alba, Liseth/Giada antigo -> novo)
         explicitDest = explicitDest
           .replace(/351936447734/g, '33176210655')
           .replace(/34652519210/g, '34937371540')
+          .replace(/393000000000/g, '393933060003')
           .replace(/Bonjour(%20|\s+)Omar/gi, 'Bonjour%20Fatumata')
           .replace(/Hola(%20|\s+)Mit?chelle/gi, 'Hola%20Alba');
 
@@ -107,6 +108,17 @@ export function WhatsAppRedirectPage() {
           currentLang = 'es';
           currentSalesperson = 'Liseth';
           currentCompany = 'Wiseowe Servicios Industriales';
+          hasExplicitSeller = true;
+        } else if (
+          explicitDest.includes('393933060003') ||
+          explicitDest.includes('+39') ||
+          lowerDest.includes('it.wiseowe') ||
+          lowerDest.includes('it.triangulolda') ||
+          lowerDest.includes('giada')
+        ) {
+          currentLang = 'it';
+          currentSalesperson = 'Giada';
+          currentCompany = 'Wiseowe Servizi Industriali';
           hasExplicitSeller = true;
         } else if (
           explicitDest.includes('33176210655') ||
@@ -129,16 +141,6 @@ export function WhatsAppRedirectPage() {
           currentLang = 'es';
           currentSalesperson = 'Alex';
           currentCompany = 'Luminous Alley';
-          hasExplicitSeller = true;
-        } else if (
-          explicitDest.includes('393000000000') ||
-          explicitDest.includes('+39') ||
-          lowerDest.includes('it.triangulolda') ||
-          lowerDest.includes('giada')
-        ) {
-          currentLang = 'it';
-          currentSalesperson = 'Giada';
-          currentCompany = 'Triangolo Servizi Industriali';
           hasExplicitSeller = true;
         } else if (
           explicitDest.includes('34937374830') ||
@@ -229,6 +231,7 @@ export function WhatsAppRedirectPage() {
 
             const isFranceLead =
               !isSpainWiseoweLead &&
+              !isItalyLead &&
               (leadTags.includes('frança') ||
                 leadTags.includes('francia') ||
                 leadTags.includes('france') ||
@@ -265,8 +268,8 @@ export function WhatsAppRedirectPage() {
               if (assignedUserId === GIADA_ID || isItalyLead) {
                 currentLang = 'it';
                 currentSalesperson = 'Giada';
-                currentCompany = 'Triangolo Servizi Industriali';
-                if (!destParam) currentWaUrl = waGiadaDefault;
+                currentCompany = 'Wiseowe Servizi Industriali';
+                if (!destParam || currentWaUrl === waFatumataDefault) currentWaUrl = waGiadaDefault;
               } else if (assignedUserId === FATUMATA_ID || assignedUserId === OMAR_ID || isFranceLead) {
                 currentLang = 'fr';
                 currentSalesperson = 'Fatumata';

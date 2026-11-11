@@ -143,7 +143,7 @@ export const ACTIVE_COMMERCIAL_PROFILES: CommercialOperatorProfile[] = [
     commercialEmail: 'comercial4@wiseowe.com',
     marketingSenderEmail: 'comercial4@it.wiseowe.com',
     senderBrandName: 'Wiseowe Servizi Industriali',
-    commercialPhone: '+39 02 8295 4100',
+    commercialPhone: '+39 393 306 0003',
   },
 ];
 

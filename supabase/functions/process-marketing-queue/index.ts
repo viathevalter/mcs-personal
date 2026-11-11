@@ -279,8 +279,27 @@ serve(async (req) => {
         tplTitleLower.includes('españa') ||
         tplHtmlLower.includes('whatsapp_url_liseth');
 
+      const isExplicitGiadaTemplate =
+        tplTitleLower.includes('giada') ||
+        tplTitleLower.includes('itália') ||
+        tplTitleLower.includes('italia') ||
+        tplHtmlLower.includes('whatsapp_url_giada');
+
+      const isItalyWiseowe =
+        !isExplicitFatumataTemplate &&
+        !isExplicitLisethTemplate &&
+        (isExplicitGiadaTemplate ||
+          assignedUserId === GIADA_ID ||
+          assignedUser?.commercial_country === 'IT' ||
+          (campaign.sender_email || '').toLowerCase().includes('it.wiseowe.com') ||
+          isItalyLead ||
+          campTitleLower.includes('giada') ||
+          campTitleLower.includes('italia') ||
+          campTitleLower.includes('itália'));
+
       const isSpainWiseowe =
         !isExplicitFatumataTemplate &&
+        !isItalyWiseowe &&
         (isExplicitLisethTemplate ||
           assignedUserId === LISETH_ID ||
           assignedUser?.commercial_country === 'ES' ||
@@ -294,6 +313,7 @@ serve(async (req) => {
       const isFranceLead =
         isExplicitFatumataTemplate ||
         (!isSpainWiseowe &&
+          !isItalyWiseowe &&
           (assignedUserId === FATUMATA_ID ||
             assignedUserId === OMAR_ID ||
             assignedUser?.commercial_country === 'FR' ||
@@ -309,7 +329,7 @@ serve(async (req) => {
       const waOmarUrl = `https://wa.me/33176210655?text=${encodeURIComponent("Bonjour Fatumata, je souhaite plus d'informations sur vos services")}`;
       const waLisethUrl = `https://wa.me/34937371540?text=${encodeURIComponent("Hola Liseth, quisiera más información sobre sus servicios")}`;
       const waMichelleUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Alba, quisiera más información sobre sus servicios")}`;
-      const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
+      const waGiadaUrl = `https://wa.me/393933060003?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
       const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
       const waAyslanUrl = `https://wa.me/351913417249?text=${encodeURIComponent("Hola Ayslan, quisiera más información sobre sus servicios")}`;
 
@@ -431,7 +451,12 @@ serve(async (req) => {
           validReplyTo = (campaign.reply_to_email || assignedUser?.commercial_email || company?.proposal_sender_email_es || "comercial4@triangulolda.com").replace(/^comercial2@/i, "comercial4@");
         }
       } else if (companyTrade.includes("WISEOWE") || isWiseowe) {
-        if (isSpainWiseowe) {
+        if (isItalyWiseowe) {
+          // Giada - Wiseowe Itália (comercial4@it.wiseowe.com e Reply-To comercial4@wiseowe.com)
+          validSenderEmail = "comercial4@it.wiseowe.com";
+          senderName = "Wiseowe Servizi Industriali";
+          validReplyTo = "comercial4@wiseowe.com";
+        } else if (isSpainWiseowe) {
           // Liseth - Wiseowe Espanha (SEMPRE comercial2@es.wiseowe.com e Reply-To comercial2@wiseowe.com)
           validSenderEmail = "comercial2@es.wiseowe.com";
           senderName = "Wiseowe Servicios Industriales";
@@ -641,13 +666,14 @@ serve(async (req) => {
             body: JSON.stringify(emailPayload),
           });
 
-          // Fallback inteligente: caso es.wiseowe.com ainda esteja aguardando propagação de DNS no Resend (403/422),
+          // Fallback inteligente: caso es.wiseowe.com ou it.wiseowe.com ainda esteja aguardando propagação de DNS no Resend (403/422),
           // dispara imediatamente usando o subdomínio verificado da Wiseowe (fr.wiseowe.com) mantendo o Reply-To e nome da marca!
-          if ((res.status === 403 || res.status === 422) && validSenderEmail.includes("@es.wiseowe.com")) {
-            console.warn(`[DNS Fallback] Subdomínio es.wiseowe.com ainda em propagação DNS. Utilizando fallback verificado comercial3@fr.wiseowe.com para ${lead.email}...`);
+          if ((res.status === 403 || res.status === 422) && (validSenderEmail.includes("@es.wiseowe.com") || validSenderEmail.includes("@it.wiseowe.com"))) {
+            const fallbackLocal = validSenderEmail.includes("@it.wiseowe.com") ? "comercial4" : "comercial3";
+            console.warn(`[DNS Fallback] Subdomínio ${validSenderEmail} em propagação DNS. Utilizando fallback verificado ${fallbackLocal}@fr.wiseowe.com (Reply-To ${validReplyTo}) para ${lead.email}...`);
             const fallbackPayload = {
               ...emailPayload,
-              from: `${senderName} <comercial3@fr.wiseowe.com>`,
+              from: `${senderName} <${fallbackLocal}@fr.wiseowe.com>`,
             };
             res = await fetch("https://api.resend.com/emails", {
               method: "POST",

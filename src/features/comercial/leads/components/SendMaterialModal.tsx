@@ -158,7 +158,7 @@ const BRAND_MATERIAL_CONFIGS: Record<CommercialOwnerKey, BrandMaterialConfig> = 
     heroImagePath: '/assets/images/wise-mkt03-despliegue.png',
     presentationPdf: 'Apresentacao-Wiseowe-IT-Giada.pdf',
     dossierPdf: 'Dossier-Wiseowe-IT-Giada.pdf',
-    phone: '+39 02 8295 4100',
+    phone: '+39 393 306 0003',
   },
 };
 
@@ -367,6 +367,7 @@ function buildMaterialsForCommercial(
   }
 
   if (profile.language === 'it') {
+    const waGiadaDirect = `https://wa.me/393933060003?text=${encodeURIComponent('Ciao Giada, vorrei maggiori informazioni sui vostri servizi')}`;
     return [
       {
         id: 'apresentacao_executiva',
@@ -409,15 +410,18 @@ function buildMaterialsForCommercial(
     </div>
     <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
-      <a href="${presUrl}" target="_blank" style="background:${brand.accentColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
-        📄 Scarica la Presentazione Esecutiva (PDF allegato all'e-mail)
+      <a href="${presUrl}" target="_blank" style="background:${brand.accentColor};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;margin:4px;">
+        📄 Scarica la Presentazione Esecutiva (PDF)
+      </a>
+      <a href="${waGiadaDirect}" target="_blank" style="background:#16a34a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;margin:4px;">
+        💬 Scrivici su WhatsApp (+39 393 306 0003)
       </a>
     </div>
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:13px;color:#1e293b;">
       Cordiali saluti,<br/>
       <strong style="font-size:14px;color:${brand.primaryColor};">{{vendedor_nome}}</strong><br/>
       <span style="color:${brand.accentColor};font-weight:600;">Direzione Commerciale — ${brand.companyFull}</span><br/>
-      📧 <a href="mailto:{{vendedor_email}}" style="color:#2563eb;text-decoration:none;">{{vendedor_email}}</a> &nbsp;|&nbsp; 📞 {{vendedor_telefone}} &nbsp;|&nbsp; 🌐 ${brand.website}
+      📧 <a href="mailto:{{vendedor_email}}" style="color:#2563eb;text-decoration:none;">{{vendedor_email}}</a> &nbsp;|&nbsp; 📞 <a href="tel:+393933060003" style="color:#0f172a;text-decoration:none;font-weight:600;">{{vendedor_telefone}}</a> &nbsp;|&nbsp; 💬 <a href="${waGiadaDirect}" target="_blank" style="color:#16a34a;text-decoration:none;font-weight:700;">WhatsApp Diretto</a> &nbsp;|&nbsp; 🌐 ${brand.website}
     </div>
   </div>
 </div>`,
@@ -462,15 +466,18 @@ function buildMaterialsForCommercial(
     </div>
     <div data-extra-note-slot="true"></div>
     <div style="margin:22px 0;text-align:center;">
-      <a href="${dossierUrl}" target="_blank" style="background:${brand.primaryColor};color:#ffffff;text-decoration:none;padding:12px 24px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
-        📘 Apri il Dossier Tecnico Completo (PDF 5 Pagine in allegato)
+      <a href="${dossierUrl}" target="_blank" style="background:${brand.primaryColor};color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;margin:4px;">
+        📘 Apri il Dossier Tecnico (PDF 5 Pagine)
+      </a>
+      <a href="${waGiadaDirect}" target="_blank" style="background:#16a34a;color:#ffffff;text-decoration:none;padding:12px 20px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;margin:4px;">
+        💬 Parla con Giada su WhatsApp
       </a>
     </div>
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:13px;color:#1e293b;">
       Cordiali saluti,<br/>
       <strong style="font-size:14px;color:${brand.primaryColor};">{{vendedor_nome}}</strong><br/>
       <span style="color:${brand.accentColor};font-weight:600;">Direzione Commerciale — ${brand.companyFull}</span><br/>
-      📧 <a href="mailto:{{vendedor_email}}" style="color:#2563eb;text-decoration:none;">{{vendedor_email}}</a> &nbsp;|&nbsp; 📞 {{vendedor_telefone}} &nbsp;|&nbsp; 🌐 ${brand.website}
+      📧 <a href="mailto:{{vendedor_email}}" style="color:#2563eb;text-decoration:none;">{{vendedor_email}}</a> &nbsp;|&nbsp; 📞 <a href="tel:+393933060003" style="color:#0f172a;text-decoration:none;font-weight:600;">{{vendedor_telefone}}</a> &nbsp;|&nbsp; 💬 <a href="${waGiadaDirect}" target="_blank" style="color:#16a34a;text-decoration:none;font-weight:700;">WhatsApp Diretto</a> &nbsp;|&nbsp; 🌐 ${brand.website}
     </div>
   </div>
 </div>`,
@@ -529,11 +536,16 @@ function buildMaterialsForCommercial(
       </ol>
     </div>
     <div data-extra-note-slot="true"></div>
+    <div style="margin:20px 0;text-align:center;">
+      <a href="${waGiadaDirect}" target="_blank" style="background:#16a34a;color:#ffffff;text-decoration:none;padding:12px 22px;border-radius:8px;font-size:13px;font-weight:700;display:inline-block;">
+        💬 Invia i dati su WhatsApp a Giada (+39 393 306 0003)
+      </a>
+    </div>
     <div style="border-top:1px solid #e2e8f0;padding-top:16px;font-size:13px;color:#1e293b;">
       Restando in attesa di un Suo gentile riscontro,<br/>
       <strong style="font-size:14px;color:${brand.primaryColor};">{{vendedor_nome}}</strong><br/>
       <span style="color:${brand.accentColor};font-weight:600;">Direzione Commerciale — ${brand.companyFull}</span><br/>
-      📧 <a href="mailto:{{vendedor_email}}" style="color:#2563eb;text-decoration:none;">{{vendedor_email}}</a> &nbsp;|&nbsp; 📞 {{vendedor_telefone}} &nbsp;|&nbsp; 🌐 ${brand.website}
+      📧 <a href="mailto:{{vendedor_email}}" style="color:#2563eb;text-decoration:none;">{{vendedor_email}}</a> &nbsp;|&nbsp; 📞 <a href="tel:+393933060003" style="color:#0f172a;text-decoration:none;font-weight:600;">{{vendedor_telefone}}</a> &nbsp;|&nbsp; 💬 <a href="${waGiadaDirect}" target="_blank" style="color:#16a34a;text-decoration:none;font-weight:700;">WhatsApp Diretto</a> &nbsp;|&nbsp; 🌐 ${brand.website}
     </div>
   </div>
 </div>`,
@@ -850,15 +862,42 @@ export function SendMaterialModal({
 
     const contactName = lead?.name || lead?.company_name || defaultContactByLang;
     const companyName = lead?.company_name || lead?.legal_name || lead?.name || defaultCompanyByLang;
+    const targetLeadId = lead?.id || 'exemplo';
+    const targetEmpresaId = activeSenderProfile.empresaId || selectedEmpresaId || '';
+    const presupuestoUrl = `${originUrl}/public/solicitar-presupuesto?lead_id=${targetLeadId}&empresa_id=${targetEmpresaId}`;
+    const optOutUrl = `${originUrl}/public/coleta-dados/${targetLeadId}?opt_out=1`;
+
+    const waByOwner: Record<CommercialOwnerKey, string> = {
+      alex: `https://wa.me/34937374180?text=${encodeURIComponent('Hola Alex, quisiera más información sobre sus servicios')}`,
+      alba: `https://wa.me/34937374830?text=${encodeURIComponent('Hola Alba, quisiera más información sobre sus servicios')}`,
+      ayslan: `https://wa.me/351913417249?text=${encodeURIComponent('Hola Ayslan, quisiera más información sobre sus servicios')}`,
+      liseth: `https://wa.me/34937371540?text=${encodeURIComponent('Hola Liseth, quisiera más información sobre sus servicios')}`,
+      fatumata: `https://wa.me/33176210655?text=${encodeURIComponent("Bonjour Fatumata, je souhaite plus d'informations sur vos services")}`,
+      giada: `https://wa.me/393933060003?text=${encodeURIComponent('Ciao Giada, vorrei maggiori informazioni sui vostri servizi')}`,
+    };
+    const activeWaUrl = waByOwner[activeSenderProfile.ownerKey] || waByOwner.alex;
 
     return templateText
-      .replace(/\{\{nome_contato\}\}/gi, contactName)
-      .replace(/\{\{nome\}\}/gi, contactName)
-      .replace(/\{\{company_name\}\}/gi, companyName)
-      .replace(/\{\{empresa\}\}/gi, companyName)
-      .replace(/\{\{vendedor_nome\}\}/gi, senderName)
-      .replace(/\{\{vendedor_email\}\}/gi, senderEmail)
-      .replace(/\{\{vendedor_telefone\}\}/gi, senderPhone);
+      .replace(/\{\{\s*nome_contato\s*\}\}/gi, contactName)
+      .replace(/\{\{\s*nome\s*\}\}/gi, contactName)
+      .replace(/\{\{\s*name\s*\}\}/gi, contactName)
+      .replace(/\{\{\s*company_name\s*\}\}/gi, companyName)
+      .replace(/\{\{\s*empresa\s*\}\}/gi, companyName)
+      .replace(/\{\{\s*vendedor_nome\s*\}\}/gi, senderName)
+      .replace(/\{\{\s*vendedor_email\s*\}\}/gi, senderEmail)
+      .replace(/\{\{\s*vendedor_telefone\s*\}\}/gi, senderPhone)
+      .replace(/\{\{\s*presupuesto_url\s*\}\}/gi, presupuestoUrl)
+      .replace(/\{\{\s*opt_out_url\s*\}\}/gi, optOutUrl)
+      .replace(/\{\{\s*unsubscribe_url\s*\}\}/gi, optOutUrl)
+      .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/gi, waByOwner.giada)
+      .replace(/\{\{\s*whatsapp_url_liseth\s*\}\}/gi, waByOwner.liseth)
+      .replace(/\{\{\s*whatsapp_url_fatumata\s*\}\}/gi, waByOwner.fatumata)
+      .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/gi, waByOwner.fatumata)
+      .replace(/\{\{\s*whatsapp_url_alba\s*\}\}/gi, waByOwner.alba)
+      .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/gi, waByOwner.alba)
+      .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/gi, waByOwner.alex)
+      .replace(/\{\{\s*whatsapp_url_ayslan\s*\}\}/gi, waByOwner.ayslan)
+      .replace(/\{\{\s*whatsapp_url\s*\}\}/gi, activeWaUrl);
   };
 
   const buildNoteHtmlBlock = (noteText: string) => {

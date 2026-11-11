@@ -6041,6 +6041,9 @@ export function CampaignsPage() {
                   <div><strong>Assunto:</strong> <span className="text-slate-800">{previewTemplate.subject}</span></div>
                   <div><strong>De (Envio Resend):</strong> <span className="text-slate-800">{(() => {
                     const tplTitle = (previewTemplate?.title || "").toLowerCase();
+                    if (isWiseowe && (tplTitle.includes("giada") || tplTitle.includes("itália") || tplTitle.includes("italia"))) {
+                      return "Wiseowe Servizi Industriali <comercial4@it.wiseowe.com>";
+                    }
                     if (isWiseowe && (tplTitle.includes("liseth") || tplTitle.includes("espanha") || tplTitle.includes("españa"))) {
                       return "Wiseowe Servicios Industriales <comercial2@es.wiseowe.com>";
                     }
@@ -6051,6 +6054,9 @@ export function CampaignsPage() {
                   })()}</span></div>
                   <div><strong>Responder a (Reply-To):</strong> <span className="text-blue-700 font-semibold">{(() => {
                     const tplTitle = (previewTemplate?.title || "").toLowerCase();
+                    if (isWiseowe && (tplTitle.includes("giada") || tplTitle.includes("itália") || tplTitle.includes("italia"))) {
+                      return "comercial4@wiseowe.com (Caixa da Giada)";
+                    }
                     if (isWiseowe && (tplTitle.includes("liseth") || tplTitle.includes("espanha") || tplTitle.includes("españa"))) {
                       return "comercial2@wiseowe.com (Caixa da Liseth)";
                     }
@@ -6081,16 +6087,18 @@ export function CampaignsPage() {
                     const waFatumataUrl = `https://wa.me/33176210655?text=${encodeURIComponent("Bonjour Fatumata, je souhaite plus d'informations sur vos services")}`;
                     const waLisethUrl = `https://wa.me/34937371540?text=${encodeURIComponent("Hola Liseth, quisiera más información sobre sus servicios")}`;
                     const waAlbaUrl = `https://wa.me/34937374830?text=${encodeURIComponent("Hola Alba, quisiera más información sobre sus servicios")}`;
-                    const waGiadaUrl = `https://wa.me/393000000000?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
+                    const waGiadaUrl = `https://wa.me/393933060003?text=${encodeURIComponent("Ciao Giada, vorrei maggiori informazioni sui vostri servizi")}`;
                     const waAlexUrl = `https://wa.me/34937374180?text=${encodeURIComponent("Hola Alex, quisiera más información sobre sus servicios")}`;
                     const waOmarUrl = waFatumataUrl;
                     const waMichelleUrl = waAlbaUrl;
 
                     const tplTitleLower = (previewTemplate?.title || "").toLowerCase();
-                    const isPreviewWiseoweEs = isWiseowe && (tplTitleLower.includes("liseth") || tplTitleLower.includes("espanha") || tplTitleLower.includes("españa") || activeCommercialProfile?.key === "liseth");
+                    const isPreviewWiseoweIt = isWiseowe && (tplTitleLower.includes("giada") || tplTitleLower.includes("itália") || tplTitleLower.includes("italia") || activeCommercialProfile?.key === "giada");
+                    const isPreviewWiseoweEs = isWiseowe && !isPreviewWiseoweIt && (tplTitleLower.includes("liseth") || tplTitleLower.includes("espanha") || tplTitleLower.includes("españa") || activeCommercialProfile?.key === "liseth");
 
                     let defaultWaUrl = waAlbaUrl;
-                    if (isPreviewWiseoweEs) defaultWaUrl = waLisethUrl;
+                    if (isPreviewWiseoweIt) defaultWaUrl = waGiadaUrl;
+                    else if (isPreviewWiseoweEs) defaultWaUrl = waLisethUrl;
                     else if (isWiseowe) defaultWaUrl = waFatumataUrl;
                     else if (isLuminous) defaultWaUrl = waAlexUrl;
                     else if (isTriangulo) defaultWaUrl = waAlbaUrl;
@@ -6101,8 +6109,8 @@ export function CampaignsPage() {
                           .replace(/\{\{\s*whatsapp_url_alba\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=alba&dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                           .replace(/\{\{\s*whatsapp_url_omar\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=fatumata&dest=${encodeURIComponent(waOmarUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                       .replace(/\{\{\s*whatsapp_url_michelle\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waMichelleUrl)}&empresa_id=${selectedEmpresaId || ''}`)
-                      .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${selectedEmpresaId || ''}`)
-                      .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url_giada\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=giada&dest=${encodeURIComponent(waGiadaUrl)}&empresa_id=${selectedEmpresaId || ''}`)
+                      .replace(/\{\{\s*whatsapp_url_alex\s*\}\}/g, `${window.location.origin}/public/whatsapp?seller=alex&dest=${encodeURIComponent(waAlexUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                       .replace(/\{\{\s*whatsapp_url\s*\}\}/g, `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(defaultWaUrl)}&empresa_id=${selectedEmpresaId || ''}`)
                       .replace(/https:\/\/wa\.me\/[0-9]+(?:\?[^"'\s]*)?/gi, (match) => {
                         return `${window.location.origin}/public/whatsapp?dest=${encodeURIComponent(match)}&empresa_id=${selectedEmpresaId || ''}`;
