@@ -1,5 +1,5 @@
 // Service Worker do Portal MCS - PWA e Push Notifications
-const CACHE_NAME = 'portal-mcs-v3';
+const CACHE_NAME = 'portal-mcs-v4';
 
 self.addEventListener('install', (event) => {
   // Ativação imediata sem esperar o término de instâncias antigas

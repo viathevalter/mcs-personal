@@ -357,44 +357,52 @@ export function useLeads(options?: UseLeadsOptions) {
   return useQuery({
     queryKey: ['leads', isGlobal ? 'global' : targetEmpresaId, assignedTo, countryId],
     queryFn: async () => {
-      if (!isGlobal && !targetEmpresaId) return [];
+      if (!isGlobal && !targetEmpresaId && !assignedTo) return [];
 
-      let allLeads: Lead[] = [];
-      let from = 0;
-      let to = 999;
-      let hasMore = true;
-
-      while (hasMore) {
-        let query = supabase
+      const buildBaseQuery = (withCount = false) => {
+        let q = supabase
           .schema('core_comercial')
           .from('leads')
-          .select('*')
+          .select('*', withCount ? { count: 'exact' } : undefined)
           .order('id', { ascending: true });
 
         if (!isGlobal && targetEmpresaId) {
-          query = query.eq('empresa_id', targetEmpresaId);
+          q = q.eq('empresa_id', targetEmpresaId);
         }
-
         if (assignedTo && assignedTo !== 'all') {
-          query = query.eq('assigned_to', assignedTo);
+          q = q.eq('assigned_to', assignedTo);
         }
-
         if (countryId && countryId !== 'all') {
-          query = query.eq('country_id', countryId);
+          q = q.eq('country_id', countryId);
+        }
+        return q;
+      };
+
+      const PAGE_SIZE = 1000;
+      const firstPage = await buildBaseQuery(true).range(0, PAGE_SIZE - 1);
+      if (firstPage.error) throw firstPage.error;
+
+      let allLeads: Lead[] = (firstPage.data || []) as Lead[];
+      const totalCount = firstPage.count ?? allLeads.length;
+
+      if (allLeads.length === PAGE_SIZE && totalCount > PAGE_SIZE) {
+        const ranges: Array<[number, number]> = [];
+        for (let from = PAGE_SIZE; from < totalCount; from += PAGE_SIZE) {
+          ranges.push([from, from + PAGE_SIZE - 1]);
         }
 
-        const { data, error } = await query.range(from, to);
-
-        if (error) throw error;
-        if (data && data.length > 0) {
-          allLeads = [...allLeads, ...data];
-          from += 1000;
-          to += 1000;
-          if (data.length < 1000) {
-            hasMore = false;
+        const CONCURRENCY = 8;
+        for (let i = 0; i < ranges.length; i += CONCURRENCY) {
+          const batch = ranges.slice(i, i + CONCURRENCY);
+          const results = await Promise.all(
+            batch.map(([from, to]) => buildBaseQuery(false).range(from, to))
+          );
+          for (const res of results) {
+            if (res.error) throw res.error;
+            if (res.data && res.data.length > 0) {
+              allLeads.push(...(res.data as Lead[]));
+            }
           }
-        } else {
-          hasMore = false;
         }
       }
       if (!isGlobal && targetEmpresaId === 'dae64d51-2181-4510-b14f-e63d2f111a8e' && (!assignedTo || assignedTo === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa')) {

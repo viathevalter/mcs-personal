@@ -105,7 +105,22 @@ export function LeadsPage() {
   const { isCommercialOperator, activeCommercialProfile, effectiveOwnerKey, setSelectedOwnerKey, profiles: commercialProfiles } = useCommercialScope();
   const queryClient = useQueryClient();
   const { empresas, selectedEmpresaId } = useEmpresa();
-  const { data: leads = [], isLoading, error } = useLeads({ global: true });
+  const leadsQueryOptions = useMemo(() => {
+    if (effectiveOwnerKey === 'giada') {
+      return {
+        empresaId: 'dae64d51-2181-4510-b14f-e63d2f111a8e',
+        assignedTo: '76f9a2f5-116a-456e-a7d9-9a6a0401ac65',
+      };
+    }
+    if (effectiveOwnerKey !== 'all' && activeCommercialProfile) {
+      return {
+        empresaId: activeCommercialProfile.empresaId,
+      };
+    }
+    return { global: true };
+  }, [effectiveOwnerKey, activeCommercialProfile]);
+
+  const { data: leads = [], isLoading, error } = useLeads(leadsQueryOptions);
   const { createLead, updateLead, deleteLead, deleteLeadsBatch, isCreating, isUpdating, isDeleting, isDeletingBatch, createLeadsBatch, isCreatingBatch } = useMutateLead();
   const { createClient } = useMutateClient();
   const { data: paymentTerms = [] } = usePaymentTerms();
@@ -870,6 +885,9 @@ export function LeadsPage() {
 
   const [selectedSector, setSelectedSector] = useState<string>('all');
   const [selectedCountry, setSelectedCountry] = useState<string>(() => {
+    if (activeCommercialProfile?.country) {
+      return activeCommercialProfile.country;
+    }
     try {
       const saved = localStorage.getItem('mcs_leads_selected_country');
       if (saved) return saved;
@@ -943,10 +961,10 @@ export function LeadsPage() {
   useEffect(() => {
     setSelectedAudienceId("all");
     setSelectedLeadIds([]);
-    if (activeCommercialProfile) {
+    if (activeCommercialProfile?.country) {
       setSelectedCountry(activeCommercialProfile.country);
     }
-  }, [effectiveOwnerKey]);
+  }, [effectiveOwnerKey, activeCommercialProfile?.country]);
 
   const activeAudience = useMemo(() => {
     if (selectedAudienceId === 'all') return null;
@@ -1323,8 +1341,15 @@ export function LeadsPage() {
             <UserPlus className="h-5 w-5 text-yellow-500" />
             {t('comercial.leads.title')}
           </h1>
-          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30">
-            {filteredLeads.length} leads
+          <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-yellow-500/10 text-yellow-600 dark:text-yellow-400 border border-yellow-500/30 flex items-center gap-1.5">
+            {isLoading ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                {tr('Carregando...', 'Cargando...', 'Chargement...')}
+              </>
+            ) : (
+              `${filteredLeads.length} leads`
+            )}
           </span>
         </div>
         <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
