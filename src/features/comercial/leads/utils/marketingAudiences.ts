@@ -32,10 +32,106 @@ export interface MarketingAudiencePreset {
   created_at?: string;
   isCustom?: boolean;
   ownerKey?: CommercialOwnerKey;
-  country?: 'ES' | 'FR';
+  country?: 'ES' | 'FR' | 'IT';
 }
 
 export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
+  // ==========================================
+  // GIADA (ITÁLIA - WISEOWE)
+  // ==========================================
+  {
+    id: 'aud_wiseowe_giada_italia_geral',
+    name: '🌟 🇮🇹 Giada (Wiseowe) - Base Completa Itália (3.107 leads)',
+    leadCount: 3107,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      tagKeyword: 'Giada',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_ineditos_pdf',
+    name: '🚀 🇮🇹 Giada (Wiseowe) - Inéditos PDF Itália (92 leads)',
+    leadCount: 92,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      tagKeyword: 'Mailing Giada - Inéditos PDF Italia',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_pdf_empresas',
+    name: '🎯 🇮🇹 Giada (Wiseowe) - Mailing PDF Empresas Itália (108 leads)',
+    leadCount: 108,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      tagKeyword: 'Mailing Giada - PDF Empresas Italia',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_carpenteria',
+    name: '🎯 🇮🇹 Giada (Wiseowe) - Carpenteria Metallica & Tubazioni',
+    leadCount: 680,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedSectors: [
+        'Calderería & Tubería Industrial',
+        'Tuyauterie & Chaudronnerie Industrielle',
+        'Caldareria Pesante & Serbatoi a Pressione (Italia)',
+      ],
+      tagKeyword: 'Giada',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_strutture',
+    name: '🎯 🇮🇹 Giada (Wiseowe) - Strutture Metalliche & Montaggi',
+    leadCount: 610,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedSectors: [
+        'Estructuras Metálicas & Montajes',
+        'Estructuras Metálicas & Cerrajería',
+        'Metalmecânica & Industrial',
+      ],
+      tagKeyword: 'Giada',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_meccanica',
+    name: '🎯 🇮🇹 Giada (Wiseowe) - Lavorazioni Meccaniche & CNC',
+    leadCount: 740,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedSectors: [
+        'Mecanizado CNC & Tornería',
+        'Mecanizado & Matricería',
+        'Talleres & Mecanizado',
+      ],
+      tagKeyword: 'Giada',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_cantieri_navali',
+    name: '🎯 🇮🇹 Giada (Wiseowe) - Cantieri Navali & Piping Navale',
+    leadCount: 185,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedSectors: ['Construção & Reparação Naval', 'Chantiers Navals & Marine'],
+      tagKeyword: 'Giada',
+    },
+  },
   // ==========================================
   // LISETH (ESPANHA - WISEOWE)
   // ==========================================
@@ -1409,13 +1505,27 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
 ];
 
 export function classifyAudienceOwner(aud: Partial<MarketingAudiencePreset>): CommercialOwnerKey {
-  if (aud.ownerKey && ['alex', 'alba', 'liseth', 'fatumata'].includes(aud.ownerKey)) {
+  if (aud.ownerKey && ['alex', 'alba', 'ayslan', 'liseth', 'fatumata', 'giada'].includes(aud.ownerKey)) {
     return aud.ownerKey;
   }
   const idLower = (aud.id || '').toLowerCase();
   const nameLower = (aud.name || '').toLowerCase();
   const tagLower = (aud.filters?.tagKeyword || '').toLowerCase();
   const countries = aud.filters?.selectedCountries || [];
+
+  if (
+    idLower.includes('giada') ||
+    idLower.includes('aud_it_') ||
+    nameLower.includes('giada') ||
+    nameLower.includes('itália') ||
+    nameLower.includes('italia') ||
+    tagLower.includes('giada') ||
+    tagLower.includes('itália') ||
+    tagLower.includes('italia') ||
+    countries.includes('IT')
+  ) {
+    return 'giada';
+  }
 
   if (
     idLower.includes('fatumata') ||
@@ -1434,6 +1544,19 @@ export function classifyAudienceOwner(aud: Partial<MarketingAudiencePreset>): Co
     countries.includes('BE')
   ) {
     return 'fatumata';
+  }
+
+  if (
+    idLower.includes('ayslan') ||
+    idLower.includes('genio') ||
+    nameLower.includes('ayslan') ||
+    nameLower.includes('génio') ||
+    nameLower.includes('genio') ||
+    tagLower.includes('ayslan') ||
+    tagLower.includes('génio') ||
+    tagLower.includes('genio')
+  ) {
+    return 'ayslan';
   }
 
   if (
@@ -1692,8 +1815,7 @@ export function loadAllMarketingAudiences(
           for (const item of parsed) {
             if (!item || !item.id || defaultIds.has(item.id) || legacyIds.has(item.id)) continue;
             const nameLower = String(item.name || '').toLowerCase();
-            // Skip obsolete Giada / test audiences
-            if (nameLower.includes('giada') || nameLower === 'teste10') continue;
+            if (nameLower === 'teste10') continue;
 
             const ownerKey = classifyAudienceOwner(item);
             if (!customAudiencesMap.has(item.id)) {
@@ -1748,7 +1870,7 @@ export function loadAllMarketingAudiences(
         if (typeof t === 'string') {
           const trimmed = t.trim();
           const lower = trimmed.toLowerCase();
-          if (ignoredRawTags.has(lower) || lower.includes('giada')) continue;
+          if (ignoredRawTags.has(lower)) continue;
           if (
             (lower.startsWith('mailing ') ||
               lower.startsWith('público ') ||

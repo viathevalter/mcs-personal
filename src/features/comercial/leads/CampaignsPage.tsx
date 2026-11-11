@@ -378,11 +378,12 @@ export function CampaignsPage() {
     const email = user?.email?.toLowerCase() || '';
     return email.includes('mitch') || email.includes('michel') || user?.id === 'dbc361a1-e4af-446a-8079-39c0caab00d2';
   }, [user]);
-    const activeSenderEmail = useMemo(() => {
+  const activeSenderEmail = useMemo(() => {
     if (activeCommercialProfile?.marketingSenderEmail) {
       return activeCommercialProfile.marketingSenderEmail;
     }
     if (isWiseowe) {
+      if (activeCommercialProfile?.country === 'IT') return 'comercial4@it.wiseowe.com';
       return activeCommercialProfile?.country === 'ES'
         ? ((currentEmpresa as any)?.marketing_sender_email_es || 'comercial2@es.wiseowe.com')
         : ((currentEmpresa as any)?.marketing_sender_email_fr || currentEmpresa?.marketing_sender_email || 'comercial3@fr.wiseowe.com');
@@ -397,7 +398,12 @@ export function CampaignsPage() {
     if (activeCommercialProfile?.commercialEmail) {
       return activeCommercialProfile.commercialEmail;
     }
-    if (isWiseowe) return activeCommercialProfile?.country === 'ES' ? ((currentEmpresa as any)?.proposal_sender_email_es || 'comercial2@wiseowe.com') : ((currentEmpresa as any)?.proposal_sender_email_fr || currentEmpresa?.proposal_sender_email || 'comercial3@wiseowe.com');
+    if (isWiseowe) {
+      if (activeCommercialProfile?.country === 'IT') return 'comercial4@wiseowe.com';
+      return activeCommercialProfile?.country === 'ES'
+        ? ((currentEmpresa as any)?.proposal_sender_email_es || 'comercial2@wiseowe.com')
+        : ((currentEmpresa as any)?.proposal_sender_email_fr || currentEmpresa?.proposal_sender_email || 'comercial3@wiseowe.com');
+    }
     if (isTriangulo) return (currentEmpresa as any)?.proposal_sender_email_es || currentEmpresa?.proposal_sender_email || 'comercial4@triangulolda.com';
     return currentEmpresa?.proposal_sender_email || 'comercial1@luminousalley.com';
   }, [activeCommercialProfile, currentEmpresa, isWiseowe, isTriangulo]);
@@ -407,6 +413,7 @@ export function CampaignsPage() {
       return activeCommercialProfile.senderBrandName;
     }
     if (isWiseowe) {
+      if (activeCommercialProfile?.country === 'IT') return 'Wiseowe Servizi Industriali';
       return activeCommercialProfile?.country === 'ES' ? 'Wiseowe Servicios Industriales' : 'Wiseowe Industrie';
     }
     return currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || 'Equipe Comercial';
@@ -414,17 +421,34 @@ export function CampaignsPage() {
   const { data: rawTemplates = [], isLoading: loadingTemplates } = useMarketingTemplates();
   const templates = useMemo(() => {
     if (isWiseowe && effectiveOwnerKey !== 'all') {
+      if (effectiveOwnerKey === 'giada') {
+        const giadaList = rawTemplates.filter(t => {
+          const title = (t.title || '').toLowerCase();
+          return title.includes('giada') || title.includes('italia') || title.includes('itália') || title.includes('wise-it');
+        });
+        return giadaList.length > 0 ? giadaList : rawTemplates;
+      }
       if (effectiveOwnerKey === 'liseth') {
         const lisethList = rawTemplates.filter(t => {
           const title = (t.title || '').toLowerCase();
-          return title.includes('liseth') || title.includes('espanha') || title.includes('españa') || title.includes('wise-es');
+          return title.includes('liseth') || title.includes('espanha') || title.includes('españa') || title.includes('catalan') || title.includes('wise-es');
         });
         return lisethList.length > 0 ? lisethList : rawTemplates;
       }
       if (effectiveOwnerKey === 'fatumata') {
         const fatumataList = rawTemplates.filter(t => {
           const title = (t.title || '').toLowerCase();
-          return !title.includes('liseth') && !title.includes('espanha') && !title.includes('españa') && !title.includes('wise-es');
+          return (
+            !title.includes('liseth') &&
+            !title.includes('espanha') &&
+            !title.includes('españa') &&
+            !title.includes('catalan') &&
+            !title.includes('wise-es') &&
+            !title.includes('giada') &&
+            !title.includes('italia') &&
+            !title.includes('itália') &&
+            !title.includes('wise-it')
+          );
         });
         return fatumataList.length > 0 ? fatumataList : rawTemplates;
       }
@@ -1252,167 +1276,6 @@ export function CampaignsPage() {
           created_at: '2026-11-02T08:30:00.000Z'
         },
         {
-          id: 'aud_triangulo_giada_ineditos_pdf',
-          name: '🚀 🇮🇹 Giada - Inéditos PDF Itália (92 leads)',
-          leadCount: 92,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: [],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Mailing Giada - Inéditos PDF Italia',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_triangulo_giada_pdf_empresas',
-          name: '🎯 🇮🇹 Giada - Mailing PDF Empresas Itália (108 leads)',
-          leadCount: 108,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: [],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Mailing Giada - PDF Empresas Italia',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_triangulo_giada_italia_geral',
-          name: '🌟 🇮🇹 Giada - Mailing Geral Itália (1.790 leads)',
-          leadCount: 1790,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: [],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Giada',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_triangulo_giada_carpenteria',
-          name: '🎯 🇮🇹 Giada - Carpenteria Metallica & Tubazioni (490 leads)',
-          leadCount: 494,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Calderería & Tubería Industrial', 'Tuyauterie & Chaudronnerie Industrielle', 'Caldareria Pesante & Serbatoi a Pressione (Italia)'],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Giada',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_triangulo_giada_strutture',
-          name: '🎯 🇮🇹 Giada - Strutture Metalliche & Montaggi (410 leads)',
-          leadCount: 417,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Estructuras Metálicas & Montajes', 'Estructuras Metálicas & Cerrajería', 'Metalmecânica & Industrial'],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Giada',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_triangulo_giada_meccanica',
-          name: '🎯 🇮🇹 Giada - Lavorazioni Meccaniche & CNC (500 leads)',
-          leadCount: 501,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Mecanizado CNC & Tornería', 'Mecanizado & Matricería', 'Talleres & Mecanizado'],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Giada',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
-          id: 'aud_triangulo_giada_cantieri_navali',
-          name: '🎯 🇮🇹 Giada - Cantieri Navali & Piping Navale (120 leads)',
-          leadCount: 122,
-          filters: {
-            stageId: '',
-            origin: '',
-            intelligence: 'all',
-            selectedCountries: ['IT'],
-            selectedCompanySizes: [],
-            selectedRegions: [],
-            selectedProvinces: [],
-            selectedSectors: ['Construção & Reparação Naval', 'Chantiers Navals & Marine'],
-            selectedServices: [],
-            sectorKeyword: '',
-            cargoKeyword: '',
-            provinceKeyword: '',
-            tagKeyword: 'Giada',
-            limit: '',
-            offset: '',
-          },
-          created_at: new Date().toISOString()
-        },
-        {
           id: 'aud_triangulo_mitchelle_ineditos_metal',
           name: '🚀 Triângulo (Alba) - Inéditos Metal Lote 2 (48 leads)',
           leadCount: 48,
@@ -1707,10 +1570,10 @@ export function CampaignsPage() {
       ]);
     }
 
-    // 2. EMPRESA: WISEOWE (França / Fatumata & Espanha / Liseth)
+    // 2. EMPRESA: WISEOWE (França / Fatumata, Espanha / Liseth & Itália / Giada)
     if (isWiseowe) {
       const wiseoweStrategic = ALL_STRATEGIC_AUDIENCES.filter(
-        a => a.ownerKey === 'liseth' || a.ownerKey === 'fatumata'
+        a => a.ownerKey === 'liseth' || a.ownerKey === 'fatumata' || a.ownerKey === 'giada'
       );
       return mergeUniqueById(wiseoweStrategic, [
         {
@@ -3552,15 +3415,16 @@ export function CampaignsPage() {
             });
           }
 
-          // Strict isolation: Wiseowe must ONLY have Fatumata (French/Belgian) audiences or Liseth audiences
+          // Strict isolation: Wiseowe must ONLY have Fatumata (French/Belgian), Liseth (Spanish), or Giada (Italian) audiences
           if (isWiseowe) {
             customOnly = customOnly.filter((p: any) => {
               const nameLower = (p.name || '').toLowerCase();
               const tagLower = (p.filters?.tagKeyword || '').toLowerCase();
               const isFrenchOrFatumata = nameLower.includes('fatumata') || tagLower.includes('fatumata') || nameLower.includes('frança') || nameLower.includes('france') || (p.filters?.selectedCountries && (p.filters.selectedCountries.includes('FR') || p.filters.selectedCountries.includes('BE')));
               const isLiseth = nameLower.includes('liseth') || nameLower.includes('lizeth') || tagLower.includes('liseth') || tagLower.includes('lizeth');
-              const isAlexOrOther = nameLower.includes('alex') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('stocco') || nameLower.includes('rosa');
-              return (isFrenchOrFatumata || isLiseth) && !isAlexOrOther;
+              const isGiadaPreset = nameLower.includes('giada') || tagLower.includes('giada') || nameLower.includes('itália') || nameLower.includes('italia') || (p.filters?.selectedCountries && p.filters.selectedCountries.includes('IT'));
+              const isAlexOrOther = nameLower.includes('alex') || tagLower.includes('alex') || nameLower.includes('asturias') || nameLower.includes('álava') || nameLower.includes('stocco') || nameLower.includes('rosa') || nameLower.includes('triangulo') || nameLower.includes('triângulo');
+              return (isFrenchOrFatumata || isLiseth || isGiadaPreset) && !isAlexOrOther;
             });
           }
 
@@ -3615,7 +3479,7 @@ export function CampaignsPage() {
     return savedAudiences
       .filter((aud: any) => {
         const nameLower = String(aud.name || "").toLowerCase();
-        if (nameLower.includes("giada") || nameLower === "teste10") return false;
+        if (nameLower === "teste10") return false;
         if (effectiveOwnerKey === "all") return true;
         return classifyAudienceOwner(aud) === effectiveOwnerKey;
       })

@@ -221,7 +221,7 @@ export function useSalespeople() {
           marketing_sender_email: row.marketing_sender_email || profile?.marketingSenderEmail,
           empresaName: profile?.empresaName,
           empresaCode: profile?.empresaCode,
-          flag: profile?.flag || (row.commercial_country === 'FR' ? '🇫🇷' : '🇪🇸'),
+          flag: profile?.flag || (row.commercial_country === 'FR' ? '🇫🇷' : row.commercial_country === 'IT' ? '🇮🇹' : '🇪🇸'),
         };
       });
     },
@@ -334,6 +334,7 @@ export function useCommercialScope() {
     selectedCommercialKey: effectiveOwnerKey,
     setSelectedOwnerKey,
     setSelectedCommercialKey: setSelectedOwnerKey,
+    selectCommercialOperator: setSelectedOwnerKey,
     profiles: ACTIVE_COMMERCIAL_PROFILES,
     allProfiles: ACTIVE_COMMERCIAL_PROFILES,
   };

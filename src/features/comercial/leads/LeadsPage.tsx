@@ -258,6 +258,10 @@ export function LeadsPage() {
 
   const handleOpenCreate = () => {
     setSelectedLead(null);
+    const defaultCountryId =
+      activeCommercialProfile?.country === 'IT'
+        ? '3623ec00-42ae-4673-a842-c20b47da0e5e'
+        : '2f487ab4-c7f5-4b70-9c37-995dc4cda125';
     setFormData({
       name: '',
       email: '',
@@ -265,7 +269,7 @@ export function LeadsPage() {
       company_name: '',
       legal_name: '',
       tax_id: '',
-      country_id: '2f487ab4-c7f5-4b70-9c37-995dc4cda125', // Default Spain
+      country_id: defaultCountryId,
       province: '',
       city: '',
       postal_code: '',
@@ -273,7 +277,7 @@ export function LeadsPage() {
       billing_email: '',
       payment_term_id: '',
       notes: '',
-      empresa_id: selectedEmpresaId || '',
+      empresa_id: activeCommercialProfile?.empresaId || selectedEmpresaId || '',
       sector: '',
       cargo: '',
       servicio_producto: '',
@@ -334,6 +338,7 @@ export function LeadsPage() {
 
     const payload = {
       ...formData,
+      ...(selectedLead ? {} : activeCommercialProfile ? { assigned_to: activeCommercialProfile.userId } : {}),
       legal_name: formData.legal_name || null,
       tax_id: formData.tax_id || null,
       country_id: formData.country_id || null,
@@ -800,10 +805,16 @@ export function LeadsPage() {
     const updates: any[] = [];
 
     etlResult.valid.forEach(lead => {
-      const formattedLead = {
+      const formattedLead: any = {
         ...lead,
-        empresa_id: selectedEmpresaId
+        empresa_id: activeCommercialProfile?.empresaId || selectedEmpresaId,
       };
+      if (!lead.id && activeCommercialProfile) {
+        formattedLead.assigned_to = activeCommercialProfile.userId;
+        if (activeCommercialProfile.country === 'IT' && !formattedLead.country_id) {
+          formattedLead.country_id = '3623ec00-42ae-4673-a842-c20b47da0e5e';
+        }
+      }
       if (lead.id) {
         updates.push(formattedLead);
       } else {
@@ -885,22 +896,41 @@ export function LeadsPage() {
       const tagsLower = Array.isArray(l.tags) ? l.tags.map((x: any) => String(x).toLowerCase()) : [];
       const hasAlexTag = tagsLower.some((tg: string) => tg.includes("alex"));
       const hasLisethTag = tagsLower.some((tg: string) => tg.includes("liseth") || tg.includes("lizeth") || tg.includes("comercial 3") || tg.includes("kr-captacion"));
-      const hasAlbaTag = tagsLower.some((tg: string) => tg.includes("triangulo") || tg.includes("mitchelle") || tg.includes("michelle") || tg.includes("alba"));
+      const hasAlbaTag = tagsLower.some((tg: string) => tg.includes("triangulo") || tg.includes("triângulo") || tg.includes("mitchelle") || tg.includes("michelle") || tg.includes("alba"));
       const hasFatumataTag = tagsLower.some((tg: string) => tg.includes("omar") || tg.includes("fatumata") || tg.includes("frança") || tg.includes("france"));
+      const hasGiadaTag = tagsLower.some((tg: string) => tg.includes("giada") || tg.includes("itália") || tg.includes("italia"));
+      const hasAyslanTag = tagsLower.some((tg: string) => tg.includes("ayslan") || tg.includes("genio") || tg.includes("génio"));
+
+      if (effectiveOwnerKey === "giada") {
+        if (l.assigned_to === "76f9a2f5-116a-456e-a7d9-9a6a0401ac65") return true;
+        if (c === "FR" || c === "ES" || c === "PT") return false;
+        return c === "IT" || hasGiadaTag;
+      }
 
       if (effectiveOwnerKey === "fatumata") {
+        if (l.assigned_to === "2a25dd76-8a1b-44ea-8ea9-47e9232beee2") return true;
         if (c === "IT" || c === "ES" || c === "PT") return false;
         return c === "FR" || c === "BE" || hasFatumataTag;
       }
+
+      if (effectiveOwnerKey === "ayslan") {
+        if (l.assigned_to === "9cba947d-432d-4622-89f0-18c5750581d9") return true;
+        if (c === "IT" || c === "FR") return false;
+        return l.empresa_id === "4a507974-f922-409f-83c0-9ef8cbf982cb" || hasAyslanTag;
+      }
+
       if (c !== "ES") return false;
       if (effectiveOwnerKey === "alex") {
-        return hasAlexTag || (l.empresa_id === "847796c4-b253-4e53-9e6b-34a127ec7d85" && !hasLisethTag);
+        if (l.assigned_to === "efc6c631-f22a-4ce6-b662-9309a50a4cb7") return true;
+        return hasAlexTag || (l.empresa_id === "847796c4-b253-4e53-9e6b-34a127ec7d85" && !hasLisethTag && !hasAlbaTag && !hasGiadaTag);
       }
       if (effectiveOwnerKey === "alba") {
-        return hasAlbaTag || (!hasAlexTag && !hasLisethTag);
+        if (l.assigned_to === "ca69863d-998b-4bad-865a-19720e7a1f67") return true;
+        return hasAlbaTag || (l.empresa_id === "a798620a-358a-4c6c-9db2-3a507c583cac" && !hasAlexTag && !hasLisethTag && !hasGiadaTag);
       }
       if (effectiveOwnerKey === "liseth") {
-        return hasLisethTag || (!hasAlexTag && !hasAlbaTag);
+        if (l.assigned_to === "cdc74a13-e41a-4fa5-b51b-5a27b8f310fa") return true;
+        return hasLisethTag || (l.empresa_id === "dae64d51-2181-4510-b14f-e63d2f111a8e" && !l.assigned_to && !hasAlexTag && !hasAlbaTag && !hasGiadaTag && !hasFatumataTag);
       }
       return true;
     });
@@ -1045,6 +1075,10 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'Wiseowe Itália',
+      'Mailing Giada',
+      'Mailing Giada - Inéditos PDF Italia',
+      'Mailing Giada - PDF Empresas Italia',
       'CASTILLA - LA MANCHA - Alba',
       'Sin Correo - CASTILLA - LA MANCHA - Alba',
       'Sem E-mail - CASTILLA - LA MANCHA - Alba',
@@ -1461,6 +1495,27 @@ export function LeadsPage() {
             </button>
           )}
 
+          {(!activeCommercialProfile || activeCommercialProfile.country === 'IT') && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedAudienceId('all');
+                setSelectedCountry('IT');
+              }}
+              className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
+                selectedCountry === 'IT' && !activeAudience
+                  ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
+                  : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              <span>🇮🇹</span>
+              <span>{tr('Itália', 'Italia', 'Italie')}</span>
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
+                {countryCounts.IT}
+              </span>
+            </button>
+          )}
+
           {!activeCommercialProfile && (
             <>
               <button
@@ -1479,25 +1534,6 @@ export function LeadsPage() {
                 <span>Portugal</span>
                 <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
                   {countryCounts.PT}
-                </span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  setSelectedAudienceId('all');
-                  setSelectedCountry('IT');
-                }}
-                className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
-                  selectedCountry === 'IT' && !activeAudience
-                    ? 'bg-yellow-500 text-slate-950 ring-2 ring-yellow-500/40'
-                    : 'bg-background hover:bg-muted/80 border text-muted-foreground hover:text-foreground'
-                }`}
-              >
-                <span>🇮🇹</span>
-                <span>{tr('Itália', 'Italia', 'Italie')}</span>
-                <span className="px-1.5 py-0.2 rounded-full text-[10px] bg-black/10 dark:bg-white/10 font-bold">
-                  {countryCounts.IT}
                 </span>
               </button>
 

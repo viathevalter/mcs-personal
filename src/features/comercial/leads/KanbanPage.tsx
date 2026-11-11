@@ -228,9 +228,21 @@ export function KanbanPage() {
     assigned_to: '',
   });
 
-  // Dynamic Stage Name Translation Helper (PT / ES / FR)
+  // Dynamic Stage Name Translation Helper (PT / ES / FR / IT)
+  const isItalian = effectiveProfile?.language === 'it' || effectiveCountry === 'IT';
   const getStageTitle = (stage: KanbanStage) => {
     const lower = stage.name.toLowerCase();
+    if (isItalian) {
+      if (lower.includes('novo') || lower.includes('sem contato')) return 'Nuovo / In Coda';
+      if (lower.includes('e-mail enviado') || lower.includes('email enviado')) return 'E-mail Inviata';
+      if (lower.includes('lido') || lower.includes('clicado')) return 'E-mail Letta / Cliccata';
+      if (lower.includes('liga') || lower.includes('llamada')) return 'Chiamata Telefonica';
+      if (lower.includes('whatsapp')) return 'Contatto WhatsApp';
+      if (lower.includes('orçamento') || lower.includes('presupuesto')) return 'Preventivo Richiesto';
+      if (lower.includes('negociação') || lower.includes('negociacion')) return 'In Negoziazione';
+      if (lower.includes('convertido')) return 'Convertito';
+      if (lower.includes('perdido') || lower.includes('desvinculado')) return 'Perso / Disiscritto';
+    }
     if (isFrench) {
       if (lower.includes('novo') || lower.includes('sem contato')) return 'Nouveau / En File';
       if (lower.includes('e-mail enviado') || lower.includes('email enviado')) return 'E-mail Envoyé';
