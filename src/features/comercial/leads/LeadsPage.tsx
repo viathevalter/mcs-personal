@@ -1045,6 +1045,16 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'CASTILLA - LA MANCHA - Alba',
+      'Sin Correo - CASTILLA - LA MANCHA - Alba',
+      'Sem E-mail - CASTILLA - LA MANCHA - Alba',
+      'Mailing Alba - Castilla-La Mancha 2026',
+      'Mailing Alba Inéditos - Castilla-La Mancha 2026',
+      'Albacete - Alba',
+      'Ciudad Real - Alba',
+      'Cuenca - Alba',
+      'Guadalajara - Alba',
+      'Toledo - Alba',
       'CANARIAS - Alba',
       'CANTABRIA - Alba',
       'Sin Correo - CANARIAS - Alba',

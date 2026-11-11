@@ -991,6 +991,47 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ALBA (ESPANHA - TRIÂNGULO)
   // ==========================================
   {
+    id: 'aud_triangulo_alba_ineditos_castilla_la_mancha_2026',
+    name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Castilla-La Mancha (54 leads)',
+    leadCount: 54,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba Inéditos - Castilla-La Mancha 2026',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_castilla_la_mancha_completo_2026',
+    name: '🎯 🇪🇸 Alba (Triangulo) - PDF Castilla-La Mancha Completo [Tag: CASTILLA - LA MANCHA - Alba] (114 leads)',
+    leadCount: 114,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['CASTILLA - LA MANCHA - Alba'],
+      tagKeyword: 'CASTILLA - LA MANCHA - Alba',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_sin_correo_castilla_la_mancha_2026',
+    name: '📞 🇪🇸 Alba (Triangulo) - Sin Correo p/ Marcador (Castilla-La Mancha - 29 leads)',
+    leadCount: 29,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Sin Correo - CASTILLA - LA MANCHA - Alba'],
+      tagKeyword: 'Sin Correo - CASTILLA - LA MANCHA - Alba',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
     id: 'aud_triangulo_alba_ineditos_canarias_cantabria_2026',
     name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Canarias & Cantabria (36 leads)',
     leadCount: 36,
