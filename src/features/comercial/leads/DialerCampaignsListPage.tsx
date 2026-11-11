@@ -373,13 +373,13 @@ export function DialerCampaignsListPage() {
 
                       {/* Progress Bar & Counters */}
                       <td className="py-4 px-4">
-                        <div className="w-44 mx-auto space-y-1 text-center">
+                        <div className="w-48 mx-auto space-y-1 text-center">
                           <div className="flex justify-between text-[11px] font-mono">
                             <span className="text-emerald-600 dark:text-emerald-400 font-bold">
-                              {completed} {tr('concluídos', 'completados', 'traités')}
+                              {completed} {tr('concluídos', 'completados', 'traités', 'completati')}
                             </span>
                             <span className="text-muted-foreground">
-                              {pending} {tr('restam', 'restan', 'restent')} ({total})
+                              {pending} {tr('restam', 'restan', 'restent', 'restano')} ({total})
                             </span>
                           </div>
                           <div className="h-2 w-full bg-muted rounded-full overflow-hidden border border-border">
@@ -388,6 +388,22 @@ export function DialerCampaignsListPage() {
                               style={{ width: `${percent}%` }}
                             />
                           </div>
+                          {(camp.items_count?.scheduled || 0) > 0 && (
+                            <div className="pt-0.5">
+                              <span
+                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold"
+                                title={tr(
+                                  'Estes agendamentos permanecem salvos na Agenda mesmo se o trabalho for excluído.',
+                                  'Estos agendamientos permanecen guardados en la Agenda incluso si se elimina el trabajo.',
+                                  'Ces rappels restent conservés dans l’Agenda même si le lot est supprimé.',
+                                  'Questi appuntamenti restano salvati in Agenda anche se il lavoro viene eliminato.'
+                                )}
+                              >
+                                📅 {camp.items_count?.scheduled}{' '}
+                                {tr('agendados (protegidos)', 'agendados (protegidos)', 'planifiés (protégés)', 'pianificati (protetti)')}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
 

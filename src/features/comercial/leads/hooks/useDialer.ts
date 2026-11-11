@@ -115,15 +115,25 @@ export function useDialerAgenda() {
         ? loggedCommercialProfile?.userId
         : activeCommercialProfile?.userId || null;
 
+      const targetEmpresaId = isCommercialOperator
+        ? loggedCommercialProfile?.empresaId || selectedEmpresaId
+        : activeCommercialProfile?.empresaId || null;
+
       const filtered = (queueItems || []).filter((it: any) => {
-        const matchesCompany =
-          it.campaign?.empresa_id === selectedEmpresaId ||
-          it.lead?.empresa_id === selectedEmpresaId ||
-          (!it.campaign?.empresa_id && !it.lead?.empresa_id);
-        if (!matchesCompany) return false;
         if (targetUserId) {
           const itemOwner = it.assigned_to || it.campaign?.assigned_to;
-          if (itemOwner && itemOwner !== targetUserId) return false;
+          if (itemOwner) return itemOwner === targetUserId;
+          if (targetEmpresaId) {
+            return it.campaign?.empresa_id === targetEmpresaId || it.lead?.empresa_id === targetEmpresaId;
+          }
+          return false;
+        }
+        if (targetEmpresaId) {
+          return (
+            it.campaign?.empresa_id === targetEmpresaId ||
+            it.lead?.empresa_id === targetEmpresaId ||
+            (!it.campaign?.empresa_id && !it.lead?.empresa_id)
+          );
         }
         return true;
       });
@@ -152,22 +162,45 @@ export function useDialerAgenda() {
 
 export function useSalesScripts() {
   const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
+
+  const targetProfile = isCommercialOperator ? loggedCommercialProfile : activeCommercialProfile;
+  const effectiveEmpresaId = targetProfile?.empresaId || selectedEmpresaId;
 
   return useQuery({
-    queryKey: ['sales_scripts', selectedEmpresaId],
+    queryKey: ['sales_scripts', effectiveEmpresaId, targetProfile?.key || 'all'],
     queryFn: async () => {
-      if (!selectedEmpresaId) return [];
-      const { data, error } = await supabase
+      if (!effectiveEmpresaId) return [];
+
+      let query = supabase
         .schema('core_comercial')
         .from('sales_scripts')
-        .select('*')
-        .eq('empresa_id', selectedEmpresaId)
-        .order('is_default', { ascending: false });
+        .select('*');
 
+      if (!isCommercialOperator && !activeCommercialProfile) {
+        // Super Admin viewing "Todos": show all official commercial scripts + current company scripts
+        query = query.or(`empresa_id.eq.${effectiveEmpresaId},sector.like.oficial_%`);
+      } else {
+        query = query.eq('empresa_id', effectiveEmpresaId);
+      }
+
+      const { data, error } = await query.order('is_default', { ascending: false });
       if (error) throw error;
-      return (data || []) as SalesScript[];
+
+      const list = (data || []) as SalesScript[];
+      if (targetProfile) {
+        const expectedPrefix = `oficial_${targetProfile.key}_`;
+        return list.sort((a, b) => {
+          const aMatch = (a.sector || '').startsWith(expectedPrefix) ? 1 : 0;
+          const bMatch = (b.sector || '').startsWith(expectedPrefix) ? 1 : 0;
+          if (aMatch !== bMatch) return bMatch - aMatch;
+          if (a.is_default !== b.is_default) return a.is_default ? -1 : 1;
+          return 0;
+        });
+      }
+      return list;
     },
-    enabled: !!selectedEmpresaId,
+    enabled: !!effectiveEmpresaId,
   });
 }
 
@@ -187,7 +220,6 @@ export function useDialerCampaigns() {
           *,
           script:sales_scripts(*)
         `)
-        .eq("empresa_id", selectedEmpresaId)
         .order("created_at", { ascending: false });
 
       if (isCommercialOperator && loggedCommercialProfile) {
@@ -428,7 +460,27 @@ export function useLeadCallLogs(leadId?: string | null) {
   });
 }
 
-export function useDialerSupervisorKPIs() {
+export type SupervisorPeriodFilter = 'today' | '7d' | '30d' | 'all';
+
+export interface DetailedCallReportRow {
+  id: string;
+  created_at: string;
+  user_id?: string | null;
+  userName: string;
+  commercialFlag?: string;
+  empresaName?: string;
+  lead_id: string;
+  companyName: string;
+  contactName: string;
+  phoneCalled: string;
+  outcome: string;
+  durationSeconds: number;
+  notes?: string | null;
+  scheduledCallbackAt?: string | null;
+  rejectionReason?: string | null;
+}
+
+export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = 'all') {
   const { selectedEmpresaId } = useEmpresa();
   const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
   const targetUserId = isCommercialOperator
@@ -436,20 +488,38 @@ export function useDialerSupervisorKPIs() {
     : activeCommercialProfile?.userId || null;
 
   return useQuery({
-    queryKey: ['dialer_supervisor_kpis', selectedEmpresaId, targetUserId || 'all'],
+    queryKey: ['dialer_supervisor_kpis', selectedEmpresaId, targetUserId || 'all', periodFilter],
     queryFn: async () => {
       if (!selectedEmpresaId) return null;
 
-      // 1. Fetch call logs for company (and scoped commercial user if applicable)
+      // 1. Fetch call logs with lead summary (cross-company when Super Admin views all commercials, or scoped to targetUserId)
       let logQuery = supabase
         .schema('core_comercial')
         .from('lead_call_logs')
-        .select('*')
-        .eq('empresa_id', selectedEmpresaId)
+        .select(`
+          *,
+          lead:leads!lead_id ( id, name, company_name, phone, city )
+        `)
         .order('created_at', { ascending: false });
 
       if (targetUserId) {
         logQuery = logQuery.eq('user_id', targetUserId);
+      }
+
+      if (periodFilter !== 'all') {
+        const now = new Date();
+        let sinceIso: string;
+        if (periodFilter === 'today') {
+          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+          sinceIso = startOfDay.toISOString();
+        } else if (periodFilter === '7d') {
+          const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          sinceIso = d.toISOString();
+        } else {
+          const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          sinceIso = d.toISOString();
+        }
+        logQuery = logQuery.gte('created_at', sinceIso);
       }
 
       const { data: logs, error: logError } = await logQuery;
@@ -461,28 +531,46 @@ export function useDialerSupervisorKPIs() {
         .from('mcs_users')
         .select('id, display_name, email');
 
-      const userMap = new Map<string, string>();
-      (users || []).forEach(u => userMap.set(u.id, u.display_name || u.email));
+      const userMap = new Map<string, { display_name: string; email: string }>();
+      (users || []).forEach(u => userMap.set(u.id, u));
 
       const allLogs = logs || [];
       const totalCalls = allLogs.length;
 
+      const startOfTodayMs = new Date(
+        new Date().getFullYear(),
+        new Date().getMonth(),
+        new Date().getDate(),
+        0,
+        0,
+        0
+      ).getTime();
+
+      let todayCalls = 0;
       let answeredCount = 0;
       let convertedCount = 0;
       let scheduledCount = 0;
+      let materialCount = 0;
       let rejectedCount = 0;
       let noAnswerCount = 0;
       let totalDuration = 0;
+      let answeredDurationTotal = 0;
+      let timedCallsCount = 0;
 
       const sdrMap = new Map<string, {
         userId: string;
         userName: string;
+        flag?: string;
+        empresaName?: string;
         totalCalls: number;
+        todayCalls: number;
         answeredCalls: number;
         convertedCalls: number;
         scheduledCalls: number;
+        materialCalls: number;
         rejectedCalls: number;
         totalDuration: number;
+        avgDurationSeconds: number;
       }>();
 
       const rejectionReasonMap: Record<string, number> = {
@@ -494,13 +582,26 @@ export function useDialerSupervisorKPIs() {
         other: 0,
       };
 
-      allLogs.forEach(log => {
-        totalDuration += log.duration_seconds || 0;
+      const recentCallLogs: DetailedCallReportRow[] = [];
+
+      allLogs.forEach((log: any, idx: number) => {
+        const dur = Number(log.duration_seconds) || 0;
+        totalDuration += dur;
+        if (dur > 0) timedCallsCount += 1;
+
+        const createdMs = new Date(log.created_at).getTime();
+        const isToday = createdMs >= startOfTodayMs;
+        if (isToday) todayCalls += 1;
+
         const isAnswered = log.outcome.startsWith('answered');
-        if (isAnswered) answeredCount += 1;
+        if (isAnswered) {
+          answeredCount += 1;
+          answeredDurationTotal += dur;
+        }
 
         if (log.outcome === 'answered_converted') convertedCount += 1;
         else if (log.outcome === 'answered_callback') scheduledCount += 1;
+        else if (log.outcome === 'answered_interested') materialCount += 1;
         else if (log.outcome === 'answered_rejected') rejectedCount += 1;
         else if (log.outcome === 'no_answer' || log.outcome === 'busy') noAnswerCount += 1;
 
@@ -509,45 +610,83 @@ export function useDialerSupervisorKPIs() {
         }
 
         const uId = log.user_id || 'unassigned';
-        const uName = userMap.get(uId) || 'Operador Comercial';
+        const uObj = userMap.get(uId);
+        const prof = uObj ? getCommercialProfileByUser({ id: uId, display_name: uObj.display_name, email: uObj.email }) : getCommercialProfileByUser(uId);
+        const uName = prof?.displayName || uObj?.display_name || uObj?.email || 'Operador Comercial';
 
         const sdr = sdrMap.get(uId) || {
           userId: uId,
           userName: uName,
+          flag: prof?.flag,
+          empresaName: prof?.empresaName,
           totalCalls: 0,
+          todayCalls: 0,
           answeredCalls: 0,
           convertedCalls: 0,
           scheduledCalls: 0,
+          materialCalls: 0,
           rejectedCalls: 0,
           totalDuration: 0,
+          avgDurationSeconds: 0,
         };
 
         sdr.totalCalls += 1;
+        if (isToday) sdr.todayCalls += 1;
         if (isAnswered) sdr.answeredCalls += 1;
         if (log.outcome === 'answered_converted') sdr.convertedCalls += 1;
         if (log.outcome === 'answered_callback') sdr.scheduledCalls += 1;
+        if (log.outcome === 'answered_interested') sdr.materialCalls += 1;
         if (log.outcome === 'answered_rejected') sdr.rejectedCalls += 1;
-        sdr.totalDuration += log.duration_seconds || 0;
+        sdr.totalDuration += dur;
+        sdr.avgDurationSeconds = sdr.totalCalls > 0 ? Math.round(sdr.totalDuration / sdr.totalCalls) : 0;
 
         sdrMap.set(uId, sdr);
+
+        if (idx < 250) {
+          recentCallLogs.push({
+            id: log.id,
+            created_at: log.created_at,
+            user_id: log.user_id,
+            userName: uName,
+            commercialFlag: prof?.flag,
+            empresaName: prof?.empresaName,
+            lead_id: log.lead_id,
+            companyName: log.lead?.company_name || log.contact_person || 'Cliente',
+            contactName: log.contact_person || log.lead?.name || '-',
+            phoneCalled: log.phone_called || log.lead?.phone || '-',
+            outcome: log.outcome,
+            durationSeconds: dur,
+            notes: log.notes,
+            scheduledCallbackAt: log.scheduled_callback_at,
+            rejectionReason: log.rejection_reason,
+          });
+        }
       });
 
       const contactRate = totalCalls > 0 ? (answeredCount / totalCalls) * 100 : 0;
       const conversionRate = totalCalls > 0 ? (convertedCount / totalCalls) * 100 : 0;
-      const avgDuration = totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0;
+      const avgDuration = timedCallsCount > 0 ? Math.round(totalDuration / timedCallsCount) : (totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0);
+      const answeredAvgDuration = answeredCount > 0 ? Math.round(answeredDurationTotal / answeredCount) : 0;
+
+      const sortedSdrs = Array.from(sdrMap.values()).sort((a, b) => b.totalCalls - a.totalCalls);
 
       return {
         totalCalls,
+        todayCalls,
         answeredCount,
         convertedCount,
         scheduledCount,
+        materialCount,
         rejectedCount,
         noAnswerCount,
         contactRate: Number(contactRate.toFixed(1)),
         conversionRate: Number(conversionRate.toFixed(1)),
+        totalDurationSeconds: totalDuration,
         avgDurationSeconds: avgDuration,
+        answeredAvgDurationSeconds: answeredAvgDuration,
         rejectionBreakdown: rejectionReasonMap,
-        sdrPerformances: Array.from(sdrMap.values()),
+        sdrPerformances: sortedSdrs,
+        recentCallLogs,
       };
     },
     enabled: !!selectedEmpresaId,
@@ -662,19 +801,23 @@ export function useMutateDialer() {
         .eq('id', campaignId)
         .maybeSingle();
 
-      // 2. Find all scheduled items belonging to this campaign
-      const { data: scheduledItems } = await supabase
+      // 2. Find ALL scheduled items belonging to this campaign (scheduled_for IS NOT NULL OR status = 'scheduled')
+      const { data: allCampItems } = await supabase
         .schema('core_comercial')
         .from('dialer_queue_items')
-        .select('id, assigned_to')
-        .eq('campaign_id', campaignId)
-        .not('scheduled_for', 'is', null);
+        .select('id, assigned_to, status, scheduled_for')
+        .eq('campaign_id', campaignId);
 
-      const preservedIds = (scheduledItems || []).map(it => it.id);
+      const scheduledItems = (allCampItems || []).filter(
+        it => Boolean(it.scheduled_for) || it.status === 'scheduled'
+      );
+      const nonScheduledIds = (allCampItems || [])
+        .filter(it => !it.scheduled_for && it.status !== 'scheduled')
+        .map(it => it.id);
 
-      // 3. Detach scheduled appointments from the campaign so they stay intact in the Agenda
-      if (preservedIds.length > 0) {
-        for (const item of scheduledItems || []) {
+      // 3. Detach scheduled appointments from the campaign so they stay 100% intact in the Agenda
+      if (scheduledItems.length > 0) {
+        for (const item of scheduledItems) {
           await supabase
             .schema('core_comercial')
             .from('dialer_queue_items')
@@ -682,19 +825,21 @@ export function useMutateDialer() {
               campaign_id: null,
               origin_campaign_title: camp?.title || 'Trabalho Excluído',
               assigned_to: item.assigned_to || camp?.assigned_to || null,
+              scheduled_for: item.scheduled_for || new Date().toISOString(),
               updated_at: new Date().toISOString(),
             })
             .eq('id', item.id);
         }
       }
 
-      // 4. Delete all remaining non-scheduled queue items of this campaign
-      await supabase
-        .schema('core_comercial')
-        .from('dialer_queue_items')
-        .delete()
-        .eq('campaign_id', campaignId)
-        .is('scheduled_for', null);
+      // 4. Delete ONLY non-scheduled queue items of this campaign
+      if (nonScheduledIds.length > 0) {
+        await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .delete()
+          .in('id', nonScheduledIds);
+      }
 
       // 5. Delete the campaign itself
       const { error } = await supabase
@@ -704,7 +849,7 @@ export function useMutateDialer() {
         .eq('id', campaignId);
 
       if (error) throw error;
-      return { preservedCount: preservedIds.length };
+      return { preservedCount: scheduledItems.length };
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
@@ -821,17 +966,27 @@ export function useMutateDialer() {
       userId?: string | null;
       maxAttempts?: number;
     }) => {
-      if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
-
       const { data: authData } = await supabase.auth.getUser();
-      const effectiveUserId = userId || authData?.user?.id || null;
+      const effectiveUserId =
+        loggedCommercialProfile?.userId ||
+        userId ||
+        activeCommercialProfile?.userId ||
+        authData?.user?.id ||
+        null;
+
+      const effectiveEmpresaId =
+        loggedCommercialProfile?.empresaId ||
+        activeCommercialProfile?.empresaId ||
+        selectedEmpresaId;
+
+      if (!effectiveEmpresaId) throw new Error('Empresa não selecionada');
 
       // 1. Insert Call Log
       const { data: log, error: logError } = await supabase
         .schema('core_comercial')
         .from('lead_call_logs')
         .insert({
-          empresa_id: selectedEmpresaId,
+          empresa_id: effectiveEmpresaId,
           lead_id: leadId,
           campaign_id: campaignId || null,
           queue_item_id: queueItemId,
