@@ -40,6 +40,54 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // GIADA (ITÁLIA - WISEOWE)
   // ==========================================
   {
+    id: 'aud_wiseowe_giada_lote_01_1000',
+    name: '📦 🇮🇹 Giada (Wiseowe) - Lote 01 • Campanha Itália (1.000 e-mails)',
+    leadCount: 1000,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedTags: ['Giada Itália - Lote 01'],
+      tagKeyword: 'Giada Itália - Lote 01',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_lote_02_1000',
+    name: '📦 🇮🇹 Giada (Wiseowe) - Lote 02 • Campanha Itália (1.000 e-mails)',
+    leadCount: 1000,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedTags: ['Giada Itália - Lote 02'],
+      tagKeyword: 'Giada Itália - Lote 02',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_lote_03_1000',
+    name: '📦 🇮🇹 Giada (Wiseowe) - Lote 03 • Campanha Itália (1.000 e-mails)',
+    leadCount: 1000,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedTags: ['Giada Itália - Lote 03'],
+      tagKeyword: 'Giada Itália - Lote 03',
+    },
+  },
+  {
+    id: 'aud_wiseowe_giada_lote_04_restante',
+    name: '📦 🇮🇹 Giada (Wiseowe) - Lote 04 • Restante Itália (85 e-mails)',
+    leadCount: 85,
+    ownerKey: 'giada',
+    country: 'IT',
+    filters: {
+      selectedCountries: ['IT'],
+      selectedTags: ['Giada Itália - Lote 04'],
+      tagKeyword: 'Giada Itália - Lote 04',
+    },
+  },
+  {
     id: 'aud_wiseowe_giada_italia_geral',
     name: '🌟 🇮🇹 Giada (Wiseowe) - Base Completa Itália (3.107 leads)',
     leadCount: 3107,
