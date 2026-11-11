@@ -359,7 +359,7 @@ export function CampaignsPage() {
   const { user } = useAuth();
   const { selectedEmpresaId, empresas } = useEmpresa();
   const { tr } = useComercialLanguage();
-  const { isCommercialOperator, activeCommercialProfile, effectiveOwnerKey, setSelectedOwnerKey, profiles: commercialProfiles } = useCommercialScope();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile, effectiveOwnerKey, setSelectedOwnerKey, profiles: commercialProfiles } = useCommercialScope();
   const currentEmpresa = empresas.find(e => String(e.id) === String(selectedEmpresaId));
   const rawEmpresaName = currentEmpresa?.trade_name || currentEmpresa?.nome || (currentEmpresa as any)?.nombre_comercial || (currentEmpresa as any)?.razon_social || '';
   const empresaCanonical = normalizeEmpresaName(rawEmpresaName);
@@ -609,6 +609,7 @@ export function CampaignsPage() {
   // State: Seleção de Destinatários / Público-Alvo
   const [isAudienceModalOpen, setIsAudienceModalOpen] = useState(false);
   const [selectedCampaignIdForAudience, setSelectedCampaignIdForAudience] = useState<string | null>(null);
+  const [selectedModalPresetId, setSelectedModalPresetId] = useState<string>('');
   const [audienceFilters, setAudienceFilters] = useState<{
     stageId: string;
     origin: string;
@@ -786,6 +787,12 @@ export function CampaignsPage() {
       }
     });
     const priorityTags = [
+      'Giada Itália - Lote 01',
+      'Giada Itália - Lote 02',
+      'Giada Itália - Lote 03',
+      'Giada Itália - Lote 04',
+      'Mailing Giada - Inéditos PDF Italia',
+      'Mailing Giada - PDF Empresas Italia',
       'CASTILLA - LA MANCHA - Alba',
       'Sin Correo - CASTILLA - LA MANCHA - Alba',
       'Sem E-mail - CASTILLA - LA MANCHA - Alba',
@@ -3443,10 +3450,10 @@ export function CampaignsPage() {
     }
   }, [selectedEmpresaId, defaultStrategicAudiences, isTriangulo, isWiseowe]);
 
-  // Sempre que a empresa selecionada mudar, limpa a base de leads em memória para evitar filtros obsoletos
+  // Sempre que a empresa ou comercial ativo mudar, limpa a base de leads em memória para evitar filtros obsoletos
   useEffect(() => {
     setAllLeads([]);
-  }, [selectedEmpresaId]);
+  }, [selectedEmpresaId, effectiveOwnerKey]);
 
   const saveAudiencesToLocalStorage = (newAudiences: any[]) => {
     setSavedAudiences(newAudiences);
@@ -3488,6 +3495,35 @@ export function CampaignsPage() {
         name: normalizeAudienceDisplayName(aud.name || ""),
       }));
   }, [savedAudiences, effectiveOwnerKey]);
+
+  const modalIsolatedAudiences = useMemo(() => {
+    const targetCamp = campaigns.find((c: any) => c.id === selectedCampaignIdForAudience);
+    const assigned = targetCamp?.assigned_to;
+    const campOwnerKey =
+      assigned === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'
+        ? 'giada'
+        : assigned === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa'
+          ? 'liseth'
+          : assigned === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2'
+            ? 'fatumata'
+            : assigned === 'ca69863d-998b-4bad-865a-19720e7a1f67'
+              ? 'alba'
+              : assigned === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
+                ? 'alex'
+                : effectiveOwnerKey;
+
+    return savedAudiences
+      .filter((aud: any) => {
+        const nameLower = String(aud.name || "").toLowerCase();
+        if (nameLower === "teste10") return false;
+        if (!campOwnerKey || campOwnerKey === "all") return true;
+        return classifyAudienceOwner(aud) === campOwnerKey;
+      })
+      .map((aud: any) => ({
+        ...aud,
+        name: normalizeAudienceDisplayName(aud.name || ""),
+      }));
+  }, [savedAudiences, campaigns, selectedCampaignIdForAudience, effectiveOwnerKey]);
 
   const filteredAudiences = useMemo(() => {
     if (!audienceSearchTerm.trim()) return commercialIsolatedAudiences;
@@ -3874,12 +3910,22 @@ export function CampaignsPage() {
 
       const scopedUserId =
         (isCommercialOperator && loggedCommercialProfile?.userId) ||
-        activeCommercialProfile?.userId ||
         overrideOwnerUserId ||
+        activeCommercialProfile?.userId ||
         null;
       const scopedOwnerKey =
         (isCommercialOperator && loggedCommercialProfile?.key) ||
-        activeCommercialProfile?.key ||
+        (overrideOwnerUserId === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'
+          ? 'giada'
+          : overrideOwnerUserId === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa'
+            ? 'liseth'
+            : overrideOwnerUserId === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2'
+              ? 'fatumata'
+              : overrideOwnerUserId === 'ca69863d-998b-4bad-865a-19720e7a1f67'
+                ? 'alba'
+                : overrideOwnerUserId === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
+                  ? 'alex'
+                  : activeCommercialProfile?.key) ||
         null;
 
       while (hasMore) {
@@ -3948,14 +3994,6 @@ export function CampaignsPage() {
       }
 
       setAllLeads(allFetchedLeads);
-
-      const { data: queue, error: queueErr } = await supabase
-        .schema('core_comercial')
-        .from('marketing_campaign_queue')
-        .select('lead_id, status');
-
-      if (queueErr) throw queueErr;
-      setAllQueuedLeads(queue || []);
       return allFetchedLeads;
     } catch (err: any) {
       toast.error('Erro ao carregar leads da empresa: ' + err.message);
@@ -3967,6 +4005,9 @@ export function CampaignsPage() {
 
   const handleOpenAudienceModal = async (campaignId: string) => {
     setSelectedCampaignIdForAudience(campaignId);
+    setSelectedModalPresetId('');
+    setLeadGridSearch('');
+    setGridPage(1);
     userModifiedSelection.current = false;
     const targetCamp = campaigns.find((c: any) => c.id === campaignId);
     const campAssignedTo = targetCamp?.assigned_to || null;
@@ -3979,7 +4020,7 @@ export function CampaignsPage() {
             ? ['FR']
             : null;
 
-    setAudienceFilters({
+    const baseDefaultFilters = {
       stageId: '',
       origin: '',
       intelligence: 'all',
@@ -4001,10 +4042,63 @@ export function CampaignsPage() {
       excludeProposals: isTriangulo ? true : false,
       limit: '',
       offset: '',
-    });
+    };
+
+    setAudienceFilters(baseDefaultFilters);
     setIsAudienceModalOpen(true);
     refetchLeadsLastSent();
-    await fetchAudienceLeads(campAssignedTo);
+    const fetchedLeads = await fetchAudienceLeads(campAssignedTo);
+
+    // Se a campanha em rascunho já possui destinatários enfileirados, restaurar seleção e preset correspondente
+    try {
+      const existingLeadIds: string[] = [];
+      let qFrom = 0;
+      const qStep = 1000;
+      let qHasMore = true;
+      while (qHasMore) {
+        const { data: qData, error: qErr } = await supabase
+          .schema('core_comercial')
+          .from('marketing_campaign_queue')
+          .select('lead_id')
+          .eq('campaign_id', campaignId)
+          .range(qFrom, qFrom + qStep - 1);
+        if (qErr || !qData || qData.length === 0) {
+          qHasMore = false;
+        } else {
+          qData.forEach((r: any) => {
+            if (r.lead_id) existingLeadIds.push(r.lead_id);
+          });
+          qFrom += qStep;
+          if (qData.length < qStep) qHasMore = false;
+        }
+      }
+
+      if (existingLeadIds.length > 0) {
+        const existingSet = new Set(existingLeadIds);
+        // Verificar se corresponde exatamente a algum público salvo do comercial
+        const candidatePresets = savedAudiences.filter((aud: any) => {
+          if (!aud?.filters?.tagKeyword && (!aud?.filters?.selectedTags || aud.filters.selectedTags.length === 0)) return false;
+          const resolved = getFilteredLeads({ ...baseDefaultFilters, ...(aud.filters || {}), recencyDays: 'all' }, fetchedLeads);
+          return resolved.length === existingSet.size && resolved.every((l: any) => existingSet.has(l.id));
+        });
+
+        if (candidatePresets.length > 0) {
+          const matchedPreset = candidatePresets[0];
+          setSelectedModalPresetId(matchedPreset.id);
+          userModifiedSelection.current = false;
+          setAudienceFilters({
+            ...baseDefaultFilters,
+            ...(matchedPreset.filters || {}),
+          });
+          setSelectedLeadIds(existingSet);
+        } else {
+          userModifiedSelection.current = true;
+          setSelectedLeadIds(existingSet);
+        }
+      }
+    } catch (e) {
+      console.warn('Could not inspect existing campaign queue:', e);
+    }
   };
 
   const getFilteredLeads = (customFilters?: any, baseLeads?: any[]) => {
@@ -4466,14 +4560,39 @@ export function CampaignsPage() {
   };
 
   const handleLoadAudiencePreset = (preset: any) => {
-    setAudienceFilters({ ...preset.filters });
+    const normalizedFilters = {
+      stageId: '',
+      origin: '',
+      intelligence: 'all',
+      recencyDays: 'all',
+      selectedCountries: [],
+      selectedCompanySizes: [],
+      selectedRegions: [],
+      selectedProvinces: [],
+      selectedSectors: [],
+      selectedServices: [],
+      selectedTags: [],
+      sectorKeyword: '',
+      cargoKeyword: '',
+      provinceKeyword: '',
+      tagKeyword: '',
+      excludeTagKeyword: isTriangulo ? 'Alex' : '',
+      excludeProposals: isTriangulo ? true : false,
+      limit: '',
+      offset: '',
+      ...(preset.filters || {}),
+    };
+    setSelectedModalPresetId(preset.id || '');
+    setLeadGridSearch('');
+    setGridPage(1);
+    setAudienceFilters(normalizedFilters);
     if (preset.leadIds && Array.isArray(preset.leadIds) && preset.leadIds.length > 0) {
       userModifiedSelection.current = true;
       setSelectedLeadIds(new Set(preset.leadIds));
       toast.success(`Público "${preset.name}" carregado com ${preset.leadIds.length} leads.`);
     } else {
       userModifiedSelection.current = false;
-      const matchingLeads = getFilteredLeads(preset.filters);
+      const matchingLeads = getFilteredLeads(normalizedFilters, allLeads);
       setSelectedLeadIds(new Set(matchingLeads.map(l => l.id)));
       toast.success(`Público "${preset.name}" carregado (${matchingLeads.length} leads selecionados).`);
     }
@@ -6187,19 +6306,58 @@ export function CampaignsPage() {
                 </div>
 
                 {/* Carregamento de Presets */}
-                {savedAudiences.length > 0 && (
+                {modalIsolatedAudiences.length > 0 && (
                   <div className="space-y-1.5 border-b pb-3">
                     <Label className="font-semibold text-slate-700 dark:text-slate-350 text-xs">Carregar Público Salvo (Preset)</Label>
                     <select
                       className="w-full h-9 border rounded-lg bg-card px-3 text-xs focus:outline-none focus:ring-2 focus:ring-yellow-500/20"
+                      value={selectedModalPresetId}
                       onChange={(e) => {
-                        const preset = savedAudiences.find(a => a.id === e.target.value);
+                        const val = e.target.value;
+                        if (!val) {
+                          setSelectedModalPresetId('');
+                          userModifiedSelection.current = false;
+                          const targetCamp = campaigns.find((c: any) => c.id === selectedCampaignIdForAudience);
+                          const campAssignedTo = targetCamp?.assigned_to || null;
+                          const defaultCountry =
+                            activeCommercialProfile?.country
+                              ? [activeCommercialProfile.country]
+                              : campAssignedTo === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'
+                                ? ['IT']
+                                : campAssignedTo === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa'
+                                  ? ['ES']
+                                  : campAssignedTo === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2'
+                                    ? ['FR']
+                                    : [];
+                          setAudienceFilters({
+                            stageId: '',
+                            origin: '',
+                            intelligence: 'all',
+                            recencyDays: 'all',
+                            selectedCountries: defaultCountry,
+                            selectedCompanySizes: [],
+                            selectedRegions: [],
+                            selectedProvinces: [],
+                            selectedSectors: [],
+                            selectedServices: [],
+                            selectedTags: [],
+                            sectorKeyword: '',
+                            cargoKeyword: '',
+                            provinceKeyword: '',
+                            tagKeyword: '',
+                            excludeTagKeyword: isTriangulo ? 'Alex' : '',
+                            excludeProposals: isTriangulo ? true : false,
+                            limit: '',
+                            offset: '',
+                          });
+                          return;
+                        }
+                        const preset = modalIsolatedAudiences.find((a: any) => a.id === val) || savedAudiences.find((a: any) => a.id === val);
                         if (preset) handleLoadAudiencePreset(preset);
                       }}
-                      defaultValue=""
                     >
                       <option value="">Selecione um público salvo...</option>
-                      {savedAudiences.map((aud: any) => (
+                      {modalIsolatedAudiences.map((aud: any) => (
                         <option key={aud.id} value={aud.id}>{aud.name}</option>
                       ))}
                     </select>
@@ -6651,7 +6809,14 @@ export function CampaignsPage() {
                               </p>
                               {Array.isArray(l.tags) && l.tags.length > 0 && (
                                 <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                                  {l.tags.slice(0, 5).map((tg: string, tIdx: number) => (
+                                  {[...l.tags]
+                                    .sort((a: string, b: string) => {
+                                      const aPrio = /lote\s*\d+|p[uú]blico\s*\d+|in[eé]ditos/i.test(String(a)) ? 0 : 1;
+                                      const bPrio = /lote\s*\d+|p[uú]blico\s*\d+|in[eé]ditos/i.test(String(b)) ? 0 : 1;
+                                      return aPrio - bPrio;
+                                    })
+                                    .slice(0, 5)
+                                    .map((tg: string, tIdx: number) => (
                                     <span
                                       key={tIdx}
                                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/25"
@@ -7192,7 +7357,14 @@ export function CampaignsPage() {
                               </p>
                               {Array.isArray(l.tags) && l.tags.length > 0 && (
                                 <div className="flex items-center gap-1 flex-wrap pt-0.5">
-                                  {l.tags.slice(0, 5).map((tg: string, tIdx: number) => (
+                                  {[...l.tags]
+                                    .sort((a: string, b: string) => {
+                                      const aPrio = /lote\s*\d+|p[uú]blico\s*\d+|in[eé]ditos/i.test(String(a)) ? 0 : 1;
+                                      const bPrio = /lote\s*\d+|p[uú]blico\s*\d+|in[eé]ditos/i.test(String(b)) ? 0 : 1;
+                                      return aPrio - bPrio;
+                                    })
+                                    .slice(0, 5)
+                                    .map((tg: string, tIdx: number) => (
                                     <span
                                       key={tIdx}
                                       className="inline-flex items-center gap-0.5 text-[9px] font-semibold px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/25"
