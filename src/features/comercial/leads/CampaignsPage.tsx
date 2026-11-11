@@ -3864,7 +3864,7 @@ export function CampaignsPage() {
     }
   };
 
-  const fetchAudienceLeads = async (): Promise<any[]> => {
+  const fetchAudienceLeads = async (overrideOwnerUserId?: string | null): Promise<any[]> => {
     setLoadingAudienceLeads(true);
     try {
       let allFetchedLeads: any[] = [];
@@ -3872,13 +3872,26 @@ export function CampaignsPage() {
       const step = 1000;
       let hasMore = true;
 
+      const scopedUserId =
+        (isCommercialOperator && loggedCommercialProfile?.userId) ||
+        activeCommercialProfile?.userId ||
+        overrideOwnerUserId ||
+        null;
+      const scopedOwnerKey =
+        (isCommercialOperator && loggedCommercialProfile?.key) ||
+        activeCommercialProfile?.key ||
+        null;
+
       while (hasMore) {
         let query = supabase
           .schema('core_comercial')
           .from('leads')
-          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes')
+          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
           .order('name', { ascending: true });
 
+        if (scopedUserId) {
+          query = query.eq('assigned_to', scopedUserId);
+        }
         if (selectedEmpresaId) {
           query = query.eq('empresa_id', selectedEmpresaId);
         }
@@ -3896,12 +3909,12 @@ export function CampaignsPage() {
         }
       }
 
-      // Also include Liseth's tagged leads when viewing Wiseowe or Luminous so cross-company leads resolve
-      if (isWiseowe || isLuminous) {
+      // Also include Liseth's tagged leads only when viewing Liseth or global Wiseowe/Luminous
+      if ((isWiseowe || isLuminous) && (!scopedOwnerKey || scopedOwnerKey === 'liseth')) {
         const { data: lisethData } = await supabase
           .schema('core_comercial')
           .from('leads')
-          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes')
+          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
           .contains('tags', ['Mailing Liseth']);
 
         if (lisethData && lisethData.length > 0) {
@@ -3916,11 +3929,11 @@ export function CampaignsPage() {
       }
 
       // Also include Alba's tagged leads when viewing Triangulo so cross-company leads resolve
-      if (isTriangulo) {
+      if (isTriangulo && (!scopedOwnerKey || scopedOwnerKey === 'alba')) {
         const { data: albaData } = await supabase
           .schema('core_comercial')
           .from('leads')
-          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes')
+          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
           .contains('tags', ['Mailing Alba']);
 
         if (albaData && albaData.length > 0) {
@@ -3955,12 +3968,25 @@ export function CampaignsPage() {
   const handleOpenAudienceModal = async (campaignId: string) => {
     setSelectedCampaignIdForAudience(campaignId);
     userModifiedSelection.current = false;
+    const targetCamp = campaigns.find((c: any) => c.id === campaignId);
+    const campAssignedTo = targetCamp?.assigned_to || null;
+    const campCountryDefault =
+      campAssignedTo === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'
+        ? ['IT']
+        : campAssignedTo === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa'
+          ? ['ES']
+          : campAssignedTo === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2'
+            ? ['FR']
+            : null;
+
     setAudienceFilters({
       stageId: '',
       origin: '',
       intelligence: 'all',
       recencyDays: 'all',
-      selectedCountries: activeCommercialProfile ? [activeCommercialProfile.country] : isWiseowe ? ['FR'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : [],
+      selectedCountries: activeCommercialProfile
+        ? [activeCommercialProfile.country]
+        : campCountryDefault || (isWiseowe ? ['ES', 'FR', 'IT'] : (isTriangulo && isGiada) ? ['IT'] : (isTriangulo && isMichelle) ? ['ES'] : []),
       selectedCompanySizes: [],
       selectedRegions: [],
       selectedProvinces: [],
@@ -3978,7 +4004,7 @@ export function CampaignsPage() {
     });
     setIsAudienceModalOpen(true);
     refetchLeadsLastSent();
-    await fetchAudienceLeads();
+    await fetchAudienceLeads(campAssignedTo);
   };
 
   const getFilteredLeads = (customFilters?: any, baseLeads?: any[]) => {
@@ -5250,7 +5276,7 @@ export function CampaignsPage() {
                   origin: '',
                   intelligence: 'all',
                   recencyDays: 'all',
-                  selectedCountries: activeCommercialProfile ? [activeCommercialProfile.country] : isWiseowe ? ['ES', 'FR'] : (isTriangulo && isGiada) ? ['IT'] : isTriangulo ? ['ES'] : [],
+                  selectedCountries: activeCommercialProfile ? [activeCommercialProfile.country] : isWiseowe ? ['ES', 'FR', 'IT'] : (isTriangulo && isGiada) ? ['IT'] : isTriangulo ? ['ES'] : [],
                   selectedCompanySizes: [],
                   selectedRegions: [],
                   selectedProvinces: [],
