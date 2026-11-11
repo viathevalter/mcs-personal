@@ -144,7 +144,7 @@ serve(async (req) => {
 
         if (toAddr.includes("it.wiseowe.com") || (toAddr.includes("wiseowe.com") && toAddr.includes("comercial4@"))) {
           forwardTarget = "comercial4@wiseowe.com";
-          relayFrom = "Wiseowe Servizi Industriali <comercial3@fr.wiseowe.com>";
+          relayFrom = "Wiseowe Servizi Industriali <comercial4@it.wiseowe.com>";
         } else if (toAddr.includes("es.wiseowe.com") || toAddr.includes("comercial2@")) {
           forwardTarget = "comercial2@wiseowe.com";
           relayFrom = "Wiseowe Servicios Industriales <comercial2@es.wiseowe.com>";
