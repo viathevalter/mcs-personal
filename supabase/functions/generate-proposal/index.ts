@@ -530,21 +530,44 @@ serve(async (req) => {
 
     // 6. Mesclar os dados usando docx-templates
     const isFr = docLang === 'fr';
+    const isIt = docLang === 'it';
+    const dateLocale = isFr ? "fr-FR" : isIt ? "it-IT" : docLang === "es" ? "es-ES" : "pt-PT";
+    const numLocale = isFr ? "fr-FR" : isIt ? "it-IT" : "es-ES";
+
+    const rawPaymentTerms = (est.payment_terms || "").trim();
+    const paymentDaysMatch = rawPaymentTerms.match(/^(\d+)\s*(?:dias|días|jours|giorni|days)(?:\s+ap[oó]s\s+faturamento)?$/i);
+    const plazoPagoClean = paymentDaysMatch
+      ? paymentDaysMatch[1]
+      : (rawPaymentTerms || (isFr ? "À convenir" : isIt ? "Da concordare" : "A convenir"));
+    const localizedPaymentTerms = paymentDaysMatch
+      ? (isFr ? `${paymentDaysMatch[1]} jours date de facture`
+        : isIt ? `${paymentDaysMatch[1]} giorni data fattura`
+        : docLang === 'es' ? `${paymentDaysMatch[1]} días fecha factura`
+        : rawPaymentTerms)
+      : (rawPaymentTerms || (isFr ? "À convenir" : isIt ? "Da concordare" : docLang === 'es' ? "A convenir" : "A combinar"));
 
     const defaultAlcance = isFr
       ? "Le prix forfaitaire ferme correspond au périmètre défini dans cette Annexe. Les heures, journées, effectifs et délais indiqués sont des estimations de planification et ne modifient pas le montant convenu."
+      : isIt
+      ? "Il prezzo fisso a corpo corrisponde all'ambito definito nel presente Allegato. Le ore, le giornate, il personale e i tempi indicati sono stime di pianificazione e non modificano l'importo pattuito."
       : "El precio cerrado corresponde al alcance definido en este Anexo. Las horas, jornadas, personal y plazo indicados son estimaciones de planificación y no alteran el importe pactado.";
 
     const defaultModificaciones = isFr
       ? "Toute modification ou extension du périmètre devra être convenue par écrit. Si l'exécution dépasse le délai prévu, LE PRESTATAIRE pourra, à sa discrétion, maintenir le prix convenu ou facturer en sus les heures ou journées supplémentaires, après notification préalable au CLIENT CONTRACTANT. Les retards, arrêts de chantier ou surcoûts non imputables au PRESTATAIRE pourront faire l'objet d'une facturation complémentaire."
+      : isIt
+      ? "Qualsiasi modifica o ampliamento dell'ambito dovrà essere concordato per iscritto. Qualora l'esecuzione superi il termine previsto, LA PRESTATRICE potrà, a propria discrezione, mantenere il prezzo pattuito o fatturare separatamente le ore o giornate eccedenti, previa comunicazione a LA COMMITTENTE. Ritardi, fermi cantiere o extracosti non imputabili a LA PRESTATRICE potranno essere fatturati separatamente."
       : "Cualquier modificación o ampliación del alcance deberá ser acordada por escrito. Si la ejecución supera el plazo previsto, LA PRESTADORA podrá, a su criterio, mantener el precio pactado o facturar adicionalmente las horas o jornadas excedidas, previa comunicación a LA CONTRATANTE. Los retrasos, paralizaciones o sobrecostes no imputables a LA PRESTADORA podrán ser facturados adicionalmente.";
 
     const defaultEpiDescripcion = isFr
       ? "LE PRESTATAIRE fournira les EPI de base : chaussures de sécurité, tenue de travail, protections auditives, lunettes de protection et casque."
+      : isIt
+      ? "LA PRESTATRICE fornirà i DPI di base: scarpe antinfortunistiche, abbigliamento da lavoro, protezioni acustiche, occhiali di protezione e casco."
       : "LA PRESTADORA proporcionará los EPI básicos: calzado de seguridad, uniforme de trabajo, protectores auditivos, gafas de protección y casco.";
 
     const defaultEpiNota = isFr
       ? "Tout équipement spécial ou protection spécifique pour le chantier sera fourni par LE CLIENT CONTRACTANT, sauf accord contraire."
+      : isIt
+      ? "Qualsiasi DPI speciale o protezione specifica per il cantiere sarà fornito da LA COMMITTENTE, salvo diverso accordo."
       : "Cualquier EPI especial o protección específica para la obra será proporcionado por LA CONTRATANTE, salvo pacto en contrario.";
 
     const mergeData = {
@@ -555,9 +578,9 @@ serve(async (req) => {
       empresa_morada: empresa.address_line || "",
       
       proposta_codigo: est.codigo || "",
-      proposta_data: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }),
-      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }) : "",
-      proposta_pagamento: est.payment_terms || (isFr ? "À convenir" : "A combinar"),
+      proposta_data: new Date(est.created_at).toLocaleDateString(dateLocale, { timeZone: "Europe/Madrid" }),
+      proposta_validade: est.validity_date ? new Date(est.validity_date).toLocaleDateString(dateLocale, { timeZone: "Europe/Madrid" }) : "",
+      proposta_pagamento: localizedPaymentTerms,
       proposta_notes: est.general_notes || "",
       
       cliente_nome: targetName,
@@ -567,11 +590,13 @@ serve(async (req) => {
       cliente_morada: clientAddress,
       cliente_nif: clientTaxId,
 
-      obra_morada: siteAddress || (isFr ? "Installations du Client" : "Instalações do Cliente"),
-      tarifa_tipo: isFixedPrice ? (isFr ? "Prix Forfaitaire Ferme" : "Preço Fechado") : (isFr ? "Grille Complète" : "Completa"),
-      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }) : "",
-      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "pt-PT", { timeZone: "Europe/Madrid" }) : "",
-      condicoes_pagamento: est.payment_terms || (isFr ? "À convenir" : "A combinar"),
+      obra_morada: siteAddress || (isFr ? "Installations du Client" : isIt ? "Stabilimento della Committente" : "Instalações do Cliente"),
+      tarifa_tipo: isFixedPrice
+        ? (isFr ? "Prix Forfaitaire Ferme" : isIt ? "Prezzo Fisso a Corpo" : "Preço Fechado")
+        : (isFr ? "Grille Complète" : isIt ? "Completa" : "Completa"),
+      data_inicio: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(dateLocale, { timeZone: "Europe/Madrid" }) : "",
+      data_fim: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(dateLocale, { timeZone: "Europe/Madrid" }) : "",
+      condicoes_pagamento: localizedPaymentTerms,
 
       itens: formattedItems,
       
@@ -582,14 +607,14 @@ serve(async (req) => {
       // SUPORTE A PREÇO FECHADO / PRECIO CERRADO
       is_fixed_price: isFixedPrice,
       MODALIDAD_PRESUPUESTO: isFixedPrice 
-        ? (isFr ? "Prix Forfaitaire Ferme (Clé en main)" : "Precio Cerrado / Llave en Mano") 
-        : (isFr ? "Tarif Horaire" : "Tarifa por Horas"),
+        ? (isFr ? "Prix Forfaitaire Ferme (Clé en main)" : isIt ? "Prezzo Fisso a Corpo (Chiavi in Mano)" : "Precio Cerrado / Llave en Mano") 
+        : (isFr ? "Tarif Horaire" : isIt ? "Tariffa Oraria" : "Tarifa por Horas"),
       MODALIDADE_PROPOSTA: isFixedPrice 
-        ? (isFr ? "Prix Forfaitaire Ferme (Clé en main)" : "Preço Fechado (Chave na mão)") 
-        : (isFr ? "Tarif Horaire" : "Tarifa por Horas"),
-      PRECIO_CERRADO: (version.total_revenue || 0).toLocaleString(isFr ? "fr-FR" : "es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      PRECIO_TOTAL: (version.total_revenue || 0).toLocaleString(isFr ? "fr-FR" : "es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
-      VALOR_GLOBAL: (version.total_revenue || 0).toLocaleString(isFr ? "fr-FR" : "es-ES", { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+        ? (isFr ? "Prix Forfaitaire Ferme (Clé en main)" : isIt ? "Prezzo Fisso a Corpo (Chiavi in Mano)" : "Preço Fechado (Chave na mão)") 
+        : (isFr ? "Tarif Horaire" : isIt ? "Tariffa Oraria" : "Tarifa por Horas"),
+      PRECIO_CERRADO: (version.total_revenue || 0).toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      PRECIO_TOTAL: (version.total_revenue || 0).toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      VALOR_GLOBAL: (version.total_revenue || 0).toLocaleString(numLocale, { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
       VALOR_TOTAL_GLOBAL: (version.total_revenue || 0).toFixed(2),
       CONDICIONES_PRECIO_CERRADO: isFixedPrice ? (est.fixed_price_notes || defaultAlcance) : "",
       CONDICOES_PRECO_FECHADO: isFixedPrice ? (est.fixed_price_notes || defaultAlcance) : "",
@@ -601,26 +626,26 @@ serve(async (req) => {
       CLAUSULA_RETRASOS: isFixedPrice ? defaultModificaciones : "",
       CONDICIONES_MODIFICACIONES: isFixedPrice ? defaultModificaciones : "",
       DIAS_TOTALES: totalDays > 0 ? totalDays.toString() : "",
-      PLAZO_EJECUCION_DIAS: totalDays > 0 ? `${totalDays} ${isFr ? "jours" : "días"}` : "",
+      PLAZO_EJECUCION_DIAS: totalDays > 0 ? `${totalDays} ${isFr ? "jours" : isIt ? "giorni" : "días"}` : "",
 
-      // ALIASES EM ESPANHOL (Suporte aos modelos de presupuesto customizados)
+      // ALIASES EM ESPANHOL / FRANCÊS / ITALIANO (Suporte aos modelos de presupuesto customizados)
       NUMERO_PRESUPUESTO: est.codigo || "",
       PRESUPUESTO_NUMERO: est.codigo || "",
-      FECHA_EMISION: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : "es-ES", { timeZone: "Europe/Madrid" }),
-      PAIS: isFr ? "France" : "España",
+      FECHA_EMISION: new Date(est.created_at).toLocaleDateString(isFr ? "fr-FR" : isIt ? "it-IT" : "es-ES", { timeZone: "Europe/Madrid" }),
+      PAIS: isFr ? "France" : isIt ? "Italia" : "España",
       CLIENTE_CONTRATANTE: targetCompany || targetName || "",
-      UBICACION: siteAddress || (isFr ? "Installations du Client" : "Instalaciones del Cliente"),
-      UBICACION_OBRA: siteAddress || (isFr ? "Installations du Client" : "Instalaciones del Cliente"),
+      UBICACION: siteAddress || (isFr ? "Installations du Client" : isIt ? "Stabilimento della Committente" : "Instalaciones del Cliente"),
+      UBICACION_OBRA: siteAddress || (isFr ? "Installations du Client" : isIt ? "Stabilimento della Committente" : "Instalaciones del Cliente"),
       TIPO_TRABAJO: isFixedPrice 
-        ? (isFr ? "Exécution à Prix Forfaitaire Ferme" : "Ejecución a Precio Cerrado") 
-        : (isFr ? "Mise à Disposition de Main-d'Œuvre" : "Suministro de Mano de Obra"),
-      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES", { timeZone: "Europe/Madrid" }) : "",
-      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : "es-ES", { timeZone: "Europe/Madrid" }) : "",
+        ? (isFr ? "Exécution à Prix Forfaitaire Ferme" : isIt ? "Esecuzione a Prezzo Fisso (Chiavi in Mano)" : "Ejecución a Precio Cerrado") 
+        : (isFr ? "Mise à Disposition de Main-d'Œuvre" : isIt ? "Fornitura di Manodopera Specializzata" : "Suministro de Mano de Obra"),
+      FECHA_INICIO: est.expected_start_date ? new Date(est.expected_start_date).toLocaleDateString(isFr ? "fr-FR" : isIt ? "it-IT" : "es-ES", { timeZone: "Europe/Madrid" }) : "",
+      FECHA_FIN: est.expected_end_date ? new Date(est.expected_end_date).toLocaleDateString(isFr ? "fr-FR" : isIt ? "it-IT" : "es-ES", { timeZone: "Europe/Madrid" }) : "",
       TARIFA_APLICABLE: isFixedPrice 
-        ? (isFr ? "Prix Forfaitaire Ferme" : "Precio Cerrado") 
-        : (isFr ? "Grille Complète" : "Completa"),
-      CONDICIONES_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
-      PLAZO_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
+        ? (isFr ? "Prix Forfaitaire Ferme" : isIt ? "Prezzo Fisso" : "Precio Cerrado") 
+        : (isFr ? "Grille Complète" : isIt ? "Completa" : "Completa"),
+      CONDICIONES_PAGO: localizedPaymentTerms,
+      PLAZO_PAGO: plazoPagoClean,
       VALIDEZ_PRESUPUESTO: est.validity_date ? Math.max(1, Math.ceil((new Date(est.validity_date).getTime() - new Date(est.created_at || Date.now()).getTime()) / (1000 * 3600 * 24))) : "30",
       OBSERVACIONES: est.general_notes || "",
       OBSERVACOES: est.general_notes || "",
@@ -646,27 +671,29 @@ serve(async (req) => {
       DOCUMENTO_FIRMANTE_CLIENTE: signerTaxId || clientTaxId || "",
       REPRESENTANTE_NIF: signerTaxId || clientTaxId || "",
       cliente_representante_nif: signerTaxId || clientTaxId || "",
-      CARGO_CLIENTE: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
-      CARGO_FIRMANTE_CLIENTE: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
-      CARGO_REPRESENTANTE_CLIENTE: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
-      cliente_cargo: signerRole || (isFr ? "Représentant Légal" : "Representante Legal"),
+      CARGO_CLIENTE: signerRole || (isFr ? "Représentant Légal" : isIt ? "Rappresentante Legale" : "Representante Legal"),
+      CARGO_FIRMANTE_CLIENTE: signerRole || (isFr ? "Représentant Légal" : isIt ? "Rappresentante Legale" : "Representante Legal"),
+      CARGO_REPRESENTANTE_CLIENTE: signerRole || (isFr ? "Représentant Légal" : isIt ? "Rappresentante Legale" : "Representante Legal"),
+      cliente_cargo: signerRole || (isFr ? "Représentant Légal" : isIt ? "Rappresentante Legale" : "Representante Legal"),
       EMPRESA_CLIENTE: targetCompany || "",
       EMAIL_FIRMANTE_CLIENTE: targetEmail,
       
       // Vendedor / Comercial
-      VENDEDOR_NOME: sellerName || "Departamento Comercial",
+      VENDEDOR_NOME: sellerName || (isIt ? "Ufficio Commerciale" : isFr ? "Service Commercial" : "Departamento Comercial"),
       VENDEDOR_EMAIL: sellerEmail || senderEmail,
-      vendedor_nome: sellerName || "Departamento Comercial",
+      vendedor_nome: sellerName || (isIt ? "Ufficio Commerciale" : isFr ? "Service Commercial" : "Departamento Comercial"),
       vendedor_email: sellerEmail || senderEmail,
-      COMERCIAL_NOME: sellerName || "Departamento Comercial",
+      COMERCIAL_NOME: sellerName || (isIt ? "Ufficio Commerciale" : isFr ? "Service Commercial" : "Departamento Comercial"),
       COMERCIAL_EMAIL: sellerEmail || senderEmail,
-      RESPONSABLE_COMERCIAL: sellerName || "Departamento Comercial",
-      GESTOR_COMERCIAL: sellerName || "Departamento Comercial",
-      ASESOR_COMERCIAL: sellerName || "Departamento Comercial",
+      RESPONSABLE_COMERCIAL: sellerName || (isIt ? "Ufficio Commerciale" : isFr ? "Service Commercial" : "Departamento Comercial"),
+      GESTOR_COMERCIAL: sellerName || (isIt ? "Ufficio Commerciale" : isFr ? "Service Commercial" : "Departamento Comercial"),
+      ASESOR_COMERCIAL: sellerName || (isIt ? "Ufficio Commerciale" : isFr ? "Service Commercial" : "Departamento Comercial"),
 
       NOMBRE_REPRESENTANTE_PRESTADORA: sellerName || empresa.trade_name || "MCS",
       NOMBRE_FIRMANTE_PRESTADORA: sellerName || empresa.trade_name || "MCS",
-      CARGO_FIRMANTE_PRESTADORA: sellerName ? "Asesor Comercial" : "Administrador",
+      CARGO_FIRMANTE_PRESTADORA: sellerName
+        ? (isFr ? "Conseiller Commercial" : isIt ? "Consulente Commerciale" : "Asesor Comercial")
+        : (isFr ? "Administrateur" : isIt ? "Amministratore" : "Administrador"),
       EMPRESA_PRESTADORA: empresa.legal_name || empresa.trade_name || "",
       EMAIL_PRESTADORA: sellerEmail || senderEmail,
       WEB_EMPRESA: empresa.website || (
@@ -1022,7 +1049,7 @@ serve(async (req) => {
         // Only proposal
         subject = lang === "es" ? `Propuesta Comercial ${est.codigo} - ${empresa.trade_name}`
                 : lang === "en" ? `Commercial Proposal ${est.codigo} - ${empresa.trade_name}`
-                : lang === "it" ? `Proposta Comercial ${est.codigo} - ${empresa.trade_name}`
+                : lang === "it" ? `Proposta Commerciale ${est.codigo} - ${empresa.trade_name}`
                 : lang === "fr" ? `Proposition Commerciale ${est.codigo} - ${empresa.trade_name}`
                 : `Proposta Comercial ${est.codigo} - ${empresa.trade_name}`;
 
