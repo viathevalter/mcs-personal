@@ -105,15 +105,62 @@ serve(async (req) => {
   const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-  // --- TRATAMENTO DE PIXEL DE ABERTURA (GET) ---
+  // --- TRATAMENTO DE ABERTURA DE IMAGEM / PIXEL (GET COM FILTRO ANTI-BOT) ---
   if (req.method === "GET") {
     try {
       const url = new URL(req.url);
       const leadId = url.searchParams.get("lead_id");
       const campaignId = url.searchParams.get("campaign_id");
+      const ua = req.headers.get("x-original-ua") || req.headers.get("user-agent") || "";
+      const isAutomatedScanner =
+        /HeadlessChrome|PhantomJS|Barracuda|SpamAssassin|Proofpoint|Mimecast|Libraesva|curl|wget|python|Go-http-client/i.test(
+          ua
+        );
 
-      if (leadId && leadId !== "undefined" && leadId !== "null") {
-        await markLeadAsRead(supabase, leadId, campaignId);
+      if (leadId && leadId !== "undefined" && leadId !== "null" && !isAutomatedScanner) {
+        let shouldMarkRead = true;
+
+        // Verificar se não é pré-varredura instantânea (< 25s do envio) de gateway corporativo externo
+        const { data: leadCheck } = await supabase
+          .schema("core_comercial")
+          .from("leads")
+          .select("email")
+          .eq("id", leadId)
+          .maybeSingle();
+
+        const leadDomain = String(leadCheck?.email || "").toLowerCase().split("@")[1] || "";
+        const internalTestDomains = new Set([
+          "gestaologinpro.com",
+          "luminousalley.com",
+          "wiseowe.com",
+          "triangulolda.com",
+          "geniomontagens.com",
+        ]);
+
+        if (!internalTestDomains.has(leadDomain)) {
+          const { data: latestSent } = await supabase
+            .schema("core_comercial")
+            .from("marketing_campaign_queue")
+            .select("sent_at")
+            .eq("lead_id", leadId)
+            .eq("status", "sent")
+            .not("sent_at", "is", null)
+            .order("sent_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestSent?.sent_at) {
+            const deltaSec = (Date.now() - new Date(latestSent.sent_at).getTime()) / 1000;
+            if (deltaSec >= 0 && deltaSec < 25) {
+              console.log(`[ANTI-BOT] Ignorando pré-carregamento SMTP (${deltaSec.toFixed(1)}s) para lead ${leadId}`);
+              shouldMarkRead = false;
+            }
+          }
+        }
+
+        if (shouldMarkRead) {
+          await markLeadAsRead(supabase, leadId, campaignId);
+        }
       }
     } catch (e: any) {
       console.error("Erro no pixel_open GET:", e.message);

@@ -423,8 +423,21 @@ serve(async (req) => {
       const emailSubject = formatVars(rawSubject);
       const plainTextBody = stripHtmlToText(rawFormattedHtml);
 
-      // Corpo HTML limpo (sem pixel 1x1 oculto de domínio externo para evitar classificação de spam/phishing)
-      const htmlBody = rawFormattedHtml;
+      // Rastreio limpo de abertura via imagem visível oficial de mesmo domínio (sem pixel oculto 1x1 e sem depender de DNS CNAME extra)
+      let htmlBody = rawFormattedHtml;
+      if (targetLeadId && campaign.id) {
+        const escapedAppUrl = appUrl.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const firstFirstPartyImgRegex = new RegExp(
+          `(src=["'])${escapedAppUrl}\\/((?:assets\\/images\\/[^"']+|[a-zA-Z0-9_-]*logo[^"']*\\.(?:png|jpg|jpeg|webp)))(["'])`,
+          "i"
+        );
+        if (firstFirstPartyImgRegex.test(htmlBody)) {
+          htmlBody = htmlBody.replace(
+            firstFirstPartyImgRegex,
+            `$1${appUrl}/media-brand/${targetLeadId}/${campaign.id}/$2$3`
+          );
+        }
+      }
       
       // Resolução inteligente do Remetente (Subdomínio Resend) e Reply-To (Outlook M365) por Comercial, Empresa e País
       let validSenderEmail =

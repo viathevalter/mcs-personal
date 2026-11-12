@@ -7,6 +7,10 @@
   ],
   "rewrites": [
     {
+      "source": "/media-brand/:leadId/:campaignId/:asset*",
+      "destination": "/api/brand-asset?lid=:leadId&cid=:campaignId&asset=:asset*"
+    },
+    {
       "source": "/((?!api/).*)",
       "destination": "/index.html"
     }
