@@ -155,8 +155,9 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
   onSuccess,
 }) => {
   const todayYmd = useMemo(() => new Date().toISOString().split('T')[0], []);
-  const initialMonth = defaultMonth && defaultMonth >= 1 && defaultMonth <= 12 ? defaultMonth : new Date().getMonth() + 1;
-  const initialYear = defaultYear && defaultYear >= 2020 ? defaultYear : new Date().getFullYear();
+  const initialMonth = useMemo(() => new Date().getMonth() + 1, []);
+  const initialYear = useMemo(() => new Date().getFullYear(), []);
+  const [periodManuallyTouched, setPeriodManuallyTouched] = useState(false);
 
   const [isLoadingInit, setIsLoadingInit] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -250,10 +251,11 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
           setSelectedClientId(fatClientId);
           setFaturaNumero(editingFatura.fatura_numero || editingFatura.faturaNumero || '');
 
-          const emStr = String(editingFatura.data_emissao || editingFatura.dataEmissaoFatura || adj.data_emissao || todayYmd).slice(0, 10);
+          const emStr = String(adj.data_emissao || editingFatura.data_emissao || editingFatura.dataEmissaoFatura || todayYmd).slice(0, 10);
           const vcStr = String(adj.data_vencimento || editingFatura.data_vencimento || emStr).slice(0, 10);
           setDataEmissao(emStr);
           setDataVencimento(vcStr);
+          setPeriodManuallyTouched(true);
 
           setPeriodMonth(Number(adj.period_month || initialMonth));
           setPeriodYear(Number(adj.period_year || initialYear));
@@ -304,6 +306,7 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
           setDataVencimento(todayYmd);
           setPeriodMonth(initialMonth);
           setPeriodYear(initialYear);
+          setPeriodManuallyTouched(false);
           setObra('');
           setFormaPagamento('Transferencia Bancaria');
           setIban(defaultBankDetails);
@@ -984,7 +987,15 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
                     <Input
                       type="date"
                       value={dataEmissao}
-                      onChange={(e) => setDataEmissao(e.target.value)}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setDataEmissao(val);
+                        if (!periodManuallyTouched && val && /^\d{4}-\d{2}/.test(val)) {
+                          const [yStr, mStr] = val.split('-');
+                          setPeriodYear(Number(yStr));
+                          setPeriodMonth(Number(mStr));
+                        }
+                      }}
                       className="h-9"
                     />
                   </div>
@@ -1023,7 +1034,10 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
                     <Label className="text-xs">Mês Operacional</Label>
                     <Select
                       value={String(periodMonth)}
-                      onValueChange={(v) => setPeriodMonth(Number(v))}
+                      onValueChange={(v) => {
+                        setPeriodManuallyTouched(true);
+                        setPeriodMonth(Number(v));
+                      }}
                     >
                       <SelectTrigger className="h-9">
                         <SelectValue />

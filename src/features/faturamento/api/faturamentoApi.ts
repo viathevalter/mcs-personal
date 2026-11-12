@@ -1260,15 +1260,18 @@ export async function getHorasPendentesFaturamento(
 
         let dfYear = Number(adj.period_year || 0);
         let dfMonth = Number(adj.period_month || 0);
+        const rawEmissao = String(adj.data_emissao || df.data_emissao || '').slice(0, 10);
+        const emissaoParts = rawEmissao.split('-');
+        const emissaoYear = emissaoParts.length >= 2 ? parseInt(emissaoParts[0], 10) : 0;
+        const emissaoMonth = emissaoParts.length >= 2 ? parseInt(emissaoParts[1], 10) : 0;
+
         if (!dfYear || !dfMonth) {
-          const rawEmissao = String(df.data_emissao || adj.data_emissao || '').slice(0, 10);
-          const parts = rawEmissao.split('-');
-          if (parts.length >= 2) {
-            dfYear = parseInt(parts[0], 10);
-            dfMonth = parseInt(parts[1], 10);
-          }
+          dfYear = emissaoYear;
+          dfMonth = emissaoMonth;
         }
-        if (dfYear !== periodYear || dfMonth !== periodMonth) continue;
+        const matchesRefPeriod = dfYear === periodYear && dfMonth === periodMonth;
+        const matchesEmissaoPeriod = emissaoYear === periodYear && emissaoMonth === periodMonth;
+        if (!matchesRefPeriod && !matchesEmissaoPeriod) continue;
 
         const client = clientsList.find(c => c.id === df.client_id);
         const hexFin = extractHexagonFinancialsFromFatura(df);

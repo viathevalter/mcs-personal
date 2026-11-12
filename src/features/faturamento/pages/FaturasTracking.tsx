@@ -2367,6 +2367,28 @@ export function FaturasTracking() {
         if (!hasPending && hasCompleted) {
           setTrackingTab('all');
         }
+
+        // Se o mês filtrado atual não tiver nenhuma fatura desta empresa, abre Todos os Meses automaticamente
+        if (selectedMonth !== 'all') {
+          const anyInCurrentMonth = data.some((fat: any) => {
+            const pYear = fat.period_year ? Number(fat.period_year) : null;
+            const pMonth = fat.period_month ? Number(fat.period_month) - 1 : null;
+            if (pYear !== null && pMonth !== null) {
+              if ((selectedYear === 'all' || pYear === selectedYear) && pMonth === selectedMonth) return true;
+            }
+            const rawEm = String(fat.ajustes_json?.data_emissao || fat.data_emissao || fat.created_at || '').slice(0, 10);
+            const parts = rawEm.split('-');
+            if (parts.length >= 2) {
+              const eY = parseInt(parts[0], 10);
+              const eM = parseInt(parts[1], 10) - 1;
+              if ((selectedYear === 'all' || eY === selectedYear) && eM === selectedMonth) return true;
+            }
+            return false;
+          });
+          if (!anyInCurrentMonth) {
+            setSelectedMonth('all');
+          }
+        }
       }
     } catch (error: any) {
       toast.error('Erro ao carregar faturas', { description: error.message });
@@ -2870,10 +2892,31 @@ MCS - Gestão Comercial`;
   const periodFaturas = faturas.filter(fat => {
     if (selectedYear === 'all' && selectedMonth === 'all') return true;
     const { year, month } = getFaturaPeriod(fat);
-    
-    if (selectedYear !== 'all' && year !== selectedYear) return false;
-    if (selectedMonth !== 'all' && month !== selectedMonth) return false;
-    return true;
+
+    const matchesRef =
+      (selectedYear === 'all' || year === selectedYear) &&
+      (selectedMonth === 'all' || month === selectedMonth);
+    if (matchesRef) return true;
+
+    // Para faturas diretas (sem horas), também considerar o mês/ano da Data de Emissão
+    if (fat.ajustes_json?.sem_horas || fat.ajustes_json?.tipo_fatura === 'direta') {
+      const rawEmissao = String(fat.ajustes_json?.data_emissao || fat.data_emissao || '').slice(0, 10);
+      const parts = rawEmissao.split('-');
+      if (parts.length >= 2) {
+        const emYear = parseInt(parts[0], 10);
+        const emMonth = parseInt(parts[1], 10) - 1;
+        if (
+          !isNaN(emYear) &&
+          !isNaN(emMonth) &&
+          (selectedYear === 'all' || emYear === selectedYear) &&
+          (selectedMonth === 'all' || emMonth === selectedMonth)
+        ) {
+          return true;
+        }
+      }
+    }
+
+    return false;
   });
 
   // 2. Contadores e métricas do período selecionado
