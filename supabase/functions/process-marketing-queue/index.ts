@@ -514,7 +514,22 @@ serve(async (req) => {
           await updateLeadStageToSent(supabase, targetLeadId, lead.email, campaign.empresa_id, effectiveAssignedTo);
 
         } else {
-          // 1. Verificar se o lead está em quarentena (Bounce ou E-mail Inválido)
+          // 1. Verificar se o lead está descadastrado (Opt-out) ou em quarentena (Bounce ou E-mail Inválido)
+          const isLeadOptedOut =
+            String(lead.name || "").startsWith("[DESCADASTRADO]") ||
+            String(lead.notes || "").includes("[Opt-out");
+          if (isLeadOptedOut) {
+            console.log(`[PULANDO] Lead ${lead.email} realizou Opt-out / Descadastro.`);
+            await supabase
+              .from("marketing_campaign_queue")
+              .update({
+                status: "failed",
+                error_message: "Lead descadastrado (Opt-out comercial)",
+              })
+              .eq("id", item.id);
+            continue;
+          }
+
           const leadTagsArr = Array.isArray(lead.tags) ? lead.tags : [];
           if (leadTagsArr.includes("Bounce") || leadTagsArr.includes("E-mail Inválido")) {
             console.log(`[PULANDO] Lead ${lead.email} está em quarentena (Bounce/Inválido).`);
@@ -599,7 +614,10 @@ serve(async (req) => {
           // Domínios internos da empresa ficam liberados da trava de mesmo domínio e do cooldown de 21 dias para permitir testes da diretoria/equipe
           const internalWhitelistedDomains = new Set(["gestaologinpro.com", "luminousalley.com", "wiseowe.com", "triangulolda.com", "geniomontagens.com"]);
           const isInternalTestDomain = internalWhitelistedDomains.has(emailDomain);
-          const genericWebmailsEs = new Set(["gmail.com", "hotmail.com", "outlook.com", "yahoo.es", "yahoo.com", "hotmail.es", "outlook.es", "live.com", "icloud.com"]);
+          const genericWebmailsEs = new Set([
+            "gmail.com", "hotmail.com", "outlook.com", "yahoo.es", "yahoo.com", "hotmail.es", "outlook.es", "live.com", "icloud.com",
+            "libero.it", "virgilio.it", "tiscali.it", "alice.it", "tin.it", "hotmail.it", "yahoo.it", "outlook.it", "live.it", "fastwebnet.it", "inwind.it", "iol.it", "pec.it", "legalmail.it", "arubapec.it"
+          ]);
           const isCorporateDomain = emailDomain && !isInternalTestDomain && !genericWebmailsEs.has(emailDomain) && !frenchPersonalWebmails.has(emailDomain);
 
           if (isCorporateDomain && sentDomainsInBatch.has(emailDomain)) {

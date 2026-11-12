@@ -316,65 +316,99 @@ export function SolicitarPresupuestoPage() {
               setSelectedPerfiles(matched);
             }
 
-            // Automatically transition to 'E-mail Lido / Clicado' only if lead is in a lower stage (< 3) and has NOT requested a budget
-            try {
-              const hasBudget = lead.notes && (
-                lead.notes.includes('PRESUPUESTO') ||
-                lead.notes.includes('ORÇAMENTO') ||
-                lead.notes.includes('PREVENTIVO') ||
-                lead.notes.includes('DEVIS')
-              );
+            // Automatically transition to 'E-mail Lido / Clicado' ONLY upon real human interaction (anti-bot protection against SafeLinks/Libraesva link scanners)
+            const isOptedOutLead =
+              lead.name?.startsWith('[DESCADASTRADO]') ||
+              lead.notes?.includes('Opt-out') ||
+              lead.notes?.includes('[DESCADASTRADO]');
 
-              if (!hasBudget) {
-                let { data: stageData } = await supabase
-                  .schema('core_comercial')
-                  .from('kanban_stages')
-                  .select('id, order_index')
-                  .eq('empresa_id', lead.empresa_id)
-                  .or('name.ilike.%Lido%,name.ilike.%Clicado%,name_es.ilike.%Leído%,name_es.ilike.%Clicado%')
-                  .limit(1)
-                  .maybeSingle();
+            const hasBudget = lead.notes && (
+              lead.notes.includes('PRESUPUESTO') ||
+              lead.notes.includes('ORÇAMENTO') ||
+              lead.notes.includes('PREVENTIVO') ||
+              lead.notes.includes('DEVIS')
+            );
 
-                if (!stageData) {
-                  const { data: fallbackStage } = await supabase
+            if (!hasBudget && !isOptedOutLead && !(typeof navigator !== 'undefined' && navigator.webdriver)) {
+              let hasTriggeredRead = false;
+              const triggerHumanReadTransition = async (evt: Event) => {
+                if (hasTriggeredRead) return;
+                if ((evt as any)?.isTrusted === false) return;
+                hasTriggeredRead = true;
+                cleanupHumanListeners();
+
+                try {
+                  let { data: stageData } = await supabase
                     .schema('core_comercial')
                     .from('kanban_stages')
                     .select('id, order_index')
                     .eq('empresa_id', lead.empresa_id)
-                    .eq('order_index', 3)
+                    .or('name.ilike.%Lido%,name.ilike.%Clicado%,name_es.ilike.%Leído%,name_es.ilike.%Clicado%')
                     .limit(1)
                     .maybeSingle();
-                  stageData = fallbackStage;
-                }
 
-                if (stageData) {
-                  let currentOrderIndex = 0;
-                  if (lead.stage_id) {
-                    const { data: curStage } = await supabase
+                  if (!stageData) {
+                    const { data: fallbackStage } = await supabase
                       .schema('core_comercial')
                       .from('kanban_stages')
-                      .select('order_index')
-                      .eq('id', lead.stage_id)
+                      .select('id, order_index')
+                      .eq('empresa_id', lead.empresa_id)
+                      .eq('order_index', 3)
+                      .limit(1)
                       .maybeSingle();
-                    if (curStage) {
-                      currentOrderIndex = curStage.order_index;
-                    }
+                    stageData = fallbackStage;
                   }
 
-                  if (currentOrderIndex > 0 && currentOrderIndex < stageData.order_index) {
-                    await supabase
+                  if (stageData) {
+                    const { data: freshLead } = await supabase
                       .schema('core_comercial')
                       .from('leads')
-                      .update({
-                        stage_id: stageData.id,
-                        updated_at: new Date().toISOString()
-                      })
-                      .eq('id', leadId);
+                      .select('stage_id, name, notes')
+                      .eq('id', leadId)
+                      .maybeSingle();
+
+                    if (
+                      freshLead?.name?.startsWith('[DESCADASTRADO]') ||
+                      freshLead?.notes?.includes('Opt-out')
+                    ) {
+                      return;
+                    }
+
+                    let currentOrderIndex = 0;
+                    const checkStageId = freshLead?.stage_id || lead.stage_id;
+                    if (checkStageId) {
+                      const { data: curStage } = await supabase
+                        .schema('core_comercial')
+                        .from('kanban_stages')
+                        .select('order_index')
+                        .eq('id', checkStageId)
+                        .maybeSingle();
+                      if (curStage) {
+                        currentOrderIndex = curStage.order_index;
+                      }
+                    }
+
+                    if (currentOrderIndex > 0 && currentOrderIndex < stageData.order_index) {
+                      await supabase
+                        .schema('core_comercial')
+                        .from('leads')
+                        .update({
+                          stage_id: stageData.id,
+                          updated_at: new Date().toISOString()
+                        })
+                        .eq('id', leadId);
+                    }
                   }
+                } catch (stageErr) {
+                  console.warn("Failed to automatically update lead stage to read:", stageErr);
                 }
-              }
-            } catch (stageErr) {
-              console.warn("Failed to automatically update lead stage to read:", stageErr);
+              };
+
+              const humanEvents = ['pointermove', 'mousemove', 'mousedown', 'touchstart', 'scroll', 'keydown', 'click'];
+              const cleanupHumanListeners = () => {
+                humanEvents.forEach(ev => window.removeEventListener(ev, triggerHumanReadTransition));
+              };
+              humanEvents.forEach(ev => window.addEventListener(ev, triggerHumanReadTransition, { once: true, passive: true }));
             }
           }
         } catch (err: any) {

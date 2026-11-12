@@ -5,12 +5,16 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { CountrySelector, RegionSelector } from '@/features/master-data/locations/components/LocationSelectors';
-import { Building, User, Mail, Phone, MapPin, CheckCircle, Loader2, Globe, UserCheck } from 'lucide-react';
+import { Building, User, Mail, Phone, MapPin, CheckCircle, Loader2, Globe, UserCheck, AlertTriangle } from 'lucide-react';
 import { toast } from 'sonner';
 
 const translations = {
   pt: {
     back: 'Voltar',
+    optOutConfirmTitle: 'Confirmar Cancelamento de Inscrição',
+    optOutConfirmDesc: 'Deseja realmente remover o seu endereço de e-mail das nossas comunicações comerciais?',
+    optOutConfirmBtn: 'Sim, cancelar inscrição',
+    optOutProcessing: 'Processando...',
     optOutTitle: 'Subscrição Cancelada',
     optOutDesc: 'O seu endereço de e-mail foi removido da lista.',
     optOutInfo: 'Não receberá mais e-mails das nossas campanhas de marketing. Se isto foi um erro, entre em contato com nossa equipe.',
@@ -69,6 +73,10 @@ const translations = {
   },
   es: {
     back: 'Volver',
+    optOutConfirmTitle: 'Confirmar Baja de Suscripción',
+    optOutConfirmDesc: '¿Desea realmente dar de baja su dirección de correo electrónico de nuestras comunicaciones comerciales?',
+    optOutConfirmBtn: 'Sí, confirmar baja',
+    optOutProcessing: 'Procesando...',
     optOutTitle: 'Suscripción Cancelada',
     optOutDesc: 'Su dirección de correo electrónico ha sido dada de baja.',
     optOutInfo: 'Ya no recibirá más correos de nuestras campañas de marketing. Si esto fue un error, por favor póngase en contacto con nuestro equipo comercial.',
@@ -127,6 +135,10 @@ const translations = {
   },
   it: {
     back: 'Indietro',
+    optOutConfirmTitle: 'Conferma Annullamento Iscrizione',
+    optOutConfirmDesc: 'Desideri davvero rimuovere il tuo indirizzo email dalle nostre comunicazioni commerciali?',
+    optOutConfirmBtn: 'Sì, annulla iscrizione',
+    optOutProcessing: 'Elaborazione in corso...',
     optOutTitle: 'Iscrizione Annullata',
     optOutDesc: 'Il tuo indirizzo email è stato rimosso dalla lista.',
     optOutInfo: 'Non riceverai più email dalle nostre campagne di marketing. Se si è trattato di un errore, contatta il nostro team commerciale.',
@@ -185,6 +197,10 @@ const translations = {
   },
   fr: {
     back: 'Retour',
+    optOutConfirmTitle: 'Confirmer la Désinscription',
+    optOutConfirmDesc: 'Souhaitez-vous vraiment supprimer votre adresse e-mail de nos communications commerciales ?',
+    optOutConfirmBtn: 'Oui, me désinscrire',
+    optOutProcessing: 'Traitement en cours...',
     optOutTitle: 'Désinscription Confirmée',
     optOutDesc: 'Votre adresse e-mail a été supprimée de la liste.',
     optOutInfo: 'Vous ne recevrez plus d\'e-mails de nos campagnes marketing. Si c\'était une erreur, veuillez contacter notre équipe commerciale.',
@@ -251,6 +267,9 @@ export function ColetaDadosPublicaPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
   const [isOptOut, setIsOptOut] = useState(false);
+  const [isOptOutConfirmed, setIsOptOutConfirmed] = useState(false);
+  const [isConfirmingOptOut, setIsConfirmingOptOut] = useState(false);
+  const [optOutLeadEmail, setOptOutLeadEmail] = useState('');
   const optOutParam = searchParams.get('opt_out');
   
   // Lead info loaded if editing
@@ -305,7 +324,7 @@ export function ColetaDadosPublicaPage() {
         return;
       }
 
-      // Check if it's an Opt-Out Request
+      // Check if it's an Opt-Out Request (Anti-Bot 2-Step Confirmation: NEVER auto-unsubscribe on GET/mount)
       if (optOutParam === '1') {
         setIsOptOut(true);
         setIsLoading(true);
@@ -313,43 +332,49 @@ export function ColetaDadosPublicaPage() {
           const { data: lead, error: fetchErr } = await supabase
             .schema('core_comercial')
             .from('leads')
-            .select('*')
+            .select('id, name, company_name, email, phone, notes, tags, empresa_id, assigned_to')
             .eq('id', id)
-            .single();
+            .maybeSingle();
 
           if (fetchErr) throw fetchErr;
 
           if (lead) {
-            const alreadyOptedOut = lead.name?.startsWith('[DESCADASTRADO]') || lead.notes?.includes('[Opt-out]');
-            
-            if (!alreadyOptedOut) {
-              const newName = `[DESCADASTRADO] ${lead.name}`;
-              const newNotes = `${lead.notes || ''}\n[Opt-out via e-mail comercial em ${new Date().toLocaleDateString()}]`.trim();
-              
-              const { data: stage } = await supabase
-                .schema('core_comercial')
-                .from('kanban_stages')
-                .select('id')
-                .eq('empresa_id', lead.empresa_id)
-                .or('name.ilike.%Perdido%,name.ilike.%Desvinculado%')
-                .order('order_index', { ascending: false })
-                .limit(1)
-                .maybeSingle();
+            setOptOutLeadEmail(lead.email || '');
+            setCompanyName(lead.company_name || lead.name || '');
 
-              await supabase
-                .schema('core_comercial')
-                .from('leads')
-                .update({
-                  name: newName,
-                  notes: newNotes,
-                  ...(stage ? { stage_id: stage.id } : {}),
-                  updated_at: new Date().toISOString()
-                })
-                .eq('id', id);
+            // Auto-detect recipient language from lead metadata if ?lang= was not explicitly passed
+            if (!searchParams.get('lang')) {
+              const lowerEmail = (lead.email || '').toLowerCase();
+              const lowerPhone = (lead.phone || '').trim();
+              const lowerTags = Array.isArray(lead.tags) ? lead.tags.map((x: string) => String(x).toLowerCase()) : [];
+              if (
+                lead.assigned_to === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65' ||
+                lowerEmail.endsWith('.it') ||
+                lowerPhone.startsWith('+39') ||
+                lowerTags.some((tg: string) => tg.includes('itália') || tg.includes('italia') || tg.includes('giada'))
+              ) {
+                setLang('it');
+              } else if (
+                lead.assigned_to === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2' ||
+                lowerEmail.endsWith('.fr') ||
+                lowerPhone.startsWith('+33') ||
+                lowerTags.some((tg: string) => tg.includes('frança') || tg.includes('francia') || tg.includes('france'))
+              ) {
+                setLang('fr');
+              } else if (lowerEmail.endsWith('.pt') || lowerEmail.endsWith('.br') || lowerPhone.startsWith('+351')) {
+                setLang('pt');
+              }
+            }
+
+            const alreadyOptedOut =
+              lead.name?.startsWith('[DESCADASTRADO]') ||
+              lead.notes?.includes('[Opt-out');
+            if (alreadyOptedOut) {
+              setIsOptOutConfirmed(true);
             }
           }
         } catch (err: any) {
-          console.error("Opt-out error:", err);
+          console.error("Opt-out load error:", err);
         } finally {
           setIsLoading(false);
         }
@@ -513,23 +538,130 @@ export function ColetaDadosPublicaPage() {
     }
   };
 
+  const handleConfirmOptOut = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (!id || isConfirmingOptOut) return;
+    if (e && e.isTrusted === false) return;
+    if (typeof navigator !== 'undefined' && navigator.webdriver) return;
+
+    setIsConfirmingOptOut(true);
+    try {
+      const { data: lead, error: fetchErr } = await supabase
+        .schema('core_comercial')
+        .from('leads')
+        .select('id, name, notes, empresa_id')
+        .eq('id', id)
+        .single();
+
+      if (fetchErr) throw fetchErr;
+
+      if (lead) {
+        const alreadyOptedOut =
+          lead.name?.startsWith('[DESCADASTRADO]') ||
+          lead.notes?.includes('[Opt-out');
+
+        if (!alreadyOptedOut) {
+          const cleanLeadName = (lead.name || '').replace(/^\[DESCADASTRADO\]\s*/i, '').trim();
+          const newName = `[DESCADASTRADO] ${cleanLeadName}`;
+          const formattedDate = new Intl.DateTimeFormat('pt-PT', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+          }).format(new Date());
+          const newNotes = `${lead.notes || ''}\n[Opt-out] Cancelamento confirmado em ${formattedDate}`.trim();
+
+          const { data: stage } = await supabase
+            .schema('core_comercial')
+            .from('kanban_stages')
+            .select('id')
+            .eq('empresa_id', lead.empresa_id)
+            .or('name.ilike.%Perdido%,name.ilike.%Desvinculado%')
+            .order('order_index', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          const { error: updateErr } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .update({
+              name: newName,
+              notes: newNotes,
+              ...(stage ? { stage_id: stage.id } : {}),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', id);
+
+          if (updateErr) throw updateErr;
+        }
+      }
+
+      setIsOptOutConfirmed(true);
+    } catch (err: any) {
+      console.error('Opt-out confirm error:', err);
+      toast.error(err.message || t.toastError);
+    } finally {
+      setIsConfirmingOptOut(false);
+    }
+  };
+
   if (isOptOut) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center p-4">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-red-500/5 via-slate-950 to-slate-950 pointer-events-none" />
         <div className="relative w-full max-w-lg bg-slate-900/60 backdrop-blur-xl border border-slate-800 p-8 rounded-2xl shadow-2xl text-center space-y-6 animate-in fade-in zoom-in duration-300">
-          <div className="h-20 w-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto border border-red-500/20">
-            <CheckCircle className="h-10 w-10 text-red-500" />
-          </div>
-          <div className="space-y-2">
-            <h1 className="text-3xl font-bold text-white tracking-tight">{t.optOutTitle}</h1>
-            <p className="text-slate-400 text-lg">
-              {t.optOutDesc}
-            </p>
-          </div>
-          <p className="text-slate-500 text-sm">
-            {t.optOutInfo}
-          </p>
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center py-8 space-y-4">
+              <Loader2 className="h-10 w-10 text-slate-400 animate-spin" />
+            </div>
+          ) : isOptOutConfirmed ? (
+            <>
+              <div className="h-20 w-20 bg-red-500/10 text-red-500 rounded-full flex items-center justify-center mx-auto border border-red-500/20">
+                <CheckCircle className="h-10 w-10 text-red-500" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-bold text-white tracking-tight">{t.optOutTitle}</h1>
+                <p className="text-slate-400 text-lg">
+                  {t.optOutDesc}
+                </p>
+              </div>
+              <p className="text-slate-500 text-sm">
+                {t.optOutInfo}
+              </p>
+            </>
+          ) : (
+            <>
+              <div className="h-20 w-20 bg-amber-500/10 text-amber-400 rounded-full flex items-center justify-center mx-auto border border-amber-500/20">
+                <AlertTriangle className="h-10 w-10 text-amber-400" />
+              </div>
+              <div className="space-y-2">
+                <h1 className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{t.optOutConfirmTitle}</h1>
+                <p className="text-slate-400 text-base">
+                  {t.optOutConfirmDesc}
+                </p>
+                {optOutLeadEmail && (
+                  <p className="text-slate-300 text-sm font-medium bg-slate-800/80 border border-slate-700 rounded-lg py-2 px-3 inline-block mt-2">
+                    {optOutLeadEmail}
+                  </p>
+                )}
+              </div>
+              <div className="pt-2">
+                <Button
+                  type="button"
+                  onClick={handleConfirmOptOut}
+                  disabled={isConfirmingOptOut}
+                  className="w-full h-12 bg-red-600 hover:bg-red-700 text-white font-semibold text-base rounded-xl shadow-lg"
+                >
+                  {isConfirmingOptOut ? (
+                    <span className="flex items-center justify-center gap-2">
+                      <Loader2 className="h-5 w-5 animate-spin" />
+                      {t.optOutProcessing}
+                    </span>
+                  ) : (
+                    t.optOutConfirmBtn
+                  )}
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     );

@@ -4355,7 +4355,7 @@ export function CampaignsPage() {
 
       // Must have valid email address and not be opted out
       if (!l.email || !l.email.includes('@')) return false;
-      const isOptedOut = (l.name || '').startsWith('[DESCADASTRADO]') || (l.notes || '').includes('[Opt-out]');
+      const isOptedOut = (l.name || '').startsWith('[DESCADASTRADO]') || (l.notes || '').includes('[Opt-out');
       return !isOptedOut;
     });
 

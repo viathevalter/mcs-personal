@@ -17,11 +17,19 @@ async function markLeadAsRead(supabase: any, leadId: string, campaignId?: string
     const { data: lead } = await supabase
       .schema("core_comercial")
       .from("leads")
-      .select("id, stage_id, empresa_id, email, name, tags")
+      .select("id, stage_id, empresa_id, email, name, tags, notes")
       .eq("id", leadId)
       .maybeSingle();
 
     if (!lead) return;
+
+    // Nunca promover leads descadastrados (Opt-out) para 'E-mail Lido / Clicado'
+    if (
+      String(lead.name || "").startsWith("[DESCADASTRADO]") ||
+      String(lead.notes || "").includes("Opt-out")
+    ) {
+      return;
+    }
 
     // NUNCA alterar o empresa_id de um lead que já possui empresa atribuída!
     const targetEmpresaId = lead.empresa_id || hintEmpresaId;
@@ -215,11 +223,15 @@ serve(async (req) => {
       });
     }
 
+    const clickedLink = String(body.data?.click?.link || body.data?.click?.url || "").toLowerCase();
+    const isOptOutLinkClick = clickedLink.includes("opt_out=1") || clickedLink.includes("unsubscribe");
+
     const isOpenOrClick =
-      eventType === "email.opened" ||
-      eventType === "email.clicked" ||
-      eventType === "email.aberto" ||
-      eventType === "email.clicado";
+      (eventType === "email.opened" ||
+        eventType === "email.clicked" ||
+        eventType === "email.aberto" ||
+        eventType === "email.clicado") &&
+      !isOptOutLinkClick;
 
     const rawEmail = recipientEmail.toLowerCase().trim();
     const cleanEmail = rawEmail.includes("<") && rawEmail.includes(">") 
