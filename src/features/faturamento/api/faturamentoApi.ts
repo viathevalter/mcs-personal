@@ -3816,16 +3816,25 @@ export async function salvarFaturaDiretaHexagon(payload: SalvarFaturaDiretaHexag
     }
   }
 
-  // Optionally persist IBAN onto Hexagon master record
+  // Optionally persist bank details onto Hexagon master record (Dados de Transferência Faturação)
   if (payload.salvarIbanPadraoHexagon && payload.iban?.trim()) {
-    const cleanIban = payload.iban.trim();
+    const cleanBankBlock = payload.iban.trim();
     const cleanBic = payload.bic?.trim() || '';
+    const fullBankDetails =
+      cleanBic && !/bic|swift/i.test(cleanBankBlock)
+        ? `${cleanBankBlock}\nBIC: ${cleanBic}`
+        : cleanBankBlock;
+
+    // Extract clean IBAN code if present inside multiline block (e.g. "IBAN: LU76 1695 ...")
+    const ibanMatch = fullBankDetails.match(/\b([A-Z]{2}\d{2}(?:\s?[A-Z0-9]{4}){2,7}(?:\s?[A-Z0-9]{1,4})?)\b/i);
+    const extractedIban = ibanMatch ? ibanMatch[1].trim().toUpperCase() : (hexEmpresa?.iban || null);
+
     await supabase
       .schema('core_common')
       .from('empresas')
       .update({
-        iban: cleanIban,
-        bank_details: cleanBic ? `${cleanIban} | BIC/SWIFT: ${cleanBic}` : cleanIban,
+        bank_details: fullBankDetails,
+        ...(extractedIban ? { iban: extractedIban } : {}),
       })
       .eq('id', HEXAGON_EMPRESA_ID);
   }

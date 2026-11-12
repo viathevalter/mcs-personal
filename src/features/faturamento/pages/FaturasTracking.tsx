@@ -944,53 +944,19 @@ export function FaturasTracking() {
     const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
 
     if (isHexagonOrDirectSpanishFatura(fat, targetEmpresa)) {
-      const hexFin = extractHexagonFinancialsFromFatura(fat, totalBaseVal);
-      const defaultEmpresaIbanHex = targetEmpresa?.bank_details || targetEmpresa?.iban || '';
-      const ibanHex = adj.iban || defaultEmpresaIbanHex;
-      const clientLegalNameHex = fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName;
-      const clientAddressHex = fat.client?.address_line || 'N/A';
-      const clientPostalCityHex = [fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ') || '';
-      const clientCountryHex = fat.client?.countryName || fat.client?.country || fat.client?.country_name || fat.client?.province || 'España';
-      const clientTaxIdHex = fat.client?.tax_id || fat.client?.taxId || fat.client?.cif_nif || 'N/A';
-
+      const hexFin = extractHexagonFinancialsFromFatura(fat, totalBaseVal, totalHorasCalculadas);
       return renderHexagonFacturaPDF({
-        docNumber: String(fat.fatura_numero || `2026.${targetEmpresa?.next_invoice_number || 1}`),
+        fat,
+        targetEmpresa,
+        clientName,
         emissionDateStr,
         vencimentoDateStr,
-        emissor: {
-          legalName: targetEmpresa?.legal_name || targetEmpresa?.nome || 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
-          taxId: targetEmpresa?.tax_id || 'B05688197',
-          addressLine: targetEmpresa?.address_line || '',
-          postalCode: targetEmpresa?.postal_code || '',
-          city: targetEmpresa?.city || '',
-          province: targetEmpresa?.province || '',
-          country: 'España',
-          email: targetEmpresa?.email || '',
-          phone: targetEmpresa?.phone || '',
-          logoUrl: targetEmpresa?.invoice_logo_url || HEXAGON_DEFAULT_LOGO_URL,
-          iban: ibanHex,
-          bicSwift: adj.bic_swift || ''
-        },
-        cliente: {
-          legalName: clientLegalNameHex,
-          tradeName: fat.client?.nombre_comercial || clientName,
-          taxId: clientTaxIdHex,
-          addressLine: clientAddressHex,
-          postalCodeCity: clientPostalCityHex,
-          province: fat.client?.province || '',
-          country: clientCountryHex
-        },
-        items: hexFin.items,
-        ivaMode: hexFin.ivaMode,
-        ivaPct: hexFin.ivaPct,
+        totalHoras: hexFin.totalHoras,
         baseImponible: hexFin.baseImponible,
         cuotaIva: hexFin.cuotaIva,
+        ivaPct: hexFin.ivaPct,
         totalFactura: hexFin.totalFactura,
-        apontamentos: hexFin.apontamentos,
-        notaLegalIva: hexFin.notaLegalIva,
-        verifactuEnabled: hexFin.verifactuEnabled,
-        verifactuQrUrl: fat.verifactu_qr_url || '',
-        verifactuHash: fat.verifactu_hash || ''
+        logoSrc: targetEmpresa?.invoice_logo_url || HEXAGON_DEFAULT_LOGO_URL,
       });
     }
 
@@ -4490,46 +4456,20 @@ MCS - Gestão Comercial`;
                         
                         <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full overflow-x-auto">
                           {isHexagonPreview ? (() => {
-                            const hexFin = extractHexagonFinancialsFromFatura(selectedDispute, totalBaseVal);
+                            const hexFin = extractHexagonFinancialsFromFatura(selectedDispute, totalBaseVal, totalHorasCalculadas);
                             const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(selectedDispute);
                             const htmlStr = buildHexagonFacturaHtml({
-                              docNumber: String(selectedDispute.fatura_numero || `2026.${disputeEmpresa?.next_invoice_number || 1}`),
+                              fat: selectedDispute,
+                              targetEmpresa: disputeEmpresa,
+                              clientName: selectedDispute.client?.legal_name || selectedDispute.client?.razon_social || selectedDispute.client?.nombre_comercial || 'Cliente',
                               emissionDateStr,
                               vencimentoDateStr,
-                              emissor: {
-                                legalName: disputeEmpresa?.legal_name || disputeEmpresa?.nome || 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
-                                taxId: disputeEmpresa?.tax_id || 'B05688197',
-                                addressLine: disputeEmpresa?.address_line || '',
-                                postalCode: disputeEmpresa?.postal_code || '',
-                                city: disputeEmpresa?.city || '',
-                                province: disputeEmpresa?.province || '',
-                                country: 'España',
-                                email: disputeEmpresa?.email || '',
-                                phone: disputeEmpresa?.phone || '',
-                                logoUrl: disputeEmpresa?.invoice_logo_url || HEXAGON_DEFAULT_LOGO_URL,
-                                iban: selectedDispute.ajustes_json?.iban || disputeEmpresa?.bank_details || disputeEmpresa?.iban || '',
-                                bicSwift: selectedDispute.ajustes_json?.bic_swift || ''
-                              },
-                              cliente: {
-                                legalName: selectedDispute.client?.legal_name || selectedDispute.client?.razon_social || selectedDispute.client?.nombre_comercial || 'Cliente',
-                                tradeName: selectedDispute.client?.nombre_comercial || 'Cliente',
-                                taxId: selectedDispute.client?.cif_nif || selectedDispute.client?.taxId || 'N/A',
-                                addressLine: selectedDispute.client?.address_line || 'N/A',
-                                postalCodeCity: [selectedDispute.client?.postal_code, selectedDispute.client?.city].filter(Boolean).join(' '),
-                                province: selectedDispute.client?.province || '',
-                                country: selectedDispute.client?.countryName || selectedDispute.client?.country || selectedDispute.client?.country_name || selectedDispute.client?.province || 'España'
-                              },
-                              items: hexFin.items,
-                              ivaMode: hexFin.ivaMode,
-                              ivaPct: hexFin.ivaPct,
+                              totalHoras: hexFin.totalHoras,
                               baseImponible: hexFin.baseImponible,
                               cuotaIva: hexFin.cuotaIva,
+                              ivaPct: hexFin.ivaPct,
                               totalFactura: hexFin.totalFactura,
-                              apontamentos: hexFin.apontamentos,
-                              notaLegalIva: hexFin.notaLegalIva,
-                              verifactuEnabled: hexFin.verifactuEnabled,
-                              verifactuQrUrl: selectedDispute.verifactu_qr_url || '',
-                              verifactuHash: selectedDispute.verifactu_hash || ''
+                              logoSrc: disputeEmpresa?.invoice_logo_url || HEXAGON_DEFAULT_LOGO_URL,
                             });
                             return (
                               <div
@@ -6168,28 +6108,17 @@ MCS - Gestão Comercial`;
           setIsDirectHexagonModalOpen(open);
           if (!open) setEditingDirectFatura(null);
         }}
-        defaultPeriodMonth={typeof selectedMonth === 'number' ? selectedMonth + 1 : new Date().getMonth() + 1}
-        defaultPeriodYear={typeof selectedYear === 'number' ? selectedYear : new Date().getFullYear()}
+        defaultMonth={typeof selectedMonth === 'number' ? selectedMonth + 1 : new Date().getMonth() + 1}
+        defaultYear={typeof selectedYear === 'number' ? selectedYear : new Date().getFullYear()}
         editingFatura={editingDirectFatura}
-        onSaved={async (savedFatura, options) => {
+        onSuccess={async ({ periodMonth, periodYear }) => {
           setTrackingTab('completed');
-          const pMonth = savedFatura?.ajustes_json?.period_month;
-          const pYear = savedFatura?.ajustes_json?.period_year;
-          if (pMonth && pYear) {
-            setSelectedMonth(Number(pMonth) - 1);
-            setSelectedYear(Number(pYear));
-          }
+          setSelectedMonth(periodMonth - 1);
+          setSelectedYear(periodYear);
           if (selectedEmpresaId !== HEXAGON_EMPRESA_ID) {
             setSelectedEmpresaId(HEXAGON_EMPRESA_ID);
           } else {
             await fetchFaturas();
-          }
-          if (options?.downloadPdf && savedFatura?.id) {
-            await handleExportA4PDFTracking(
-              savedFatura.id,
-              savedFatura.client?.nombre_comercial || 'Cliente',
-              'factura'
-            );
           }
         }}
       />

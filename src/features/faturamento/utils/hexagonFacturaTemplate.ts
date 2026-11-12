@@ -729,7 +729,7 @@ export function buildHexagonFacturaHtml(params: HexagonFacturaHtmlParams): strin
               <strong style="color: #0f172a;">Forma de Pago:</strong> ${escapeHtml(formaPagamento)}<br/>
               ${
                 ibanRaw
-                  ? `<div style="margin-top: 4px; color: #0f172a; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; white-space: pre-line;">${escapeHtml(ibanRaw)}${bicRaw ? `\nBIC / SWIFT: ${escapeHtml(bicRaw)}` : ''}</div>`
+                  ? `<div style="margin-top: 4px; color: #0f172a; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 600; white-space: pre-line;">${escapeHtml(ibanRaw)}${bicRaw && !/bic|swift/i.test(String(ibanRaw)) ? `\nBIC / SWIFT: ${escapeHtml(bicRaw)}` : ''}</div>`
                   : `<span style="color: #64748b;">Titular: ${escapeHtml(empLegalName)}</span>`
               }
             </div>

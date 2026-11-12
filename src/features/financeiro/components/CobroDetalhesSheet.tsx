@@ -799,7 +799,7 @@ export function CobroDetalhesSheet({
                                                     )}
                                                 </div>
                                                 <div>{t('financeiro.detail_sheet.subtotal', 'Subtotal:')} <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.ajustes_json?.total_valor_base ?? faturaInfo.subtotal ?? 0)}</span></div>
-                                                <div>IVA ({faturaInfo.ajustes_json?.iva_pct ?? 0}%): <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.ajustes_json?.cuota_iva ?? faturaInfo.iva ?? 0)}</span></div>
+                                                <div>IVA ({faturaInfo.ajustes_json?.iva_pct ?? 0}%): <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.ajustes_json?.iva_valor ?? faturaInfo.ajustes_json?.cuota_iva ?? faturaInfo.iva ?? 0)}</span></div>
                                             </div>
                                             {faturaInfo.ajustes_json?.sem_horas && faturaInfo.ajustes_json?.descricao_servico && (
                                                 <div className="pt-2 border-t text-[11px] text-slate-600 dark:text-slate-300">

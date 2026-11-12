@@ -237,9 +237,9 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
         setClientesList(res.clientes);
         setCountriesList(res.countries);
 
-        const defaultIban =
-          res.hexagonEmpresa?.iban ||
-          (res.hexagonEmpresa?.bank_details ? String(res.hexagonEmpresa.bank_details).split('|')[0]?.trim() : '') ||
+        const defaultBankDetails =
+          (res.hexagonEmpresa?.bank_details ? String(res.hexagonEmpresa.bank_details).trim() : '') ||
+          (res.hexagonEmpresa?.iban ? String(res.hexagonEmpresa.iban).trim() : '') ||
           '';
 
         if (editingFatura) {
@@ -289,8 +289,13 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
           }
 
           setFormaPagamento(adj.forma_pagamento || 'Transferencia Bancaria');
-          setIban(adj.iban || defaultIban);
-          setBic(adj.bic || '');
+          const savedBank = adj.iban
+            ? adj.bic && !/bic|swift/i.test(String(adj.iban))
+              ? `${adj.iban}\nBIC: ${adj.bic}`
+              : String(adj.iban)
+            : defaultBankDetails;
+          setIban(savedBank);
+          setBic('');
           setSalvarIbanPadrao(false);
         } else {
           // Fresh creation defaults
@@ -301,9 +306,9 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
           setPeriodYear(initialYear);
           setObra('');
           setFormaPagamento('Transferencia Bancaria');
-          setIban(defaultIban);
+          setIban(defaultBankDetails);
           setBic('');
-          setSalvarIbanPadrao(Boolean(!res.hexagonEmpresa?.iban));
+          setSalvarIbanPadrao(!defaultBankDetails);
           setNotaLegalTouched(false);
 
           // Pre-select Wiseowe if present in group companies, otherwise default to 'client' tab
@@ -1317,56 +1322,96 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
               </div>
 
               {/* 5. DADOS BANCÁRIOS / PAGAMENTO */}
-              <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
-                <div className="flex items-center gap-2">
-                  <CreditCard className="h-4 w-4 text-[#183935] dark:text-emerald-400" />
-                  <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
-                    5. Forma de Pagamento e Dados Bancários (Hexagon)
-                  </h3>
-                </div>
+              {(() => {
+                const companyDefaultBank =
+                  (hexagonEmpresa?.bank_details ? String(hexagonEmpresa.bank_details).trim() : '') ||
+                  (hexagonEmpresa?.iban ? String(hexagonEmpresa.iban).trim() : '') ||
+                  '';
+                const isMatchingCompanyDefault =
+                  Boolean(companyDefaultBank) && iban.trim() === companyDefaultBank;
+                const isCustomModified =
+                  Boolean(companyDefaultBank) && iban.trim() !== companyDefaultBank;
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div className="space-y-1">
-                    <Label className="text-xs">Forma de Pagamento</Label>
-                    <Input
-                      value={formaPagamento}
-                      onChange={(e) => setFormaPagamento(e.target.value)}
-                      placeholder="Transferencia Bancaria"
-                      className="h-9 text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">IBAN Hexagon (Opcional)</Label>
-                    <Input
-                      value={iban}
-                      onChange={(e) => setIban(e.target.value)}
-                      placeholder="ES00 0000 0000 0000 0000 0000"
-                      className="h-9 font-mono text-xs"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <Label className="text-xs">BIC / SWIFT (Opcional)</Label>
-                    <Input
-                      value={bic}
-                      onChange={(e) => setBic(e.target.value.toUpperCase())}
-                      placeholder="BSCHESMMXXX"
-                      className="h-9 font-mono text-xs"
-                    />
-                  </div>
-                </div>
+                return (
+                  <div className="rounded-xl border border-border bg-card p-4 space-y-3 shadow-sm">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-[#183935] dark:text-emerald-400" />
+                        <h3 className="text-sm font-bold uppercase tracking-wider text-foreground">
+                          5. Forma de Pagamento e Dados Bancários (Hexagon)
+                        </h3>
+                      </div>
 
-                {iban.trim() && (
-                  <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer pt-1">
-                    <input
-                      type="checkbox"
-                      checked={salvarIbanPadrao}
-                      onChange={(e) => setSalvarIbanPadrao(e.target.checked)}
-                      className="rounded border-slate-300"
-                    />
-                    Salvar este IBAN como conta bancária padrão no cadastro da Hexagon
-                  </label>
-                )}
-              </div>
+                      {isMatchingCompanyDefault && (
+                        <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border border-emerald-600/30 text-[10px]">
+                          Puxado do Cadastro da Hexagon
+                        </Badge>
+                      )}
+                      {isCustomModified && (
+                        <div className="flex items-center gap-2">
+                          <Badge variant="outline" className="border-amber-500/50 text-amber-700 dark:text-amber-300 text-[10px]">
+                            Alterado para esta fatura
+                          </Badge>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIban(companyDefaultBank);
+                              setBic('');
+                              setSalvarIbanPadrao(false);
+                            }}
+                            className="text-[11px] text-[#183935] dark:text-emerald-300 hover:underline flex items-center gap-1 font-medium"
+                          >
+                            <RotateCcw className="h-3 w-3" />
+                            Restaurar do Cadastro
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
+                      <div className="sm:col-span-4 space-y-1">
+                        <Label className="text-xs">Forma de Pagamento</Label>
+                        <Input
+                          value={formaPagamento}
+                          onChange={(e) => setFormaPagamento(e.target.value)}
+                          placeholder="Transferencia Bancaria"
+                          className="h-9 text-xs"
+                        />
+                        <p className="text-[11px] text-muted-foreground leading-snug pt-1">
+                          Carrega automaticamente o campo <strong>Dados de Transferência Faturação</strong> do cadastro da empresa Hexagon, permitindo alterar livremente nesta fatura.
+                        </p>
+                      </div>
+
+                      <div className="sm:col-span-8 space-y-1">
+                        <Label className="text-xs">
+                          Dados de Transferência / Conta Bancária na Fatura (Editável)
+                        </Label>
+                        <Textarea
+                          rows={3}
+                          value={iban}
+                          onChange={(e) => setIban(e.target.value)}
+                          placeholder={'REVOLUT\nIBAN: LU76 1695 8000 0156 2947 6179 052\nBIC: QNTOFRP1XXX'}
+                          className="font-mono text-xs resize-y leading-relaxed"
+                        />
+                      </div>
+                    </div>
+
+                    {iban.trim() && (!companyDefaultBank || isCustomModified) && (
+                      <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer pt-1">
+                        <input
+                          type="checkbox"
+                          checked={salvarIbanPadrao}
+                          onChange={(e) => setSalvarIbanPadrao(e.target.checked)}
+                          className="rounded border-slate-300"
+                        />
+                        <span>
+                          Salvar também estes dados bancários como padrão no <strong>Cadastro da Empresa Hexagon</strong> (se desmarcado, vale apenas para esta fatura)
+                        </span>
+                      </label>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             {/* RIGHT COLUMN: LIVE FINANCIAL BREAKDOWN + A4 PREVIEW */}
