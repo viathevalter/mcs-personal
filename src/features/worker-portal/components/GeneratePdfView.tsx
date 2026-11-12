@@ -110,6 +110,18 @@ export function GeneratePdfView({
     const handleSendToSupervisor = async (e: React.FormEvent) => {
         e.preventDefault();
 
+        const realNow = new Date();
+        const realYr = realNow.getFullYear();
+        const realMo = realNow.getMonth() + 1;
+        if (period.period_year < realYr || (period.period_year === realYr && period.period_month < realMo)) {
+            toast.warning(
+                isSpanish
+                    ? `El mes de ${monthName} ya está cerrado y bloqueado.`
+                    : `O mês de ${monthName} já está fechado e bloqueado.`
+            );
+            return;
+        }
+
         if (period.status === 'validado') {
             toast.warning(
                 isSpanish

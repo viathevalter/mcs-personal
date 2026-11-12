@@ -150,7 +150,8 @@ export function useClientHoursSummary(periodYear: number, periodMonth: number, c
                         if (hClient === wClient) return true;
                         if (!hClient || hClient === 'não definido' || hClient === 'cliente geral') {
                             const hContr = (h.contratante || '').trim().toLowerCase();
-                            return !hContr || !wContr || hContr === wContr;
+                            const isGenericContr = !hContr || hContr === 'mcs personal' || hContr === 'não definido';
+                            return isGenericContr || !wContr || hContr === wContr || hContr.includes(wContr) || wContr.includes(hContr);
                         }
                         return false;
                     });

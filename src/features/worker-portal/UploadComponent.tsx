@@ -34,6 +34,17 @@ export function UploadComponent({ worker, period, onCancel, onSuccess }: UploadC
     };
 
     const handleUpload = async () => {
+        const realNow = new Date();
+        const realYr = realNow.getFullYear();
+        const realMo = realNow.getMonth() + 1;
+        if (period.period_year < realYr || (period.period_year === realYr && period.period_month < realMo)) {
+            toast.warning(
+                i18n.language.startsWith('es')
+                    ? `El mes de ${getMonthName(period.period_month)} ya está cerrado y bloqueado.`
+                    : `O mês de ${getMonthName(period.period_month)} já está fechado e bloqueado.`
+            );
+            return;
+        }
         if (period.status === 'validado') {
             toast.warning(
                 i18n.language.startsWith('es')

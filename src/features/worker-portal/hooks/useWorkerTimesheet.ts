@@ -33,7 +33,15 @@ export function useWorkerTimesheet(workerAuth: any) {
     }, [workerAuth]);
 
     const activeProfile = useMemo(() => {
-        return profiles[0] || workerAuth;
+        const base = profiles[0] || workerAuth;
+        if (!base || !workerAuth) return base;
+        return {
+            ...workerAuth,
+            ...base,
+            cliente: base.cliente || workerAuth.cliente,
+            contratante: base.contratante || workerAuth.contratante || workerAuth.empresa_nome,
+            empresa_nome: base.empresa_nome || workerAuth.empresa_nome || workerAuth.contratante
+        };
     }, [profiles, workerAuth]);
 
     const hasAutoSelectedMonthRef = useRef(false);
@@ -62,12 +70,9 @@ export function useWorkerTimesheet(workerAuth: any) {
             const prevMo = thisMo === 1 ? 12 : thisMo - 1;
             const prevYr = thisMo === 1 ? thisYr - 1 : thisYr;
 
-            // Garantir que todas as alocações/clientes do trabalhador no mês anterior e atual tenham sua folha individual
+            // Garantir que todas as alocações/clientes do trabalhador no mês atual tenham sua folha individual
             try {
-                await Promise.all([
-                    supabase.rpc('ensure_worker_month_hours', { p_worker_id: activeProfile.id, p_year: prevYr, p_month: prevMo }),
-                    supabase.rpc('ensure_worker_month_hours', { p_worker_id: activeProfile.id, p_year: thisYr, p_month: thisMo })
-                ]);
+                await supabase.rpc('ensure_worker_month_hours', { p_worker_id: activeProfile.id, p_year: thisYr, p_month: thisMo });
             } catch (_) {}
 
             const { data, error } = await supabase
@@ -86,32 +91,6 @@ export function useWorkerTimesheet(workerAuth: any) {
             const lastKnownClient = records.find(r => r.cliente_nombre && r.cliente_nombre !== 'CLIENTE GERAL' && r.cliente_nombre !== 'NÃO DEFINIDO')?.cliente_nombre;
             const defaultClient = activeProfile.cliente || lastKnownClient || 'CLIENTE GERAL';
             const defaultContratante = activeProfile.contratante || activeProfile.empresa_nome || 'MCS Personal';
-
-            const hasPrev = records.some(
-                r => r.period_year === prevYr && r.period_month === prevMo && r.worker_id === activeProfile.id
-            );
-
-            if (!hasPrev) {
-                const { data: createdPrev, error: prevErr } = await supabase
-                    .schema('core_personal')
-                    .from('worker_hours')
-                    .insert({
-                        worker_id: activeProfile.id,
-                        empresa_id: resolvedEmpId,
-                        period_year: prevYr,
-                        period_month: prevMo,
-                        cliente_nombre: defaultClient,
-                        contratante: defaultContratante,
-                        status: 'pendente',
-                        apontamentos_diarios: []
-                    })
-                    .select()
-                    .single();
-
-                if (!prevErr && createdPrev) {
-                    records = [createdPrev, ...records];
-                }
-            }
 
             const hasCurrent = records.some(
                 r => r.period_year === thisYr && r.period_month === thisMo && r.worker_id === activeProfile.id
@@ -141,30 +120,8 @@ export function useWorkerTimesheet(workerAuth: any) {
 
             if (!hasAutoSelectedMonthRef.current) {
                 hasAutoSelectedMonthRef.current = true;
-                const prevRecords = records.filter(r => r.period_year === prevYr && r.period_month === prevMo && r.worker_id === activeProfile.id);
-                const currRecords = records.filter(r => r.period_year === thisYr && r.period_month === thisMo && r.worker_id === activeProfile.id);
-
-                const activePrevRecords = prevRecords.filter(r => {
-                    const obs = ((r as any).observacoes || '').toLowerCase();
-                    return !obs.includes('no inici') && !obs.includes('desisti') && !obs.includes('no se present');
-                });
-                const prevSubmittedOrValidated = activePrevRecords.length > 0 && activePrevRecords.every(r =>
-                    r.status === 'validado' ||
-                    r.status === 'enviado' ||
-                    r.status === 'processado' ||
-                    r.status === 'assinado_encarregado' ||
-                    r.status === 'aguardando_assinatura' ||
-                    Boolean(r.file_url)
-                );
-                const currHasHours = currRecords.some(r =>
-                    Number(r.horas_totais || 0) > 0 ||
-                    (Array.isArray(r.apontamentos_diarios) && r.apontamentos_diarios.some((d: any) => Number(d.totalHoras ?? d.total_horas ?? 0) > 0))
-                );
-
-                if (now.getDate() <= 10 && !prevSubmittedOrValidated && !currHasHours) {
-                    setCurrentYear(prevYr);
-                    setCurrentMonth(prevMo);
-                }
+                setCurrentYear(thisYr);
+                setCurrentMonth(thisMo);
             }
 
             setAllPeriods(records);
@@ -508,10 +465,18 @@ export function useWorkerTimesheet(workerAuth: any) {
         return Number(pastPending[pastPending.length - 1].dia);
     }, [days, selectedPeriod, now]);
 
-    // SALVAR APONTAMENTO DIÁRIO (permitido em todos os dias do mês corrente)
+    // SALVAR APONTAMENTO DIÁRIO (permitido apenas no mês corrente e enquanto não validado)
     const saveDayEntry = async (entry: TimesheetDayEntry) => {
         if (!selectedPeriod) {
             toast.error('Nenhum período selecionado.');
+            return;
+        }
+
+        const realNow = new Date();
+        const realYr = realNow.getFullYear();
+        const realMo = realNow.getMonth() + 1;
+        if (selectedPeriod.period_year < realYr || (selectedPeriod.period_year === realYr && selectedPeriod.period_month < realMo)) {
+            toast.error('O mês anterior já está fechado e bloqueado. Apenas o mês atual está liberado para apontamento de horas.');
             return;
         }
 
@@ -566,7 +531,9 @@ export function useWorkerTimesheet(workerAuth: any) {
                 ? (activeProfile.cliente || activeProfile.cliente_nombre || selectedPeriod.cliente_nombre)
                 : selectedPeriod.cliente_nombre;
 
-            const resolvedContratante = selectedPeriod.contratante || activeProfile.contratante || activeProfile.empresa_nome || null;
+            const resolvedContratante = (!selectedPeriod.contratante || selectedPeriod.contratante === 'MCS Personal' || selectedPeriod.contratante === 'Não definido')
+                ? (activeProfile.contratante || activeProfile.empresa_nome || selectedPeriod.contratante || null)
+                : selectedPeriod.contratante;
 
             // Atualizar banco via Supabase
             const { error } = await supabase

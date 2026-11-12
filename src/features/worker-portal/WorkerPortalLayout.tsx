@@ -44,11 +44,17 @@ export function WorkerPortalLayout() {
                 });
                 if (data && data.length > 0) {
                     const fresh = data.find((d: any) => d.id === current.id) || data[0];
+                    const freshProfiles = data.map((d: any) => ({
+                        ...d,
+                        empresa_nome: d.contratante || d.empresa_nome || current.empresa_nome,
+                        contratante: d.contratante || d.empresa_nome || current.contratante
+                    }));
                     const merged = {
                         ...current,
                         ...fresh,
                         empresa_nome: fresh.contratante || fresh.empresa_nome || current.empresa_nome,
-                        contratante: fresh.contratante || fresh.empresa_nome || current.contratante
+                        contratante: fresh.contratante || fresh.empresa_nome || current.contratante,
+                        profiles: freshProfiles
                     };
                     setActiveWorker(merged);
                     localStorage.setItem('worker_session', JSON.stringify(merged));

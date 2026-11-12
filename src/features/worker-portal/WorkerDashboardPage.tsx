@@ -269,23 +269,21 @@ export function WorkerDashboardPage() {
         return prevMonthPeriods.find(p => p.status !== 'validado') || prevMonthPeriods[0];
     }, [prevMonthPeriods]);
 
-    const isPrevMonthPendingSubmission = useMemo(() => {
-        if (prevMonthPeriods.length === 0) return true;
-        return prevMonthPeriods.some(p =>
-            p.status !== 'validado' &&
-            p.status !== 'enviado' &&
-            p.status !== 'processado' &&
-            p.status !== 'assinado_encarregado' &&
-            p.status !== 'aguardando_assinatura' &&
-            !p.file_url
-        );
-    }, [prevMonthPeriods]);
+    const isPastCalendarMonthLocked = currentYear < realYear || (currentYear === realYear && currentMonth < realMonth);
+    const isPrevMonthPendingSubmission = false;
+    const isPeriodValidated = selectedPeriod?.status === 'validado' || isPastCalendarMonthLocked;
 
-    const isPeriodValidated = selectedPeriod?.status === 'validado';
-
-    // Abertura do modal para um dia específico (permitido no mês corrente e no mês anterior enquanto não validado)
+    // Abertura do modal para um dia específico (permitido apenas no mês corrente e enquanto não validado)
     const handleOpenDailyModal = (day: number | any) => {
-        if (isPeriodValidated) {
+        if (isPastCalendarMonthLocked) {
+            toast.warning(
+                isSpanish
+                    ? `El mes de ${currentMonthName} ya está cerrado y bloqueado. Solo ${realCurrentMonthName} está habilitado para apuntar horas.`
+                    : `O mês de ${currentMonthName} já está fechado e bloqueado. Apenas ${realCurrentMonthName} está liberado para apontar horas.`
+            );
+            return;
+        }
+        if (selectedPeriod?.status === 'validado') {
             toast.warning(
                 isSpanish
                     ? `Las horas del mes de ${currentMonthName} ya están validadas y cerradas para edición.`
@@ -303,7 +301,15 @@ export function WorkerDashboardPage() {
     };
 
     const handleOpenGeneratePdf = () => {
-        if (isPeriodValidated) {
+        if (isPastCalendarMonthLocked) {
+            toast.info(
+                isSpanish
+                    ? `El mes de ${currentMonthName} ya está cerrado y bloqueado. Solo ${realCurrentMonthName} está habilitado.`
+                    : `O mês de ${currentMonthName} já está fechado e bloqueado. Apenas ${realCurrentMonthName} está liberado.`
+            );
+            return;
+        }
+        if (selectedPeriod?.status === 'validado') {
             toast.info(
                 isSpanish
                     ? `Las horas del mes de ${currentMonthName} ya están validadas. No es necesario volver a enviar la hoja.`
@@ -315,7 +321,15 @@ export function WorkerDashboardPage() {
     };
 
     const handleOpenUpload = () => {
-        if (isPeriodValidated) {
+        if (isPastCalendarMonthLocked) {
+            toast.info(
+                isSpanish
+                    ? `El mes de ${currentMonthName} ya está cerrado y bloqueado. Solo ${realCurrentMonthName} está habilitado para subir hojas.`
+                    : `O mês de ${currentMonthName} já está fechado e bloqueado. Apenas ${realCurrentMonthName} está liberado para envio de folhas.`
+            );
+            return;
+        }
+        if (selectedPeriod?.status === 'validado') {
             toast.info(
                 isSpanish
                     ? `Las horas del mes de ${currentMonthName} ya están validadas. No es necesario volver a subir el PDF.`
@@ -630,9 +644,7 @@ export function WorkerDashboardPage() {
                     }`}>
                         {prevMonthPeriod?.status === 'validado'
                             ? (isSpanish ? 'Validado ✓' : 'Validado ✓')
-                            : isPrevMonthPendingSubmission
-                            ? (isSpanish ? 'Cerrar mes' : 'Fechar mês')
-                            : (isSpanish ? 'Enviado' : 'Enviado')}
+                            : (isSpanish ? 'Cerrado 🔒' : 'Fechado 🔒')}
                     </span>
                 </button>
 
@@ -906,16 +918,34 @@ export function WorkerDashboardPage() {
 
                         <div className="bg-white/95 rounded-2xl p-3.5 border border-emerald-200/80 space-y-1.5 shadow-2xs">
                             <p className="text-xs font-extrabold text-emerald-950">
-                                {isSpanish
-                                    ? `¡Tus horas del mes de ${currentMonthName} ya están validadas!`
-                                    : `As suas horas do mês de ${currentMonthName} já estão validadas!`}
+                                {selectedPeriod?.status === 'validado'
+                                    ? (isSpanish
+                                        ? `¡Tus horas del mes de ${currentMonthName} ya están validadas!`
+                                        : `As suas horas do mês de ${currentMonthName} já estão validadas!`)
+                                    : (isSpanish
+                                        ? `El mes de ${currentMonthName} ya está cerrado y bloqueado.`
+                                        : `O mês de ${currentMonthName} já está fechado e bloqueado.`)}
                             </p>
                             <p className="text-[11px] text-slate-600 leading-relaxed">
-                                {isSpanish
-                                    ? `La hoja de horas de ${currentMonthName} (${Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h en ${monthlyStats.daysWorked} días) ya fue revisada y validada por RRHH. No es necesario apuntar ni subir más archivos en este mes.`
-                                    : `A folha de horas de ${currentMonthName} (${Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h em ${monthlyStats.daysWorked} dias) já foi conferida e validada pelo RH. Não é necessário apontar nem enviar mais arquivos neste mês.`}
+                                {selectedPeriod?.status === 'validado'
+                                    ? (isSpanish
+                                        ? `La hoja de horas de ${currentMonthName} (${Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h en ${monthlyStats.daysWorked} días) ya fue revisada y validada por RRHH. No es necesario apuntar ni subir más archivos en este mes.`
+                                        : `A folha de horas de ${currentMonthName} (${Number(monthlyStats.totalHours || 0).toFixed(1).replace('.', ',')}h em ${monthlyStats.daysWorked} dias) já foi conferida e validada pelo RH. Não é necessário apontar nem enviar mais arquivos neste mês.`)
+                                    : (isSpanish
+                                        ? `El período de ${currentMonthName} está bloqueado para nuevos registros o envíos. Solo el mes de ${realCurrentMonthName} ${realYear} está liberado para apuntar tus horas.`
+                                        : `O período de ${currentMonthName} está bloqueado para novos registos ou envios. Apenas o mês de ${realCurrentMonthName} ${realYear} está liberado para apontar as suas horas.`)}
                             </p>
                         </div>
+
+                        {isPastCalendarMonthLocked && (
+                            <Button
+                                type="button"
+                                onClick={() => setMonthYear(realMonth, realYear)}
+                                className="w-full h-11 rounded-2xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-xs capitalize"
+                            >
+                                {isSpanish ? `Ir a ${realCurrentMonthName} ${realYear} (Actual)` : `Ir para ${realCurrentMonthName} ${realYear} (Atual)`}
+                            </Button>
+                        )}
 
                         <Button
                             type="button"
