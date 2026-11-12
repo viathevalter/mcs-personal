@@ -146,13 +146,23 @@ export function FaturasHistorico() {
                 {filteredFaturas.map((fatura) => (
                   <TableRow key={fatura.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                     <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100 font-mono">
-                      {(() => {
-                        if (!fatura.fatura_numero) {
-                          return `#${fatura.id.split('-')[0].toUpperCase()}`;
-                        }
-                        const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
-                        return match ? match[0] : fatura.fatura_numero;
-                      })()}
+                      <div className="flex flex-col gap-1">
+                        <span>
+                          {(() => {
+                            if (!fatura.fatura_numero) {
+                              return `#${fatura.id.split('-')[0].toUpperCase()}`;
+                            }
+                            if (fatura.ajustes_json?.sem_horas) return fatura.fatura_numero;
+                            const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
+                            return match ? match[0] : fatura.fatura_numero;
+                          })()}
+                        </span>
+                        {fatura.ajustes_json?.sem_horas && (
+                          <span className="text-[9px] font-bold uppercase tracking-wider bg-[#183935]/10 text-[#183935] dark:bg-teal-950/60 dark:text-teal-300 px-1.5 py-0.5 rounded w-fit font-sans">
+                            Fatura Direta
+                          </span>
+                        )}
+                      </div>
                     </TableCell>
                     <TableCell className="font-medium text-slate-700 dark:text-slate-300">
                       <div className="flex flex-col">
@@ -171,7 +181,11 @@ export function FaturasHistorico() {
                       </div>
                     </TableCell>
                     <TableCell className="font-semibold text-slate-700 dark:text-slate-300">
-                      {fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'}
+                      {fatura.ajustes_json?.sem_horas ? (
+                        <span className="text-xs font-bold text-[#183935] dark:text-teal-300">Sem Horas · Direta</span>
+                      ) : (
+                        fatura.total_horas ? `${fatura.total_horas.toFixed(2)}h` : '0.00h'
+                      )}
                     </TableCell>
                     <TableCell className="font-bold text-slate-900 dark:text-slate-100">
                       € {fatura.total_valor ? fatura.total_valor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0,00'}

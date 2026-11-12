@@ -5,7 +5,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow, TableFoo
 import { Badge } from '@/components/ui/badge';
 import { 
   Search, ExternalLink, Clock, CheckCircle2, XCircle, Loader2, Copy, Eye, Mail, Send, FileText, 
-  AlertTriangle, Trash2, Save, Euro, Calendar, Layers, Filter, CheckCheck, RefreshCw, Building2 
+  AlertTriangle, Trash2, Save, Euro, Calendar, Layers, Filter, CheckCheck, RefreshCw, Building2,
+  Plus, Download, Edit2
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -38,21 +39,32 @@ import { resolveFaturaDatesForPdf } from '../utils/faturaPdfExport';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { QRCodeSVG } from 'qrcode.react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { NovaFaturaDiretaHexagonModal } from '../components/NovaFaturaDiretaHexagonModal';
+import {
+  HEXAGON_EMPRESA_ID,
+  HEXAGON_DEFAULT_LOGO_URL,
+  buildHexagonFacturaHtml,
+  extractHexagonFinancialsFromFatura,
+  isHexagonOrDirectSpanishFatura,
+  renderHexagonFacturaPDF
+} from '../utils/hexagonFacturaTemplate';
 
 
 // Helper to calculate expected due date and remaining/overdue days
-const getDueDateAndRemaining = (emissaoStr: string | null, days: number | null) => {
-  if (!emissaoStr) return { dueDateStr: '--/--/----', daysText: '', isOverdue: false, daysVal: 0 };
+const getDueDateAndRemaining = (emissaoStr: string | null, days: number | null, explicitDueDateStr?: string | null) => {
+  if (!emissaoStr && !explicitDueDateStr) return { dueDateStr: '--/--/----', daysText: '', isOverdue: false, daysVal: 0 };
   
-  const emissionDate = new Date(emissaoStr);
-  
-  // If days is null, we can't calculate due date
-  if (days === null) {
-    return { dueDateStr: 'Não Definido', daysText: '', isOverdue: false, daysVal: 0 };
+  let dueDate: Date;
+  if (explicitDueDateStr && /^\d{4}-\d{2}-\d{2}/.test(String(explicitDueDateStr))) {
+    dueDate = new Date(String(explicitDueDateStr).slice(0, 10) + 'T00:00:00');
+  } else {
+    if (!emissaoStr || days === null) {
+      return { dueDateStr: 'Não Definido', daysText: '', isOverdue: false, daysVal: 0 };
+    }
+    const emissionDate = new Date(emissaoStr);
+    dueDate = new Date(emissionDate.getTime());
+    dueDate.setDate(dueDate.getDate() + days);
   }
-
-  const dueDate = new Date(emissionDate.getTime());
-  dueDate.setDate(dueDate.getDate() + days);
   
   const today = new Date();
   // Normalize dates to midnight to calculate difference in full days
@@ -336,6 +348,8 @@ export function FaturasTracking() {
   const [cobroDueDate, setCobroDueDate] = useState<string>('');
   const [cobroApplyIva, setCobroApplyIva] = useState<boolean>(false);
   const [cobroIvaPct, setCobroIvaPct] = useState<number>(23);
+  const [isDirectHexagonModalOpen, setIsDirectHexagonModalOpen] = useState(false);
+  const [editingDirectFatura, setEditingDirectFatura] = useState<any | null>(null);
 
   useEffect(() => {
     if (cobroConfirmFatura) {
@@ -373,6 +387,9 @@ export function FaturasTracking() {
     setDisputeReductionsDesc(adj.reducoes_desc || adj.reducoesDesc || '');
     setDisputeIvaPct(Number(adj.iva_pct ?? 0));
     setDisputeDescricaoServico(adj.descricao_servico || adj.descricaoServico || 'Prestação de Serviços');
+    if (adj.sem_horas) {
+      setDisputeActiveTab('factura');
+    }
     setDisputeHours([]);
     setLoadingDisputeHours(true);
     try {
@@ -463,6 +480,13 @@ export function FaturasTracking() {
       const existing = faturas.find(f => f.id === urlFaturaId);
       if (existing) {
         autoOpenedRef.current = urlFaturaId;
+        if (existing.status === 'approved' || existing.status === 'invoice_sent') {
+          setTrackingTab('completed');
+        }
+        if (existing.period_month && existing.period_year) {
+          setSelectedMonth(Number(existing.period_month) - 1);
+          setSelectedYear(Number(existing.period_year));
+        }
         handleOpenDispute(existing);
         return;
       }
@@ -496,6 +520,13 @@ export function FaturasTracking() {
 
         if (isMounted) {
           autoOpenedRef.current = urlFaturaId;
+          if (enriched.status === 'approved' || enriched.status === 'invoice_sent') {
+            setTrackingTab('completed');
+          }
+          if (enriched.ajustes_json?.period_month && enriched.ajustes_json?.period_year) {
+            setSelectedMonth(Number(enriched.ajustes_json.period_month) - 1);
+            setSelectedYear(Number(enriched.ajustes_json.period_year));
+          }
           handleOpenDispute(enriched);
         }
       } catch (e) {
@@ -911,6 +942,57 @@ export function FaturasTracking() {
     );
 
     const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
+
+    if (isHexagonOrDirectSpanishFatura(fat, targetEmpresa)) {
+      const hexFin = extractHexagonFinancialsFromFatura(fat, totalBaseVal);
+      const defaultEmpresaIbanHex = targetEmpresa?.bank_details || targetEmpresa?.iban || '';
+      const ibanHex = adj.iban || defaultEmpresaIbanHex;
+      const clientLegalNameHex = fat.client?.legal_name || fat.client?.razon_social || fat.client?.nombre_comercial || clientName;
+      const clientAddressHex = fat.client?.address_line || 'N/A';
+      const clientPostalCityHex = [fat.client?.postal_code, fat.client?.city].filter(Boolean).join(' ') || '';
+      const clientCountryHex = fat.client?.countryName || fat.client?.country || fat.client?.country_name || fat.client?.province || 'España';
+      const clientTaxIdHex = fat.client?.tax_id || fat.client?.taxId || fat.client?.cif_nif || 'N/A';
+
+      return renderHexagonFacturaPDF({
+        docNumber: String(fat.fatura_numero || `2026.${targetEmpresa?.next_invoice_number || 1}`),
+        emissionDateStr,
+        vencimentoDateStr,
+        emissor: {
+          legalName: targetEmpresa?.legal_name || targetEmpresa?.nome || 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
+          taxId: targetEmpresa?.tax_id || 'B05688197',
+          addressLine: targetEmpresa?.address_line || '',
+          postalCode: targetEmpresa?.postal_code || '',
+          city: targetEmpresa?.city || '',
+          province: targetEmpresa?.province || '',
+          country: 'España',
+          email: targetEmpresa?.email || '',
+          phone: targetEmpresa?.phone || '',
+          logoUrl: targetEmpresa?.invoice_logo_url || HEXAGON_DEFAULT_LOGO_URL,
+          iban: ibanHex,
+          bicSwift: adj.bic_swift || ''
+        },
+        cliente: {
+          legalName: clientLegalNameHex,
+          tradeName: fat.client?.nombre_comercial || clientName,
+          taxId: clientTaxIdHex,
+          addressLine: clientAddressHex,
+          postalCodeCity: clientPostalCityHex,
+          province: fat.client?.province || '',
+          country: clientCountryHex
+        },
+        items: hexFin.items,
+        ivaMode: hexFin.ivaMode,
+        ivaPct: hexFin.ivaPct,
+        baseImponible: hexFin.baseImponible,
+        cuotaIva: hexFin.cuotaIva,
+        totalFactura: hexFin.totalFactura,
+        apontamentos: hexFin.apontamentos,
+        notaLegalIva: hexFin.notaLegalIva,
+        verifactuEnabled: hexFin.verifactuEnabled,
+        verifactuQrUrl: fat.verifactu_qr_url || '',
+        verifactuHash: fat.verifactu_hash || ''
+      });
+    }
 
     let qrSvgString = '';
     try {
@@ -1703,7 +1785,9 @@ export function FaturasTracking() {
         if (!pdf) return null;
         
         const pdfBase64 = pdf.output('datauristring').split(',')[1];
-        const filename = 'Factura_Pro-forma.pdf';
+        const filename = isHexagonOrDirectSpanishFatura(emailData.fatura)
+          ? `Factura_${sanitizeFilenamePart(String(emailData.fatura.fatura_numero || 'Hexagon'))}.pdf`
+          : 'Factura_Pro-forma.pdf';
 
         return {
           name: filename,
@@ -2119,7 +2203,10 @@ export function FaturasTracking() {
       let effH = calcResult.totalAllObrasHours;
       let effBaseV = calcResult.totalBaseVal;
 
-      if (effH === 0 && selectedDispute.total_horas) {
+      if (selectedDispute.ajustes_json?.sem_horas) {
+        effH = 0;
+        effBaseV = Number(selectedDispute.ajustes_json?.total_valor_base ?? selectedDispute.total_valor_base ?? 0);
+      } else if (effH === 0 && selectedDispute.total_horas) {
         effH = selectedDispute.total_horas;
         effBaseV = selectedDispute.total_valor_base || selectedDispute.total_valor || 0;
       }
@@ -2273,8 +2360,10 @@ export function FaturasTracking() {
       const currentEmpresa = empresas.find(e => e.id === selectedEmpresaId);
       const empresaNome = currentEmpresa ? currentEmpresa.nome : 'Stocco';
 
-      const subtotal = Number(cobroConfirmFatura.total_valor || 0);
-      const finalTotal = cobroApplyIva ? subtotal * (1 + cobroIvaPct / 100) : subtotal;
+      const isDirectSemHoras = Boolean(cobroConfirmFatura.ajustes_json?.sem_horas);
+      const hexFin = isDirectSemHoras ? extractHexagonFinancialsFromFatura(cobroConfirmFatura) : null;
+      const subtotal = hexFin ? hexFin.totalFactura : Number(cobroConfirmFatura.total_valor || 0);
+      const finalTotal = !isDirectSemHoras && cobroApplyIva ? subtotal * (1 + cobroIvaPct / 100) : subtotal;
 
       await gerarCobroDaFatura(cobroConfirmFatura, empresaNome, cobroDueDate, finalTotal);
       
@@ -2358,8 +2447,23 @@ export function FaturasTracking() {
     const docNumber = fatura.fatura_numero || fatura.atcud || `IF-${periodYear}/0001`;
     const link = `${window.location.origin}/aprovacao-cliente/${fatura.magic_link_token}`;
 
+    const isDirectSemHoras = Boolean(fatura.ajustes_json?.sem_horas);
     let subject = '';
     let body = '';
+
+    if (isDirectSemHoras) {
+      if (lang === 'es') {
+        subject = `FACTURA ${docNumber} - ${clientName} - ${periodStr}`;
+        body = `Estimado cliente,\n\nAdjunto a este correo le enviamos la Factura nº ${docNumber} correspondiente a la prestación de servicios del período de ${periodStr}, por un importe total de € ${finalTotal.toLocaleString('es-ES', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.\n\nQuedamos a su entera disposición para cualquier consulta o aclaración.\n\nAtentamente,\nHEXAGON MONTAJES INDUSTRIALES, S.L.`;
+      } else if (lang === 'en') {
+        subject = `INVOICE ${docNumber} - ${clientName} - ${periodStr}`;
+        body = `Dear Customer,\n\nPlease find attached Invoice No. ${docNumber} regarding services rendered for ${periodStr}, in the total amount of € ${finalTotal.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.\n\nShould you have any questions, please feel free to reply to this email.\n\nBest regards,\nHEXAGON MONTAJES INDUSTRIALES, S.L.`;
+      } else {
+        subject = `FATURA ${docNumber} - ${clientName} - ${periodStr}`;
+        body = `Olá,\n\nSegue em anexo a Fatura nº ${docNumber} referente à prestação de serviços do período de ${periodStr}, no valor total de € ${finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}.\n\nPermanecemos à disposição para qualquer esclarecimento.\n\nAtenciosamente,\nHEXAGON MONTAJES INDUSTRIALES, S.L.`;
+      }
+      return { subject, body };
+    }
 
     if (isAcceptance) {
       if (lang === 'es') {
@@ -2565,9 +2669,12 @@ MCS - Gestão Comercial`;
       const iva = Number(adj.iva_pct || 0);
       const effTotalValor = (effTotalValorBase + inc - red) * (1 + iva / 100);
 
-      const finalTotalHoras = effTotalHoras;
-      const finalTotalValorBase = effTotalValorBase;
-      const finalTotalValor = effTotalValor;
+      const isDirectSemHoras = Boolean(fatura.ajustes_json?.sem_horas);
+      const hexFin = isDirectSemHoras ? extractHexagonFinancialsFromFatura(fatura) : null;
+
+      const finalTotalHoras = isDirectSemHoras ? 0 : effTotalHoras;
+      const finalTotalValorBase = isDirectSemHoras && hexFin ? hexFin.baseImponible : effTotalValorBase;
+      const finalTotalValor = isDirectSemHoras && hexFin ? hexFin.totalFactura : effTotalValor;
 
       const faturaWithEdits = {
         ...fatura,
@@ -2639,7 +2746,11 @@ MCS - Gestão Comercial`;
         });
       }
       
-      setSelectedAttachments({ relatorio: true, informe: true, factura: true });
+      setSelectedAttachments(
+        isDirectSemHoras
+          ? { relatorio: false, informe: false, factura: true }
+          : { relatorio: true, informe: true, factura: true }
+      );
       toast.dismiss(toastId);
       setIsEmailModalOpen(true);
     } catch (err: any) {
@@ -2868,6 +2979,16 @@ MCS - Gestão Comercial`;
             Acompanhe o status, aprovação e envio de faturas aos clientes.
           </p>
         </div>
+        <Button
+          onClick={() => {
+            setEditingDirectFatura(null);
+            setIsDirectHexagonModalOpen(true);
+          }}
+          className="bg-[#183935] hover:bg-[#122b28] text-white font-bold shadow-sm border border-[#c88d65]/40 flex items-center gap-2 px-4 py-2.5 h-auto"
+        >
+          <Plus className="w-4 h-4 text-[#c88d65]" />
+          <span>Gerar Fatura Direta (Hexagon)</span>
+        </Button>
       </div>
 
       {/* 2. Seletor de Período (Mês e Ano) - Sincronizado */}
@@ -3165,21 +3286,33 @@ MCS - Gestão Comercial`;
                 </TableHeader>
                 <TableBody>
                   {filteredFaturas.map((fatura) => {
-                    const { dueDateStr, daysText, isOverdue, daysVal } = getDueDateAndRemaining(
+                    const isDirectSemHoras = Boolean(fatura.ajustes_json?.sem_horas);
+                    const { dueDateStr, daysText, isOverdue } = getDueDateAndRemaining(
                       fatura.data_emissao,
-                      fatura.client?.paymentTermDays ?? null
+                      fatura.client?.paymentTermDays ?? null,
+                      fatura.data_vencimento || fatura.ajustes_json?.data_vencimento || null
                     );
 
                     return (
                       <TableRow key={fatura.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/30 transition-colors">
                         <TableCell className="font-medium pl-6 text-slate-900 dark:text-slate-100 font-mono">
-                          {(() => {
-                            if (!fatura.fatura_numero) {
-                              return `#${fatura.id.split('-')[0].toUpperCase()}`;
-                            }
-                            const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
-                            return match ? match[0] : fatura.fatura_numero;
-                          })()}
+                          <div className="flex flex-col gap-1">
+                            <span>
+                              {(() => {
+                                if (!fatura.fatura_numero) {
+                                  return `#${fatura.id.split('-')[0].toUpperCase()}`;
+                                }
+                                if (isDirectSemHoras) return fatura.fatura_numero;
+                                const match = fatura.fatura_numero.match(/\d{4}\/\d+/);
+                                return match ? match[0] : fatura.fatura_numero;
+                              })()}
+                            </span>
+                            {isDirectSemHoras && (
+                              <span className="text-[9px] font-bold uppercase tracking-wider bg-[#183935]/10 text-[#183935] dark:bg-teal-950/60 dark:text-teal-300 px-1.5 py-0.5 rounded w-fit font-sans">
+                                Fatura Direta
+                              </span>
+                            )}
+                          </div>
                         </TableCell>
                         <TableCell className="font-medium text-slate-700 dark:text-slate-300">
                           <div className="flex flex-col gap-1 text-left">
@@ -3238,9 +3371,15 @@ MCS - Gestão Comercial`;
                         </TableCell>
                         <TableCell className="font-semibold text-slate-900 dark:text-slate-100 min-w-[110px]">
                           <div className="flex flex-col text-left">
-                            <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
-                              {fatura.total_horas !== undefined && fatura.total_horas !== null ? `${Number(fatura.total_horas).toFixed(2)}h` : '0.00h'}
-                            </span>
+                            {isDirectSemHoras ? (
+                              <span className="text-[11px] font-bold text-[#183935] dark:text-teal-300">
+                                Sem Horas · Direta
+                              </span>
+                            ) : (
+                              <span className="text-sm font-extrabold text-slate-900 dark:text-slate-100">
+                                {fatura.total_horas !== undefined && fatura.total_horas !== null ? `${Number(fatura.total_horas).toFixed(2)}h` : '0.00h'}
+                              </span>
+                            )}
                             <span className="text-xs font-medium text-slate-500 dark:text-slate-400 whitespace-nowrap">
                               € {Number(fatura.total_valor || 0).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                             </span>
@@ -3248,7 +3387,7 @@ MCS - Gestão Comercial`;
                         </TableCell>
                         <TableCell>{getStatusBadge(fatura.status)}</TableCell>
                         <TableCell className="text-right pr-6">
-                          <div className="flex justify-end items-center gap-3">
+                          <div className="flex justify-end items-center gap-2.5 flex-wrap">
                             <button
                               onClick={() => handleOpenDispute(fatura)}
                               className="inline-flex items-center gap-1 text-sm text-slate-650 hover:text-slate-750 dark:text-slate-450 dark:hover:text-slate-300 font-bold transition-colors"
@@ -3257,12 +3396,14 @@ MCS - Gestão Comercial`;
                             </button>
                             {(fatura.status === 'pending_client_approval' || fatura.status === 'disputed') && (
                               <>
-                                <button
-                                  onClick={() => handleCopyLink(fatura.magic_link_token)}
-                                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
-                                >
-                                  <Copy className="w-3.5 h-3.5" /> Copiar Link
-                                </button>
+                                {!isDirectSemHoras && (
+                                  <button
+                                    onClick={() => handleCopyLink(fatura.magic_link_token)}
+                                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                  </button>
+                                )}
                                 
                                 <button
                                   onClick={() => handleTriggerResendEmail(fatura)}
@@ -3281,19 +3422,56 @@ MCS - Gestão Comercial`;
                             )}
                             {fatura.status === 'approved' && (
                               <>
+                                {isDirectSemHoras && (
+                                  <button
+                                    onClick={() => {
+                                      setEditingDirectFatura(fatura);
+                                      setIsDirectHexagonModalOpen(true);
+                                    }}
+                                    className="inline-flex items-center gap-1 text-xs text-slate-700 hover:text-slate-900 dark:text-slate-300 font-bold px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                  >
+                                    <Edit2 className="w-3.5 h-3.5" /> Editar
+                                  </button>
+                                )}
+
                                 <button
-                                  onClick={() => handleCopyLink(fatura.magic_link_token)}
-                                  className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                  onClick={() => handleExportA4PDFTracking(fatura.id, fatura.client?.nombre_comercial || 'Cliente', 'factura')}
+                                  className="inline-flex items-center gap-1 text-xs text-[#183935] dark:text-teal-300 font-bold px-2 py-1 border border-[#183935]/30 dark:border-teal-800 rounded-md hover:bg-[#183935]/5 transition-colors"
                                 >
-                                  <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                  <Download className="w-3.5 h-3.5" /> PDF
                                 </button>
+
+                                {!isDirectSemHoras && (
+                                  <button
+                                    onClick={() => handleCopyLink(fatura.magic_link_token)}
+                                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                  </button>
+                                )}
                                 
                                 <button
                                   onClick={() => handleTriggerResendEmail(fatura, true)}
-                                  className="inline-flex items-center gap-1 text-sm text-indigo-655 hover:text-indigo-755 dark:text-indigo-450 dark:hover:text-indigo-355 font-bold transition-all px-2.5 py-1 border border-indigo-205 dark:border-indigo-805 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/20 shadow-sm"
+                                  className="inline-flex items-center gap-1 text-xs text-indigo-655 hover:text-indigo-755 dark:text-indigo-450 dark:hover:text-indigo-355 font-bold transition-all px-2.5 py-1 border border-indigo-205 dark:border-indigo-805 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/20 shadow-sm"
                                 >
                                   <Mail className="w-3.5 h-3.5 mr-1" /> Enviar Fatura
                                 </button>
+
+                                {fatura.ajustes_json?.cobro_gerado ? (
+                                  <span className="text-xs text-emerald-655 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1 font-bold inline-flex items-center gap-1 shadow-sm">
+                                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
+                                    Cobros Gerado
+                                  </span>
+                                ) : (
+                                  <button
+                                    onClick={() => handleGerarCobro(fatura)}
+                                    disabled={isGeneratingCobro}
+                                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold transition-all shadow-sm active:scale-95 disabled:opacity-50"
+                                  >
+                                    {isGeneratingCobro ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
+                                    Gerar Cobros
+                                  </button>
+                                )}
 
                                 <button
                                   onClick={() => handleCancelFaturaTracking(fatura)}
@@ -3305,7 +3483,26 @@ MCS - Gestão Comercial`;
                             )}
                             {fatura.status === 'invoice_sent' && (
                               fatura.ajustes_json?.cobro_gerado ? (
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center gap-2.5 flex-wrap">
+                                  {isDirectSemHoras && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingDirectFatura(fatura);
+                                        setIsDirectHexagonModalOpen(true);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-xs text-slate-700 hover:text-slate-900 dark:text-slate-300 font-bold px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" /> Editar
+                                    </button>
+                                  )}
+
+                                  <button
+                                    onClick={() => handleExportA4PDFTracking(fatura.id, fatura.client?.nombre_comercial || 'Cliente', 'factura')}
+                                    className="inline-flex items-center gap-1 text-xs text-[#183935] dark:text-teal-300 font-bold px-2 py-1 border border-[#183935]/30 dark:border-teal-800 rounded-md hover:bg-[#183935]/5 transition-colors"
+                                  >
+                                    <Download className="w-3.5 h-3.5" /> PDF
+                                  </button>
+
                                   <span className="text-xs text-emerald-655 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                     Cobros Gerado
@@ -3321,12 +3518,33 @@ MCS - Gestão Comercial`;
                                 </div>
                               ) : (
                                 <>
+                                  {isDirectSemHoras && (
+                                    <button
+                                      onClick={() => {
+                                        setEditingDirectFatura(fatura);
+                                        setIsDirectHexagonModalOpen(true);
+                                      }}
+                                      className="inline-flex items-center gap-1 text-xs text-slate-700 hover:text-slate-900 dark:text-slate-300 font-bold px-2 py-1 border border-slate-200 dark:border-slate-700 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors"
+                                    >
+                                      <Edit2 className="w-3.5 h-3.5" /> Editar
+                                    </button>
+                                  )}
+
                                   <button
-                                    onClick={() => handleCopyLink(fatura.magic_link_token)}
-                                    className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                    onClick={() => handleExportA4PDFTracking(fatura.id, fatura.client?.nombre_comercial || 'Cliente', 'factura')}
+                                    className="inline-flex items-center gap-1 text-xs text-[#183935] dark:text-teal-300 font-bold px-2 py-1 border border-[#183935]/30 dark:border-teal-800 rounded-md hover:bg-[#183935]/5 transition-colors"
                                   >
-                                    <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                    <Download className="w-3.5 h-3.5" /> PDF
                                   </button>
+
+                                  {!isDirectSemHoras && (
+                                    <button
+                                      onClick={() => handleCopyLink(fatura.magic_link_token)}
+                                      className="inline-flex items-center gap-1 text-sm text-blue-600 hover:text-blue-700 dark:text-blue-400 dark:hover:text-blue-300 font-medium transition-colors"
+                                    >
+                                      <Copy className="w-3.5 h-3.5" /> Copiar Link
+                                    </button>
+                                  )}
                                   
                                   <button
                                     onClick={() => handleTriggerResendEmail(fatura, true)}
@@ -3450,28 +3668,32 @@ MCS - Gestão Comercial`;
 
                 {/* Tab Navigation */}
                 <div className="flex border-b border-slate-200 dark:border-slate-805 bg-slate-50 dark:bg-slate-900/50 p-1.5 rounded-xl mt-2">
-                  <button
-                    type="button"
-                    onClick={() => setDisputeActiveTab('resumo')}
-                    className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
-                      disputeActiveTab === 'resumo'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-105 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    Resumo de Horas (Folha de Ponto)
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDisputeActiveTab('informe')}
-                    className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
-                      disputeActiveTab === 'informe'
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-650 hover:bg-slate-105 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
-                    }`}
-                  >
-                    Informe Pró-forma
-                  </button>
+                  {!selectedDispute.ajustes_json?.sem_horas && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setDisputeActiveTab('resumo')}
+                        className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
+                          disputeActiveTab === 'resumo'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-105 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        Resumo de Horas (Folha de Ponto)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setDisputeActiveTab('informe')}
+                        className={`flex-1 py-2 px-3 rounded-lg text-[11px] font-bold transition-all ${
+                          disputeActiveTab === 'informe'
+                            ? 'bg-blue-600 text-white shadow-sm'
+                            : 'text-slate-650 hover:bg-slate-105 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
+                        }`}
+                      >
+                        Informe Pró-forma
+                      </button>
+                    </>
+                  )}
                   <button
                     type="button"
                     onClick={() => setDisputeActiveTab('factura')}
@@ -3481,7 +3703,7 @@ MCS - Gestão Comercial`;
                         : 'text-slate-650 hover:bg-slate-105 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800'
                     }`}
                   >
-                    Factura Única AT
+                    {isHexagonOrDirectSpanishFatura(selectedDispute) ? 'Factura Oficial Hexagon (Espanha)' : 'Factura Única AT'}
                   </button>
                 </div>
 
@@ -4232,23 +4454,91 @@ MCS - Gestão Comercial`;
                   {/* Factura Única Tab */}
                   {disputeActiveTab === 'factura' && (() => {
                     const disputeEmpresa = empresas.find(e => e.id === selectedDispute.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
+                    const isHexagonPreview = isHexagonOrDirectSpanishFatura(selectedDispute, disputeEmpresa);
                     return (
                       <div className="flex flex-col items-center w-full">
                         <div className="flex justify-between items-center w-full max-w-[800px] bg-blue-50 dark:bg-blue-950/20 p-3 rounded-xl border border-blue-100 dark:border-blue-900/50 mb-3 text-xs">
                           <span className="text-[11px] text-blue-700 dark:text-blue-400 font-bold">
-                            Factura Única AT (Pro-forma / Definitiva)
+                            {isHexagonPreview ? 'Factura Executiva — Hexagon Montajes Industriales, S.L.' : 'Factura Única AT (Pro-forma / Definitiva)'}
                           </span>
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'factura')}
-                            className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
-                          >
-                            <FileText size={12} /> Baixar PDF
-                          </Button>
+                          <div className="flex items-center gap-2">
+                            {selectedDispute.ajustes_json?.sem_horas && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const fatToEdit = selectedDispute;
+                                  handleCloseDisputeModal();
+                                  setEditingDirectFatura(fatToEdit);
+                                  setIsDirectHexagonModalOpen(true);
+                                }}
+                                className="text-[10px] h-7 font-extrabold border-slate-300 text-slate-700 hover:bg-slate-100 transition-all shadow-sm flex items-center gap-1.5"
+                              >
+                                <Edit2 size={12} /> Editar Fatura Direta
+                              </Button>
+                            )}
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => handleExportA4PDFTracking(selectedDispute.id, selectedDispute.client?.nombre_comercial || 'Cliente', 'factura')}
+                              className="text-[10px] h-7 font-extrabold border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white transition-all shadow-sm flex items-center gap-1.5"
+                            >
+                              <FileText size={12} /> Baixar PDF
+                            </Button>
+                          </div>
                         </div>
                         
-                        <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full">
+                        <div className="p-4 bg-slate-100 dark:bg-slate-900/50 flex justify-center text-xs rounded-xl w-full overflow-x-auto">
+                          {isHexagonPreview ? (() => {
+                            const hexFin = extractHexagonFinancialsFromFatura(selectedDispute, totalBaseVal);
+                            const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(selectedDispute);
+                            const htmlStr = buildHexagonFacturaHtml({
+                              docNumber: String(selectedDispute.fatura_numero || `2026.${disputeEmpresa?.next_invoice_number || 1}`),
+                              emissionDateStr,
+                              vencimentoDateStr,
+                              emissor: {
+                                legalName: disputeEmpresa?.legal_name || disputeEmpresa?.nome || 'HEXAGON MONTAJES INDUSTRIALES, S.L.',
+                                taxId: disputeEmpresa?.tax_id || 'B05688197',
+                                addressLine: disputeEmpresa?.address_line || '',
+                                postalCode: disputeEmpresa?.postal_code || '',
+                                city: disputeEmpresa?.city || '',
+                                province: disputeEmpresa?.province || '',
+                                country: 'España',
+                                email: disputeEmpresa?.email || '',
+                                phone: disputeEmpresa?.phone || '',
+                                logoUrl: disputeEmpresa?.invoice_logo_url || HEXAGON_DEFAULT_LOGO_URL,
+                                iban: selectedDispute.ajustes_json?.iban || disputeEmpresa?.bank_details || disputeEmpresa?.iban || '',
+                                bicSwift: selectedDispute.ajustes_json?.bic_swift || ''
+                              },
+                              cliente: {
+                                legalName: selectedDispute.client?.legal_name || selectedDispute.client?.razon_social || selectedDispute.client?.nombre_comercial || 'Cliente',
+                                tradeName: selectedDispute.client?.nombre_comercial || 'Cliente',
+                                taxId: selectedDispute.client?.cif_nif || selectedDispute.client?.taxId || 'N/A',
+                                addressLine: selectedDispute.client?.address_line || 'N/A',
+                                postalCodeCity: [selectedDispute.client?.postal_code, selectedDispute.client?.city].filter(Boolean).join(' '),
+                                province: selectedDispute.client?.province || '',
+                                country: selectedDispute.client?.countryName || selectedDispute.client?.country || selectedDispute.client?.country_name || selectedDispute.client?.province || 'España'
+                              },
+                              items: hexFin.items,
+                              ivaMode: hexFin.ivaMode,
+                              ivaPct: hexFin.ivaPct,
+                              baseImponible: hexFin.baseImponible,
+                              cuotaIva: hexFin.cuotaIva,
+                              totalFactura: hexFin.totalFactura,
+                              apontamentos: hexFin.apontamentos,
+                              notaLegalIva: hexFin.notaLegalIva,
+                              verifactuEnabled: hexFin.verifactuEnabled,
+                              verifactuQrUrl: selectedDispute.verifactu_qr_url || '',
+                              verifactuHash: selectedDispute.verifactu_hash || ''
+                            });
+                            return (
+                              <div
+                                id={`factura-sheet-${selectedDispute.id}`}
+                                className="shadow-md rounded overflow-hidden border border-slate-200 bg-white"
+                                dangerouslySetInnerHTML={{ __html: htmlStr }}
+                              />
+                            );
+                          })() : (
                           <div id={`factura-sheet-${selectedDispute.id}`} className="w-[800px] min-w-[800px] max-w-[800px] h-[1130px] bg-white p-8 pb-20 border border-slate-200 text-slate-800 rounded text-left relative flex flex-col justify-between select-none shadow-md">
                             {/* Wrapper do conteúdo flex-1 */}
                             <div className="flex-1">
@@ -4432,6 +4722,7 @@ MCS - Gestão Comercial`;
                               </span>
                             </div>
                           </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -4442,15 +4733,17 @@ MCS - Gestão Comercial`;
                   <Button variant="outline" onClick={handleCloseDisputeModal} disabled={resolvingDispute || isSplittingObras}>
                     Fechar
                   </Button>
-                  <Button 
-                    variant="outline" 
-                    onClick={handleSaveFinancialAdjustments} 
-                    disabled={isSavingAdjustments || resolvingDispute || isSplittingObras}
-                    className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
-                  >
-                    {isSavingAdjustments ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
-                    Salvar Ajustes
-                  </Button>
+                  {!selectedDispute.ajustes_json?.sem_horas && (
+                    <Button 
+                      variant="outline" 
+                      onClick={handleSaveFinancialAdjustments} 
+                      disabled={isSavingAdjustments || resolvingDispute || isSplittingObras}
+                      className="text-indigo-600 border-indigo-200 hover:bg-indigo-50 dark:hover:bg-indigo-950/40"
+                    >
+                      {isSavingAdjustments ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+                      Salvar Ajustes
+                    </Button>
+                  )}
                   {selectedDispute.status === 'disputed' && (
                     <>
                       <Button variant="outline" onClick={() => handleResolveDispute(false)} disabled={resolvingDispute || isSplittingObras} className="text-rose-600 border-rose-200 hover:bg-rose-50 hover:text-rose-700">
@@ -4516,7 +4809,9 @@ MCS - Gestão Comercial`;
 
             const currentAdj = emailData.ajustesJson || {};
             const currentTotalBase = emailData.totalValorBase !== undefined ? emailData.totalValorBase : emailData.totalValor;
-            const currentFinalTotal = (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.iva_pct || 0)/100);
+            const currentFinalTotal = currentAdj.sem_horas
+              ? Number(emailData.totalValor || 0)
+              : (currentTotalBase + Number(currentAdj.incrementos || 0) - Number(currentAdj.reducoes || 0)) * (1 + Number(currentAdj.iva_pct || 0)/100);
             const currentEmpresa = empresas.find(e => e.id === emailData.fatura?.empresa_id) || empresas.find(e => e.id === selectedEmpresaId);
 
             const emailOptions: Array<{ id: string; email: string; label: string }> = [];
@@ -4624,43 +4919,47 @@ MCS - Gestão Comercial`;
                   <div className="space-y-2">
                     <h4 className="font-bold text-indigo-600 dark:text-indigo-400 border-b dark:border-slate-800 pb-1 text-[11px] uppercase tracking-wider">Documentos Anexos (PDF)</h4>
                     <div className="flex flex-col gap-2.5 p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg">
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="chk_att_relatorio"
-                          checked={selectedAttachments.relatorio}
-                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, relatorio: e.target.checked }))}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleExportHoursPDFTracking(emailData.fatura)}
-                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
-                          title="Clique para visualizar/baixar o Relatório de Horas"
-                        >
-                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                          <span>Relatorio_Datas_Trabalhadas.pdf</span>
-                        </button>
-                      </div>
+                      {!currentAdj.sem_horas && (
+                        <>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="chk_att_relatorio"
+                              checked={selectedAttachments.relatorio}
+                              onChange={(e) => setSelectedAttachments(prev => ({ ...prev, relatorio: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleExportHoursPDFTracking(emailData.fatura)}
+                              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                              title="Clique para visualizar/baixar o Relatório de Horas"
+                            >
+                              <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                              <span>Relatorio_Datas_Trabalhadas.pdf</span>
+                            </button>
+                          </div>
 
-                      <div className="flex items-center gap-2">
-                        <input
-                          type="checkbox"
-                          id="chk_att_informe"
-                          checked={selectedAttachments.informe}
-                          onChange={(e) => setSelectedAttachments(prev => ({ ...prev, informe: e.target.checked }))}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'informe')}
-                          className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
-                          title="Clique para visualizar/baixar o Informe de Faturamento"
-                        >
-                          <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                          <span>Informe_Facturacion.pdf</span>
-                        </button>
-                      </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id="chk_att_informe"
+                              checked={selectedAttachments.informe}
+                              onChange={(e) => setSelectedAttachments(prev => ({ ...prev, informe: e.target.checked }))}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'informe')}
+                              className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
+                              title="Clique para visualizar/baixar o Informe de Faturamento"
+                            >
+                              <FileText className="w-4 h-4 text-rose-500 shrink-0" />
+                              <span>Informe_Facturacion.pdf</span>
+                            </button>
+                          </div>
+                        </>
+                      )}
 
                       <div className="flex items-center gap-2">
                         <input
@@ -4674,10 +4973,14 @@ MCS - Gestão Comercial`;
                           type="button"
                           onClick={() => handleExportA4PDFTracking(emailData.faturaId, emailData.clientName, 'factura')}
                           className="flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold text-left transition-all text-xs"
-                          title="Clique para visualizar/baixar a Factura Única"
+                          title="Clique para visualizar/baixar a Factura"
                         >
                           <FileText className="w-4 h-4 text-rose-500 shrink-0" />
-                          <span>Factura_Pró-forma.pdf</span>
+                          <span>
+                            {isHexagonOrDirectSpanishFatura(emailData.fatura)
+                              ? `Factura_${sanitizeFilenamePart(String(emailData.fatura?.fatura_numero || 'Hexagon'))}.pdf`
+                              : 'Factura_Pró-forma.pdf'}
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -5185,9 +5488,13 @@ MCS - Gestão Comercial`;
           {(() => {
             if (!cobroConfirmFatura) return null;
 
-            const subtotal = Number(cobroConfirmFatura.total_valor || 0);
-            const ivaAmount = cobroApplyIva ? subtotal * (cobroIvaPct / 100) : 0;
-            const finalTotal = subtotal + ivaAmount;
+            const isDirectSemHoras = Boolean(cobroConfirmFatura.ajustes_json?.sem_horas);
+            const hexFin = isDirectSemHoras ? extractHexagonFinancialsFromFatura(cobroConfirmFatura) : null;
+            const subtotal = hexFin ? hexFin.baseImponible : Number(cobroConfirmFatura.total_valor || 0);
+            const ivaAmount = hexFin ? hexFin.cuotaIva : (cobroApplyIva ? subtotal * (cobroIvaPct / 100) : 0);
+            const finalTotal = hexFin ? hexFin.totalFactura : (subtotal + ivaAmount);
+            const effectiveHasIva = hexFin ? hexFin.ivaPct > 0 : cobroApplyIva;
+            const effectiveIvaPct = hexFin ? hexFin.ivaPct : cobroIvaPct;
 
             return (
               <>
@@ -5203,30 +5510,32 @@ MCS - Gestão Comercial`;
 
                 <div className="py-4 space-y-4 text-xs font-semibold text-slate-700 dark:text-slate-350">
                   {/* Opção de IVA */}
-                  <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 p-3 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
-                    <label className="flex items-center space-x-2.5 cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={cobroApplyIva}
-                        onChange={(e) => setCobroApplyIva(e.target.checked)}
-                        className="h-4 w-4 rounded border-slate-300 text-emerald-605 focus:ring-emerald-500 cursor-pointer"
-                      />
-                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Destacar / Acrescentar IVA</span>
-                    </label>
-                    {cobroApplyIva && (
-                      <div className="flex items-center gap-1.5">
-                        <Input
-                          type="number"
-                          min="0"
-                          max="100"
-                          value={cobroIvaPct}
-                          onChange={(e) => setCobroIvaPct(Number(e.target.value))}
-                          className="w-14 h-7 text-center text-xs p-1 font-bold dark:bg-slate-900 dark:border-slate-800"
+                  {!isDirectSemHoras && (
+                    <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-950 p-3 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm">
+                      <label className="flex items-center space-x-2.5 cursor-pointer select-none">
+                        <input
+                          type="checkbox"
+                          checked={cobroApplyIva}
+                          onChange={(e) => setCobroApplyIva(e.target.checked)}
+                          className="h-4 w-4 rounded border-slate-300 text-emerald-605 focus:ring-emerald-500 cursor-pointer"
                         />
-                        <span className="text-xs font-bold text-slate-500">%</span>
-                      </div>
-                    )}
-                  </div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-slate-200">Destacar / Acrescentar IVA</span>
+                      </label>
+                      {cobroApplyIva && (
+                        <div className="flex items-center gap-1.5">
+                          <Input
+                            type="number"
+                            min="0"
+                            max="100"
+                            value={cobroIvaPct}
+                            onChange={(e) => setCobroIvaPct(Number(e.target.value))}
+                            className="w-14 h-7 text-center text-xs p-1 font-bold dark:bg-slate-900 dark:border-slate-800"
+                          />
+                          <span className="text-xs font-bold text-slate-500">%</span>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {cobroConfirmFatura.client?.viesApplicable && (
                     <div className={`p-3.5 rounded-xl border flex gap-2.5 text-xs font-semibold ${
@@ -5258,8 +5567,10 @@ MCS - Gestão Comercial`;
                     </div>
                     <div className="flex justify-between items-center">
                       <span>Documento</span>
-                      <span className="font-bold text-slate-900 dark:text-white">
-                        FAT-{cobroConfirmFatura.id.substring(0, 8).toUpperCase()}
+                      <span className="font-bold text-slate-900 dark:text-white font-mono">
+                        {isDirectSemHoras && cobroConfirmFatura.fatura_numero
+                          ? cobroConfirmFatura.fatura_numero
+                          : `FAT-${cobroConfirmFatura.id.substring(0, 8).toUpperCase()}`}
                       </span>
                     </div>
                     <div className="flex justify-between items-center">
@@ -5275,16 +5586,16 @@ MCS - Gestão Comercial`;
                       </span>
                     </div>
                     <div className="flex justify-between items-center text-slate-500">
-                      <span>IVA {cobroApplyIva ? `(${cobroIvaPct}%)` : ''}</span>
+                      <span>IVA {effectiveHasIva ? `(${effectiveIvaPct}%)` : '(0%)'}</span>
                       <span className="font-mono">
                         € {ivaAmount.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
                     <div className="flex justify-between items-center pt-2 border-t dark:border-slate-800 text-sm">
                       <span className="font-extrabold text-slate-850 dark:text-slate-200">
-                        {cobroApplyIva ? 'Valor Total com IVA' : 'Valor Total (Sem IVA)'}
+                        {effectiveHasIva ? 'Valor Total com IVA' : 'Valor Total (Sem IVA)'}
                       </span>
-                      <span className={`font-mono font-extrabold ${cobroApplyIva ? 'text-emerald-600 dark:text-emerald-450 text-base' : 'text-slate-900 dark:text-white'}`}>
+                      <span className={`font-mono font-extrabold ${effectiveHasIva ? 'text-emerald-600 dark:text-emerald-450 text-base' : 'text-slate-900 dark:text-white'}`}>
                         € {finalTotal.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -5850,6 +6161,38 @@ MCS - Gestão Comercial`;
           </div>
         );
       })()}
+
+      <NovaFaturaDiretaHexagonModal
+        open={isDirectHexagonModalOpen}
+        onOpenChange={(open) => {
+          setIsDirectHexagonModalOpen(open);
+          if (!open) setEditingDirectFatura(null);
+        }}
+        defaultPeriodMonth={typeof selectedMonth === 'number' ? selectedMonth + 1 : new Date().getMonth() + 1}
+        defaultPeriodYear={typeof selectedYear === 'number' ? selectedYear : new Date().getFullYear()}
+        editingFatura={editingDirectFatura}
+        onSaved={async (savedFatura, options) => {
+          setTrackingTab('completed');
+          const pMonth = savedFatura?.ajustes_json?.period_month;
+          const pYear = savedFatura?.ajustes_json?.period_year;
+          if (pMonth && pYear) {
+            setSelectedMonth(Number(pMonth) - 1);
+            setSelectedYear(Number(pYear));
+          }
+          if (selectedEmpresaId !== HEXAGON_EMPRESA_ID) {
+            setSelectedEmpresaId(HEXAGON_EMPRESA_ID);
+          } else {
+            await fetchFaturas();
+          }
+          if (options?.downloadPdf && savedFatura?.id) {
+            await handleExportA4PDFTracking(
+              savedFatura.id,
+              savedFatura.client?.nombre_comercial || 'Cliente',
+              'factura'
+            );
+          }
+        }}
+      />
     </div>
   );
 }

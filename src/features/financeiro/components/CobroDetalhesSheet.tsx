@@ -260,13 +260,21 @@ export function CobroDetalhesSheet({
                 if (fatData.client_id) {
                     try {
                         const { data: clientData } = await supabase
-                            .schema('core_personal')
+                            .schema('core_common')
                             .from('clients')
-                            .select('*')
+                            .select('*, countries(name)')
                             .eq('id', fatData.client_id)
                             .single();
                         if (clientData) {
-                            fatData.client = clientData;
+                            const cName = (clientData as any).countries
+                                ? (Array.isArray((clientData as any).countries) ? (clientData as any).countries[0]?.name : (clientData as any).countries.name)
+                                : null;
+                            fatData.client = {
+                                ...clientData,
+                                country: cName,
+                                countryName: cName,
+                                country_name: cName
+                            };
                         }
                     } catch (e) {
                         console.warn('Erro ao buscar cliente da fatura:', e);
@@ -582,69 +590,73 @@ export function CobroDetalhesSheet({
                                         </div>
 
                                         {/* 2. Informe de Faturamento */}
-                                        <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center font-bold flex-none">
-                                                    <FileSpreadsheet size={20} />
+                                        {!faturaInfo.ajustes_json?.sem_horas && (
+                                            <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-md bg-blue-50 dark:bg-blue-950/50 text-blue-600 flex items-center justify-center font-bold flex-none">
+                                                        <FileSpreadsheet size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                            Informe de Facturación
+                                                        </span>
+                                                        <p className="text-[11px] text-slate-500">
+                                                            Detalhamento comercial com relação de trabalhadores, tarifas e ajustes.
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                                                        Informe de Facturación
-                                                    </span>
-                                                    <p className="text-[11px] text-slate-500">
-                                                        Detalhamento comercial com relação de trabalhadores, tarifas e ajustes.
-                                                    </p>
-                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={handleDownloadInformePdf}
+                                                    disabled={isGeneratingPdf !== null}
+                                                    className="h-8 px-3 text-xs font-semibold flex-none ml-2"
+                                                >
+                                                    {isGeneratingPdf === 'informe' ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                                                    ) : (
+                                                        <Download className="w-3.5 h-3.5 mr-1" />
+                                                    )}
+                                                    Baixar Informe
+                                                </Button>
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={handleDownloadInformePdf}
-                                                disabled={isGeneratingPdf !== null}
-                                                className="h-8 px-3 text-xs font-semibold flex-none ml-2"
-                                            >
-                                                {isGeneratingPdf === 'informe' ? (
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                                                ) : (
-                                                    <Download className="w-3.5 h-3.5 mr-1" />
-                                                )}
-                                                Baixar Informe
-                                            </Button>
-                                        </div>
+                                        )}
 
                                         {/* 3. Relatório de Horas (Folha de Ponto) */}
-                                        <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-9 h-9 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center font-bold flex-none">
-                                                    <Calendar size={20} />
+                                        {!faturaInfo.ajustes_json?.sem_horas && (
+                                            <div className="bg-white dark:bg-slate-900 border rounded-lg p-3 shadow-sm flex items-center justify-between hover:border-slate-300 dark:hover:border-slate-700 transition-colors">
+                                                <div className="flex items-center gap-3">
+                                                    <div className="w-9 h-9 rounded-md bg-emerald-50 dark:bg-emerald-950/50 text-emerald-600 flex items-center justify-center font-bold flex-none">
+                                                        <Calendar size={20} />
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                                                            Folha de Ponto / Relatório de Horas
+                                                        </span>
+                                                        <p className="text-[11px] text-slate-500">
+                                                            Calendário mensal detalhado com horas diárias trabalhadas por colaborador.
+                                                        </p>
+                                                    </div>
                                                 </div>
-                                                <div>
-                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
-                                                        Folha de Ponto / Relatório de Horas
-                                                    </span>
-                                                    <p className="text-[11px] text-slate-500">
-                                                        Calendário mensal detalhado com horas diárias trabalhadas por colaborador.
-                                                    </p>
-                                                </div>
+                                                <Button
+                                                    size="sm"
+                                                    variant="outline"
+                                                    onClick={handleDownloadRelatorioHorasPdf}
+                                                    disabled={isGeneratingPdf !== null}
+                                                    className="h-8 px-3 text-xs font-semibold flex-none ml-2"
+                                                >
+                                                    {isGeneratingPdf === 'horas' ? (
+                                                        <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
+                                                    ) : (
+                                                        <Download className="w-3.5 h-3.5 mr-1" />
+                                                    )}
+                                                    Baixar Ponto
+                                                </Button>
                                             </div>
-                                            <Button
-                                                size="sm"
-                                                variant="outline"
-                                                onClick={handleDownloadRelatorioHorasPdf}
-                                                disabled={isGeneratingPdf !== null}
-                                                className="h-8 px-3 text-xs font-semibold flex-none ml-2"
-                                            >
-                                                {isGeneratingPdf === 'horas' ? (
-                                                    <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" />
-                                                ) : (
-                                                    <Download className="w-3.5 h-3.5 mr-1" />
-                                                )}
-                                                Baixar Ponto
-                                            </Button>
-                                        </div>
+                                        )}
 
                                         {/* 4. Link Portal do Cliente se magic_link_token */}
-                                        {faturaInfo.magic_link_token && (
+                                        {faturaInfo.magic_link_token && !faturaInfo.ajustes_json?.sem_horas && (
                                             <div className="bg-slate-50 dark:bg-slate-800/40 border border-dashed rounded-lg p-2.5 flex items-center justify-between">
                                                 <div className="flex items-center gap-2">
                                                     <Eye size={14} className="text-slate-400" />
@@ -766,17 +778,40 @@ export function CobroDetalhesSheet({
                                     {/* Fatura Summary */}
                                     {faturaInfo && (
                                         <div className="bg-slate-50 dark:bg-slate-800/30 p-3 rounded-lg border text-xs space-y-2">
-                                            <p className="font-bold text-slate-700 dark:text-slate-300">{t('financeiro.detail_sheet.billing_fatura_linked', 'Fatura Vinc. ID:')} <span className="font-mono text-slate-500">{faturaInfo.id.substring(0,8).toUpperCase()}</span></p>
-                                            <div className="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-400 font-medium">
-                                                <div>{t('financeiro.detail_sheet.period', 'Período:')} <span className="font-bold text-slate-800 dark:text-slate-200">{faturaInfo.periodo || '-'}</span></div>
-                                                <div>{t('financeiro.detail_sheet.total_hours', 'Total Horas:')} <span className="font-bold text-slate-800 dark:text-slate-200">{horasTrabalhadas.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0)}h</span></div>
-                                                <div>{t('financeiro.detail_sheet.subtotal', 'Subtotal:')} <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.subtotal || 0)}</span></div>
-                                                <div>{t('financeiro.detail_sheet.tax_iva', 'IVA (21%):')} <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.iva || 0)}</span></div>
+                                            <div className="flex items-center justify-between">
+                                                <p className="font-bold text-slate-700 dark:text-slate-300">
+                                                    {t('financeiro.detail_sheet.billing_fatura_linked', 'Fatura Vinc. ID:')}{' '}
+                                                    <span className="font-mono text-slate-500">{faturaInfo.fatura_numero || faturaInfo.id.substring(0,8).toUpperCase()}</span>
+                                                </p>
+                                                {faturaInfo.ajustes_json?.sem_horas && (
+                                                    <span className="text-[10px] font-bold uppercase tracking-wider bg-[#183935]/10 text-[#183935] dark:bg-teal-950/60 dark:text-teal-300 px-2 py-0.5 rounded">
+                                                        Fatura Direta · Sem Horas
+                                                    </span>
+                                                )}
                                             </div>
+                                            <div className="grid grid-cols-2 gap-2 text-slate-600 dark:text-slate-400 font-medium">
+                                                <div>{t('financeiro.detail_sheet.period', 'Período:')} <span className="font-bold text-slate-800 dark:text-slate-200">{faturaInfo.periodo || (faturaInfo.ajustes_json?.period_month && faturaInfo.ajustes_json?.period_year ? `${String(faturaInfo.ajustes_json.period_month).padStart(2, '0')}/${faturaInfo.ajustes_json.period_year}` : '-')}</span></div>
+                                                <div>
+                                                    {faturaInfo.ajustes_json?.sem_horas ? (
+                                                        <>Modalidade: <span className="font-bold text-slate-800 dark:text-slate-200">Serviços Administrativos / Valor Único</span></>
+                                                    ) : (
+                                                        <>{t('financeiro.detail_sheet.total_hours', 'Total Horas:')} <span className="font-bold text-slate-800 dark:text-slate-200">{horasTrabalhadas.reduce((sum, h) => sum + Number(h.horas_totais || 0), 0)}h</span></>
+                                                    )}
+                                                </div>
+                                                <div>{t('financeiro.detail_sheet.subtotal', 'Subtotal:')} <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.ajustes_json?.total_valor_base ?? faturaInfo.subtotal ?? 0)}</span></div>
+                                                <div>IVA ({faturaInfo.ajustes_json?.iva_pct ?? 0}%): <span className="font-bold text-slate-800 dark:text-slate-200">{formatCurrency(faturaInfo.ajustes_json?.cuota_iva ?? faturaInfo.iva ?? 0)}</span></div>
+                                            </div>
+                                            {faturaInfo.ajustes_json?.sem_horas && faturaInfo.ajustes_json?.descricao_servico && (
+                                                <div className="pt-2 border-t text-[11px] text-slate-600 dark:text-slate-300">
+                                                    <span className="font-bold text-slate-700 dark:text-slate-200">Descrição: </span>
+                                                    {faturaInfo.ajustes_json.descricao_servico}
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
                                     {/* Workers Hours Table */}
+                                    {!faturaInfo.ajustes_json?.sem_horas && (
                                     <div className="space-y-2">
                                         <h4 className="text-xs font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">{t('financeiro.detail_sheet.workers_hours_title', 'Trabalhadores e Horas Faturadas')}</h4>
                                         <div className="border rounded-lg overflow-hidden">
@@ -810,6 +845,7 @@ export function CobroDetalhesSheet({
                                             </Table>
                                         </div>
                                     </div>
+                                    )}
                                 </div>
                             )}
                         </TabsContent>

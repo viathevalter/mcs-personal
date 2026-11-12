@@ -50,7 +50,9 @@ import {
   XCircle,
   Eye,
   RefreshCw,
-  ExternalLink
+  ExternalLink,
+  Plus,
+  Receipt
 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
@@ -58,6 +60,15 @@ import { Textarea } from '@/components/ui/textarea';
 import { useEmpresa } from '../../../app/providers/EmpresaProvider';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { formatDateClean } from '@/shared/utils/dateUtils';
+import { NovaFaturaDiretaHexagonModal } from '../components/NovaFaturaDiretaHexagonModal';
+import {
+  HEXAGON_EMPRESA_ID,
+  HEXAGON_DEFAULT_LOGO_URL,
+  buildHexagonFacturaHtml,
+  extractHexagonFinancialsFromFatura,
+  isHexagonOrDirectSpanishFatura,
+  renderHexagonFacturaPDF,
+} from '../utils/hexagonFacturaTemplate';
 
 export const getBillingCycleDays = (startDay: number, year: number, monthIndex: number) => {
   const days: Array<{ day: number; month: number; year: number; dateStr: string; label: string; monthLabel: string }> = [];
@@ -169,7 +180,9 @@ export function FaturasPendentes() {
   const [searchQuery, setSearchQuery] = useState(() => {
     return sessionStorage.getItem('mcs:faturamento_pendentes_search') || '';
   });
-  const { selectedEmpresaId } = useEmpresa();
+  const { selectedEmpresaId, setSelectedEmpresaId } = useEmpresa();
+  const [isDirectHexagonModalOpen, setIsDirectHexagonModalOpen] = useState(false);
+  const [editingDirectFatura, setEditingDirectFatura] = useState<any | null>(null);
 
   const [clientActiveTabs, setClientActiveTabs] = useState<Record<string, 'edicao' | 'datas_trabalhadas' | 'importe' | 'informe' | 'factura'>>(() => {
     try {
@@ -1306,6 +1319,59 @@ MCS - Gestão Comercial`;
     const emissionDateStr = new Date(adj.dataEmissao + 'T00:00:00').toLocaleDateString('pt-PT');
     const vencimentoDateStr = new Date(adj.dataVencimento + 'T00:00:00').toLocaleDateString('pt-PT');
 
+    if (isHexagonOrDirectSpanishFatura(f)) {
+      const hexFin = extractHexagonFinancialsFromFatura(f, totalBase, displayTotalHoras);
+      return await renderHexagonFacturaPDF({
+        fat: {
+          ...f,
+          fatura_numero: effectiveFaturaNumero,
+          ajustes_json: {
+            ...(f.ajustesJson || {}),
+            incrementos: adj.incrementos,
+            incrementos_desc: adj.incrementosDesc,
+            reducoes: adj.reducoes,
+            reducoes_desc: adj.reducoesDesc,
+            iva_pct: f.ajustesJson?.sem_horas ? hexFin.ivaPct : adj.ivaPct,
+            descricao_servico: f.ajustesJson?.sem_horas ? f.ajustesJson?.descricao_servico : adj.descricaoServico,
+            iban: adj.iban || f.ajustesJson?.iban,
+            obra: selectedObra?.name || f.ajustesJson?.obra,
+          },
+          client: {
+            legal_name: f.clientLegalName || f.clientName,
+            nombre_comercial: f.clientName,
+            tax_id: f.taxId,
+            address_line: f.clientAddressLine,
+            postal_code: f.clientPostalCode,
+            city: f.clientCity,
+            countryName: f.clientCountryName,
+            billingEmail: f.billingEmail || f.clientEmail,
+          },
+        },
+        targetEmpresa: {
+          id: f.empresaId,
+          legal_name: f.empresaLegalName || f.empresaNome,
+          nome: f.empresaNome,
+          tax_id: f.empresaTaxId,
+          address_line: f.empresaAddressLine,
+          postal_code: f.empresaPostalCode,
+          city: f.empresaCity,
+          province: f.empresaProvince,
+          email: f.empresaEmail,
+          iban: f.empresaIban,
+          bank_details: f.empresaBankDetails,
+          invoice_logo_url: f.empresaInvoiceLogoUrl || HEXAGON_DEFAULT_LOGO_URL,
+        },
+        clientName: f.clientLegalName || f.clientName,
+        emissionDateStr,
+        vencimentoDateStr,
+        totalHoras: hexFin.totalHoras,
+        baseImponible: hexFin.baseImponible,
+        cuotaIva: hexFin.cuotaIva,
+        ivaPct: hexFin.ivaPct,
+        totalFactura: hexFin.totalFactura,
+      });
+    }
+
     const qrCodeSvg = document.querySelector(`#factura-sheet-${cardId} svg`);
     const qrCodeHtml = qrCodeSvg ? qrCodeSvg.outerHTML : `
       <div style="width: 80px; height: 80px; border: 1px solid #cbd5e1; display: flex; align-items: center; justify-content: center; font-size: 8px; color: #64748b; font-weight: bold;">
@@ -2308,17 +2374,24 @@ MCS - Gestão Comercial`;
   };
 
   const handleCancelFatura = async (f: ClientBillingSummary) => {
+    const isDirect = Boolean(f.isSemHoras || f.ajustesJson?.sem_horas);
     const confirmDelete = window.confirm(
-      `Tem certeza que deseja cancelar e excluir esta fatura de ${f.clientName}?\n\nTodas as horas voltarão para o estado pendente para que você possa refazer o faturamento do zero.`
+      isDirect
+        ? `Tem certeza que deseja cancelar e excluir a fatura direta ${f.faturaNumero || ''} de ${f.clientName}?`
+        : `Tem certeza que deseja cancelar e excluir esta fatura de ${f.clientName}?\n\nTodas as horas voltarão para o estado pendente para que você possa refazer o faturamento do zero.`
     );
     if (!confirmDelete) return;
 
     try {
       setProcessingClient(f.clientId);
-      const faturaId = f.clientHours.find(h => h.fatura_id)?.fatura_id;
+      const faturaId = f.clientHours?.find(h => h.fatura_id)?.fatura_id || f.activeFaturaId;
       if (faturaId) {
         await cancelarFatura(faturaId);
-        toast.success('Fatura cancelada com sucesso! As horas foram liberadas para novo faturamento.');
+        toast.success(
+          isDirect
+            ? 'Fatura direta excluída com sucesso!'
+            : 'Fatura cancelada com sucesso! As horas foram liberadas para novo faturamento.'
+        );
       } else {
         toast.info('Nenhuma fatura registrada para este cliente.');
       }
@@ -3337,9 +3410,20 @@ MCS - Gestão Comercial`;
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Operacional de Faturamento</h1>
           <p className="text-muted-foreground mt-1">
-            Revise as horas validadas e solicite a aprovação dos faturamentos.
+            Revise as horas validadas e solicite a aprovação dos faturamentos, ou emita faturas diretas de serviços.
           </p>
         </div>
+
+        <Button
+          onClick={() => {
+            setEditingDirectFatura(null);
+            setIsDirectHexagonModalOpen(true);
+          }}
+          className="bg-[#183935] hover:bg-[#122b28] text-white font-semibold gap-2 shadow-sm shrink-0"
+        >
+          <Plus className="h-4 w-4 text-[#e5a97c]" />
+          Gerar Fatura Direta (Hexagon)
+        </Button>
       </div>
 
       {/* Seletor de Período */}
@@ -3625,11 +3709,17 @@ MCS - Gestão Comercial`;
             const totalMonthValor = f.workers.reduce((sum, w) => sum + (w.totalValorMes ?? w.totalValor), 0);
             const totalBilledHours = Math.max(0, totalMonthHours - f.totalHoras);
             const totalBilledValor = Math.max(0, totalMonthValor - f.totalValor);
+            const isDirectSemHoras = Boolean(f.isSemHoras || f.ajustesJson?.sem_horas);
+            const directHexFin = isDirectSemHoras ? extractHexagonFinancialsFromFatura(f) : null;
 
             return (
               <Card 
                 key={cardId} 
-                className={`overflow-hidden shadow-sm transition-all hover:shadow-md border border-slate-200 dark:border-slate-800 ${
+                className={`overflow-hidden shadow-sm transition-all hover:shadow-md border ${
+                  isDirectSemHoras
+                    ? 'border-[#183935]/30 dark:border-emerald-800/60 bg-gradient-to-r from-emerald-50/20 via-transparent to-transparent'
+                    : 'border-slate-200 dark:border-slate-800'
+                } ${
                   isBlocked ? 'opacity-85 bg-slate-50/70 dark:bg-slate-900/10 border-dashed' : ''
                 }`}
               >
@@ -3643,9 +3733,13 @@ MCS - Gestão Comercial`;
                     {/* Coluna 1: Cliente e Empresa */}
                     <div className="flex items-center gap-3 sm:col-span-2">
                       <div className={`p-2.5 rounded-lg shrink-0 ${
-                        isBlocked ? 'bg-slate-100 text-slate-400' : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
+                        isDirectSemHoras
+                          ? 'bg-[#183935] text-[#e5a97c]'
+                          : isBlocked
+                            ? 'bg-slate-100 text-slate-400'
+                            : 'bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400'
                       }`}>
-                        <FileText size={20} />
+                        {isDirectSemHoras ? <Receipt size={20} /> : <FileText size={20} />}
                       </div>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
@@ -3662,6 +3756,11 @@ MCS - Gestão Comercial`;
                               </span>
                             )}
                           </h3>
+                          {isDirectSemHoras && (
+                            <Badge className="bg-[#183935] hover:bg-[#183935] text-[#f7cba8] border-0 text-[10px] font-bold px-2 py-0 shrink-0">
+                              Fatura Direta {f.faturaNumero ? `· ${f.faturaNumero}` : ''}
+                            </Badge>
+                          )}
                           {f.paymentTermDays !== null && f.paymentTermDays <= 15 && (
                             <Badge className="bg-emerald-500 hover:bg-emerald-600 text-white border-0 text-[9px] font-extrabold px-1.5 py-0 shadow-[0_0_8px_rgba(16,185,129,0.3)] shrink-0">
                               Prioridade
@@ -3714,14 +3813,24 @@ MCS - Gestão Comercial`;
                     <div className="flex items-center gap-2">
                       <Clock size={16} className="text-slate-400 shrink-0" />
                       <div className="text-sm">
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{isAlreadyInvoiced ? 'Horas Faturadas' : 'Horas a Faturar'}</p>
-                        <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
-                          {displayTotalHoras.toFixed(2)}h
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                          {isDirectSemHoras ? 'Modalidade' : (isAlreadyInvoiced ? 'Horas Faturadas' : 'Horas a Faturar')}
                         </p>
-                        {totalBilledHours > 0 && (
-                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
-                            Já fat: {totalBilledHours.toFixed(1)}h | Total: {totalMonthHours.toFixed(1)}h
-                          </p>
+                        {isDirectSemHoras ? (
+                          <Badge variant="secondary" className="text-[11px] font-semibold mt-0.5">
+                            Sem Horas · Valor Único
+                          </Badge>
+                        ) : (
+                          <>
+                            <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-slate-900 dark:text-slate-100'}`}>
+                              {displayTotalHoras.toFixed(2)}h
+                            </p>
+                            {totalBilledHours > 0 && (
+                              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                                Já fat: {totalBilledHours.toFixed(1)}h | Total: {totalMonthHours.toFixed(1)}h
+                              </p>
+                            )}
+                          </>
                         )}
                       </div>
                     </div>
@@ -3730,15 +3839,21 @@ MCS - Gestão Comercial`;
                     <div className="flex items-center gap-2">
                       <DollarSign size={16} className={isBlocked ? 'text-slate-400' : 'text-emerald-500'} />
                       <div className="text-sm">
-                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">{isAlreadyInvoiced ? 'Total Faturado' : 'Faturamento Pendente'}</p>
-                        <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
-                          € {displayTotalValor.toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        <p className="text-xs text-slate-400 uppercase tracking-wider font-semibold">
+                          {isDirectSemHoras ? 'Total Fatura' : (isAlreadyInvoiced ? 'Total Faturado' : 'Faturamento Pendente')}
                         </p>
-                        {totalBilledValor > 0 && (
+                        <p className={`font-bold leading-none ${isBlocked ? 'text-slate-500' : 'text-emerald-600 dark:text-emerald-500'}`}>
+                          € {(directHexFin ? directHexFin.totalFactura : displayTotalValor).toLocaleString('pt-PT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        {directHexFin ? (
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
+                            Base: € {directHexFin.baseImponible.toLocaleString('pt-PT', { minimumFractionDigits: 2 })} · IVA {directHexFin.ivaPct}%
+                          </p>
+                        ) : totalBilledValor > 0 ? (
                           <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-none">
                             Já fat: € {totalBilledValor.toLocaleString('pt-PT', { maximumFractionDigits: 0 })} | Total: € {totalMonthValor.toLocaleString('pt-PT', { maximumFractionDigits: 0 })}
                           </p>
-                        )}
+                        ) : null}
                       </div>
                     </div>
 
@@ -3746,7 +3861,48 @@ MCS - Gestão Comercial`;
 
                   <div className="flex items-center gap-3 w-full lg:w-auto justify-end">
                     {/* Ações baseadas no status */}
-                    {isBlocked ? (
+                    {isDirectSemHoras ? (
+                      <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
+                        <Button
+                          onClick={() => handleExportA4PDF(cardId, f.clientName, 'factura')}
+                          variant="outline"
+                          size="sm"
+                          className="border-[#183935]/40 text-[#183935] dark:text-emerald-300 hover:bg-[#183935]/10 font-medium gap-1.5 shrink-0"
+                        >
+                          <Download size={14} />
+                          Baixar PDF
+                        </Button>
+                        <Button
+                          onClick={() => {
+                            setEditingDirectFatura(f);
+                            setIsDirectHexagonModalOpen(true);
+                          }}
+                          variant="outline"
+                          size="sm"
+                          className="font-medium gap-1.5 shrink-0"
+                        >
+                          <Edit2 size={14} />
+                          Editar
+                        </Button>
+                        <Button
+                          onClick={() => navigate(`/faturamento/tracking?faturaId=${f.activeFaturaId}`)}
+                          size="sm"
+                          className="bg-[#183935] hover:bg-[#122b28] text-white font-semibold gap-1.5 shrink-0"
+                        >
+                          <ExternalLink size={14} />
+                          Tracking / Cobros
+                        </Button>
+                        <Button
+                          onClick={() => handleCancelFatura(f)}
+                          variant="outline"
+                          size="sm"
+                          className="border-red-300 bg-red-50/50 text-red-700 hover:bg-red-100 px-2.5 shrink-0 dark:bg-red-950/20 dark:text-red-400"
+                          title="Excluir Fatura Direta"
+                        >
+                          <Trash2 size={14} />
+                        </Button>
+                      </div>
+                    ) : isBlocked ? (
                       validatedUnbilled > 0 ? (
                         <Button 
                           onClick={(e) => {
@@ -3914,7 +4070,92 @@ MCS - Gestão Comercial`;
                 </div>
 
                 {/* Área Expandida (Trabalhadores e Horas Diárias com Abas) */}
-                {isExpanded && (
+                {isExpanded && isDirectSemHoras && directHexFin && (
+                  <div className="border-t border-slate-200 dark:border-slate-800 bg-slate-100/70 dark:bg-slate-900/40 p-5 space-y-4">
+                    <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <Badge className="bg-[#183935] text-[#f7cba8]">Fatura Direta Hexagon (Sem Horas)</Badge>
+                          {f.ajustesJson?.cobro_gerado && (
+                            <Badge className="bg-emerald-600 text-white">Cobros Já Gerado</Badge>
+                          )}
+                        </div>
+                        <p className="text-xs text-slate-600 dark:text-slate-300 max-w-3xl">
+                          {f.ajustesJson?.descricao_servico || 'Prestación de servicios administrativos y comerciales.'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => handleExportA4PDF(cardId, f.clientName, 'factura')}
+                          className="gap-1.5"
+                        >
+                          <Download size={14} />
+                          Exportar PDF Oficial
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => navigate(`/faturamento/tracking?faturaId=${f.activeFaturaId}`)}
+                          className="bg-[#183935] hover:bg-[#122b28] text-white gap-1.5"
+                        >
+                          <ExternalLink size={14} />
+                          Enviar / Gerar Cobros no Tracking
+                        </Button>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-center overflow-x-auto py-2">
+                      <div
+                        className="shadow-xl rounded border border-slate-200 bg-white overflow-hidden"
+                        style={{ width: '800px', minWidth: '800px' }}
+                        dangerouslySetInnerHTML={{
+                          __html: buildHexagonFacturaHtml({
+                            fat: {
+                              ...f,
+                              fatura_numero: f.faturaNumero,
+                              ajustes_json: f.ajustesJson,
+                              client: {
+                                legal_name: f.clientLegalName || f.clientName,
+                                nombre_comercial: f.clientName,
+                                tax_id: f.taxId,
+                                address_line: f.clientAddressLine,
+                                postal_code: f.clientPostalCode,
+                                city: f.clientCity,
+                                countryName: f.clientCountryName,
+                                billingEmail: f.billingEmail || f.clientEmail,
+                              },
+                            },
+                            targetEmpresa: {
+                              id: f.empresaId,
+                              legal_name: f.empresaLegalName || f.empresaNome,
+                              nome: f.empresaNome,
+                              tax_id: f.empresaTaxId,
+                              address_line: f.empresaAddressLine,
+                              postal_code: f.empresaPostalCode,
+                              city: f.empresaCity,
+                              province: f.empresaProvince,
+                              email: f.empresaEmail,
+                              iban: f.empresaIban,
+                              bank_details: f.empresaBankDetails,
+                              invoice_logo_url: f.empresaInvoiceLogoUrl || HEXAGON_DEFAULT_LOGO_URL,
+                            },
+                            clientName: f.clientLegalName || f.clientName,
+                            emissionDateStr: new Date((f.dataEmissaoFatura || f.ajustesJson?.data_emissao || new Date().toISOString().slice(0, 10)) + 'T00:00:00').toLocaleDateString('pt-PT'),
+                            vencimentoDateStr: new Date((f.ajustesJson?.data_vencimento || f.dataEmissaoFatura || new Date().toISOString().slice(0, 10)) + 'T00:00:00').toLocaleDateString('pt-PT'),
+                            totalHoras: 0,
+                            baseImponible: directHexFin.baseImponible,
+                            cuotaIva: directHexFin.cuotaIva,
+                            ivaPct: directHexFin.ivaPct,
+                            totalFactura: directHexFin.totalFactura,
+                          }),
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {isExpanded && !isDirectSemHoras && (
                   <div className="border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-900/10 text-left">
                     {/* Alerta de Validação VIES */}
                     {f.viesApplicable && !f.viesValid && (
@@ -6131,6 +6372,27 @@ MCS - Gestão Comercial`;
           })()}
         </DialogContent>
       </Dialog>
+
+      <NovaFaturaDiretaHexagonModal
+        open={isDirectHexagonModalOpen}
+        onOpenChange={(v) => {
+          setIsDirectHexagonModalOpen(v);
+          if (!v) setEditingDirectFatura(null);
+        }}
+        defaultMonth={selectedMonth + 1}
+        defaultYear={selectedYear}
+        editingFatura={editingDirectFatura}
+        onSuccess={({ periodMonth, periodYear }) => {
+          setSelectedMonth(periodMonth - 1);
+          setSelectedYear(periodYear);
+          if (selectedEmpresaId !== HEXAGON_EMPRESA_ID) {
+            setSelectedEmpresaId(HEXAGON_EMPRESA_ID);
+            toast.info('Empresa ativa alterada para HEXAGON para exibir a fatura criada.');
+          } else {
+            fetchHoras();
+          }
+        }}
+      />
 
     </div>
   );

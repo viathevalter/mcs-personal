@@ -3,6 +3,14 @@ import { mapSupabaseError } from '@/shared/api/supabaseError';
 import { getHoursControlWorkers } from '@/features/workers/api/workersApi';
 import { createClient } from '@supabase/supabase-js';
 import { normalizeEmpresaName } from '@/features/financeiro/lib/utils';
+import {
+  HEXAGON_EMPRESA_ID,
+  DEFAULT_HEXAGON_DIRECT_DESCRIPTION,
+  computeDirectInvoiceTotals,
+  extractHexagonFinancialsFromFatura,
+  type HexagonIvaMode,
+  type DirectInvoiceLineItem,
+} from '@/features/faturamento/utils/hexagonFacturaTemplate';
 
 // Helper to query Supabase tables in small batches to prevent URL/HTTP gateway size limits (e.g. 414 Request-URI Too Large)
 async function fetchInChunks<T>(
@@ -199,6 +207,8 @@ export interface ClientBillingSummary {
   viesLastCheckedAt?: string | null;
   taxId?: string | null;
   countryId?: string | null;
+  billingCycleStartDay?: number;
+  isSemHoras?: boolean;
   obras: Array<{
     id: string | null;
     name: string;
@@ -1235,6 +1245,109 @@ export async function getHorasPendentesFaturamento(
       });
     }
 
+    // 6. Include direct (sem_horas) invoices for this company and reference period
+    const { data: directFaturasData } = await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .select('id, client_id, empresa_id, status, magic_link_token, data_emissao, ajustes_json, fatura_numero, atcud, observacoes_cliente, created_at')
+      .eq('empresa_id', empresaId)
+      .order('created_at', { ascending: false });
+
+    if (directFaturasData && directFaturasData.length > 0) {
+      for (const df of directFaturasData) {
+        const adj = df.ajustes_json || {};
+        if (!adj.sem_horas && adj.tipo_fatura !== 'direta') continue;
+
+        let dfYear = Number(adj.period_year || 0);
+        let dfMonth = Number(adj.period_month || 0);
+        if (!dfYear || !dfMonth) {
+          const rawEmissao = String(df.data_emissao || adj.data_emissao || '').slice(0, 10);
+          const parts = rawEmissao.split('-');
+          if (parts.length >= 2) {
+            dfYear = parseInt(parts[0], 10);
+            dfMonth = parseInt(parts[1], 10);
+          }
+        }
+        if (dfYear !== periodYear || dfMonth !== periodMonth) continue;
+
+        const client = clientsList.find(c => c.id === df.client_id);
+        const hexFin = extractHexagonFinancialsFromFatura(df);
+        const termName = client ? (client.payment_terms || (client.payment_term_id ? ptMap.get(client.payment_term_id)?.name : null) || 'N/A') : 'N/A';
+        const termDays = client ? ((client.payment_term_id ? ptMap.get(client.payment_term_id)?.days : null) ?? null) : null;
+
+        let dfStatusBilling: ClientBillingSummary['statusBilling'] = 'invoiced_approved';
+        if (df.status === 'pending_client_approval') {
+          dfStatusBilling = 'invoiced_pending';
+        } else if (df.status === 'disputed') {
+          dfStatusBilling = 'invoiced_disputed';
+        }
+
+        clientSummaries.unshift({
+          clientId: df.client_id,
+          clientName: client?.trade_name || client?.legal_name || adj.cliente_nome || 'Cliente',
+          clientLegalName: client?.legal_name || client?.trade_name || adj.cliente_nome || 'Cliente',
+          clientCodigo: client?.codigo || null,
+          empresaNome,
+          empresaLegalName,
+          empresaId: empresaId || '',
+          empresaInvoiceSeries,
+          empresaNextInvoiceNumber,
+          empresaAtcudPrefix,
+          empresaCapitalSocial,
+          empresaConservatoria,
+          empresaMatricula,
+          empresaCertifiedSoftwareText,
+          empresaInvoiceLogoUrl,
+          empresaAddressLine,
+          empresaPostalCode,
+          empresaCity,
+          empresaProvince,
+          empresaTaxId,
+          empresaEmail,
+          empresaPhone,
+          empresaIban,
+          empresaBankDetails,
+          clientAddressLine: client?.address_line || adj.cliente_morada || null,
+          clientPostalCode: client?.postal_code || adj.cliente_cp || null,
+          clientCity: client?.city || adj.cliente_cidade || null,
+          clientProvince: client?.province || null,
+          clientCountryName: client?.countries
+            ? (Array.isArray(client.countries) ? client.countries[0]?.name : (client.countries as any).name)
+            : (adj.cliente_pais || null),
+          faturaNumero: df.fatura_numero || null,
+          activeFaturaId: df.id,
+          atcud: df.atcud || null,
+          year: periodYear,
+          month: periodMonth - 1,
+          totalHoras: 0,
+          totalValor: hexFin.baseImponible,
+          statusBilling: dfStatusBilling,
+          magicLinkToken: df.magic_link_token || df.id,
+          dataEmissaoFatura: df.data_emissao || null,
+          ajustesJson: adj,
+          observacoesCliente: df.observacoes_cliente || null,
+          disputeFileUrl: adj.dispute_file_url || null,
+          totalWorkers: 0,
+          validatedWorkers: 0,
+          paymentTermName: termName,
+          paymentTermDays: termDays,
+          billingEmail: client?.billing_email || null,
+          clientEmail: client?.email || null,
+          viesApplicable: client?.vies_applicable || false,
+          viesStatus: client?.vies_status || 'not_checked',
+          viesValid: client?.vies_valid || false,
+          viesLastCheckedAt: client?.vies_last_checked_at || null,
+          taxId: client?.tax_id || adj.cliente_nif || null,
+          countryId: client?.country_id || null,
+          billingCycleStartDay: client?.billing_cycle_start_day || 1,
+          isSemHoras: true,
+          obras: [],
+          workers: [],
+          clientHours: []
+        });
+      }
+    }
+
     return clientSummaries;
   } catch (error: any) {
     console.error('Erro no getHorasPendentesFaturamento:', error);
@@ -1958,6 +2071,16 @@ export function resolveFaturaBillingCycle(
     return { cycleStartDay: 1, year: y, month: m };
   }
 
+  const adjPeriodYear = Number(fatura?.ajustes_json?.period_year || fatura?.period_year || 0);
+  const adjPeriodMonth = Number(fatura?.ajustes_json?.period_month || fatura?.period_month || 0);
+  if (adjPeriodYear >= 2000 && adjPeriodMonth >= 1 && adjPeriodMonth <= 12) {
+    return {
+      cycleStartDay: configuredStartDay,
+      year: adjPeriodYear,
+      month: adjPeriodMonth - 1
+    };
+  }
+
   const emissao = fatura?.data_emissao || fatura?.ajustes_json?.data_emissao;
   if (emissao) {
     const dStr = typeof emissao === 'string' ? emissao.split('T')[0] : new Date(emissao).toISOString().split('T')[0];
@@ -2059,6 +2182,14 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
       const baseValueMap = new Map<string, number>();
 
       faturas.forEach(f => {
+        if (f.ajustes_json?.sem_horas || f.ajustes_json?.tipo_fatura === 'direta') {
+          const hexFin = extractHexagonFinancialsFromFatura(f);
+          hoursMap.set(f.id, 0);
+          valueMap.set(f.id, hexFin.totalFactura);
+          baseValueMap.set(f.id, hexFin.baseImponible);
+          return;
+        }
+
         const faturaHours = hoursSums.filter(h => h.fatura_id === f.id);
         const disputedObj = f.ajustes_json?.disputed_hours || {};
         
@@ -2173,13 +2304,24 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
         const incrementos = Number(f.ajustes_json?.incrementos || 0);
         const ivaPct = Number(f.ajustes_json?.iva_pct || 0);
 
-        const finalH = storedH !== undefined ? storedH : ((computedH && computedH > 0) ? computedH : (f.total_horas || 0));
+        const isDirectSemHoras = Boolean(f.ajustes_json?.sem_horas || f.ajustes_json?.tipo_fatura === 'direta');
+
+        const finalH = isDirectSemHoras
+          ? 0
+          : (storedH !== undefined ? storedH : ((computedH && computedH > 0) ? computedH : (f.total_horas || 0)));
         const baseNetValue = ((Number(f.total_valor_base || f.total_valor || 0)) + incrementos - reducoes) * (1 + ivaPct / 100);
-        const finalV = storedV !== undefined ? storedV : ((computedV && computedV > 0) ? computedV : baseNetValue);
-        const finalBaseV = f.total_valor_base || f.ajustes_json?.total_valor_base || computedBaseV || f.total_valor || 0;
+        const finalV = isDirectSemHoras
+          ? (computedV !== undefined ? computedV : Number(storedV ?? f.total_valor ?? 0))
+          : (storedV !== undefined ? storedV : ((computedV && computedV > 0) ? computedV : baseNetValue));
+        const finalBaseV = isDirectSemHoras
+          ? (computedBaseV !== undefined ? computedBaseV : Number(f.ajustes_json?.total_valor_base ?? f.total_valor_base ?? 0))
+          : (f.total_valor_base || f.ajustes_json?.total_valor_base || computedBaseV || f.total_valor || 0);
 
         return {
           ...f,
+          period_year: f.ajustes_json?.period_year || null,
+          period_month: f.ajustes_json?.period_month || null,
+          data_vencimento: f.ajustes_json?.data_vencimento || null,
           client: client ? { 
             nombre_comercial: client.trade_name,
             legal_name: client.legal_name || client.trade_name || null,
@@ -2210,7 +2352,7 @@ export async function getFaturasTracking(empresaId?: string | null): Promise<any
           total_valor: finalV,
           total_valor_base: finalBaseV
         };
-      }).filter(f => f.status !== 'pending_client_approval' || (f.total_horas !== undefined && f.total_horas > 0));
+      }).filter(f => Boolean(f.ajustes_json?.sem_horas || f.ajustes_json?.tipo_fatura === 'direta') || f.status !== 'pending_client_approval' || (f.total_horas !== undefined && f.total_horas > 0));
   } catch (error: any) {
     console.error('Erro em getFaturasTracking:', error);
     return [];
@@ -2939,8 +3081,14 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
   }
   const dueDate = new Date(`${dueDateYMD}T00:00:00.000Z`);
 
-  // Use the calculated total value passed from frontend, otherwise fallback to subtotal * 1.21
-  const valorTotal = valorTotalComIva !== undefined ? valorTotalComIva : Number(fatura.total_valor || 0) * 1.21;
+  // Use the calculated total value passed from frontend, otherwise compute accurately
+  const isDirectSemHoras = Boolean(fatura.ajustes_json?.sem_horas || fatura.ajustes_json?.tipo_fatura === 'direta');
+  const valorTotal =
+    valorTotalComIva !== undefined
+      ? valorTotalComIva
+      : isDirectSemHoras
+        ? extractHexagonFinancialsFromFatura(fatura).totalFactura
+        : Number(fatura.total_valor || 0) * 1.21;
 
   // Query max sp_id to generate next value sequentially and avoid null violation
   const { data: maxRows } = await supabase
@@ -2959,8 +3107,10 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
   ];
   let periodoFat = '';
-  if (fatura.period_month && fatura.period_year) {
-    periodoFat = `${monthsPt[Number(fatura.period_month) - 1]} ${fatura.period_year}`;
+  const effPeriodMonth = fatura.period_month || fatura.ajustes_json?.period_month;
+  const effPeriodYear = fatura.period_year || fatura.ajustes_json?.period_year;
+  if (effPeriodMonth && effPeriodYear) {
+    periodoFat = `${monthsPt[Number(effPeriodMonth) - 1]} ${effPeriodYear}`;
   } else if (fatura.ajustes_json?.descricao_servico) {
     const match = fatura.ajustes_json.descricao_servico.match(/(Janeiro|Fevereiro|Março|Abril|Maio|Junho|Julho|Agosto|Setembro|Outubro|Novembro|Dezembro)\s+(\d{4})/i);
     if (match) {
@@ -2993,13 +3143,18 @@ export async function gerarCobroDaFatura(fatura: any, empresaNome: string, custo
   const { data: { session } } = await supabase.auth.getSession();
   const userEmail = session?.user?.email || 'Sistema';
 
+  const resolvedNumDoc =
+    isDirectSemHoras && fatura.fatura_numero
+      ? String(fatura.fatura_numero).replace(/^Factura\s*(n[º°]\s*)?/i, '').trim()
+      : `FAT-${fatura.id.substring(0, 8).toUpperCase()}`;
+
   const dbData = {
     sp_id: nextSpId,
     empresa: normalizeEmpresaName(empresaNome),
     cod_cliente: fatura.client?.codigo || fatura.client_id.substring(0, 8),
-    cliente: fatura.client?.nombre_comercial || 'Cliente',
+    cliente: fatura.client?.nombre_comercial || fatura.client?.legal_name || fatura.ajustes_json?.cliente_nome || 'Cliente',
     obra: fatura.ajustes_json?.obra || 'SIN OBRA',
-    num_doc: `FAT-${fatura.id.substring(0, 8).toUpperCase()}`,
+    num_doc: resolvedNumDoc,
     data_emissao: emissionDate.toISOString(),
     dt_venc: dueDate.toISOString(),
     valot_total: valorTotal.toFixed(2),
@@ -3190,6 +3345,612 @@ export async function sincronizarTarifasFaturamento(
     }
   }
 }
+
+export interface NovoClienteDiretoInput {
+  legal_name: string;
+  trade_name?: string;
+  tax_id: string;
+  address_line?: string;
+  postal_code?: string;
+  city?: string;
+  province?: string;
+  country_iso2?: string;
+  country_name?: string;
+  email?: string;
+  billing_email?: string;
+}
+
+export interface SalvarFaturaDiretaHexagonPayload {
+  faturaId?: string | null;
+  recipientMode: 'client' | 'empresa_grupo' | 'novo_cliente';
+  clientId?: string | null;
+  empresaGrupoSource?: any | null;
+  novoCliente?: NovoClienteDiretoInput | null;
+  faturaNumero?: string | null;
+  dataEmissao: string;
+  dataVencimento: string;
+  periodYear: number;
+  periodMonth: number;
+  periodoReferenciaLabel?: string;
+  obra?: string;
+  ivaMode: HexagonIvaMode;
+  customIvaPct?: number;
+  notaLegalIva?: string;
+  items: DirectInvoiceLineItem[];
+  incrementos?: number;
+  incrementosDesc?: string;
+  reducoes?: number;
+  reducoesDesc?: string;
+  formaPagamento?: string;
+  iban?: string;
+  bic?: string;
+  salvarIbanPadraoHexagon?: boolean;
+}
+
+export async function getDadosIniciaisFaturaDiretaHexagon(): Promise<{
+  hexagonEmpresa: any | null;
+  empresasGrupo: any[];
+  clientes: any[];
+  countries: Array<{ id: string; iso2: string; name: string }>;
+  suggestedInvoiceNumber: string;
+}> {
+  const [empRes, cliRes, cntRes, hexFatRes] = await Promise.all([
+    supabase.schema('core_common').from('empresas').select('*').order('nome', { ascending: true }),
+    supabase
+      .schema('core_common')
+      .from('clients')
+      .select(`
+        id, codigo, trade_name, legal_name, tax_id, address_line, postal_code, city, province, email, billing_email, country_id,
+        countries ( name, iso2 ),
+        client_company_settings ( empresa_id, status, payment_term_id )
+      `)
+      .is('deleted_at', null)
+      .order('trade_name', { ascending: true })
+      .range(0, 9999),
+    supabase.schema('core_common').from('countries').select('id, iso2, name').order('name', { ascending: true }),
+    supabase
+      .schema('core_finance')
+      .from('faturas')
+      .select('fatura_numero')
+      .eq('empresa_id', HEXAGON_EMPRESA_ID)
+      .order('created_at', { ascending: false })
+      .limit(100),
+  ]);
+
+  const allEmpresas = empRes.data || [];
+  const hexagonEmpresa =
+    allEmpresas.find((e: any) => e.id === HEXAGON_EMPRESA_ID) ||
+    allEmpresas.find((e: any) => String(e.codigo || '').toUpperCase() === 'HEX' || String(e.nome || '').toLowerCase().includes('hexagon')) ||
+    null;
+
+  const empresasGrupo = allEmpresas.filter((e: any) => e.id !== HEXAGON_EMPRESA_ID && e.is_active !== false);
+
+  const activeClients = (cliRes.data || []).filter((c: any) => {
+    if (!Array.isArray(c.client_company_settings) || c.client_company_settings.length === 0) return true;
+    return !c.client_company_settings.every((s: any) => s.status === 'inactive');
+  });
+
+  const year = new Date().getFullYear();
+  const seriesRaw = String(hexagonEmpresa?.invoice_series || '').trim();
+  let nextNum = Number(hexagonEmpresa?.next_invoice_number || 1);
+  if (isNaN(nextNum) || nextNum < 1) nextNum = 1;
+
+  const usedNumbers = new Set(
+    (hexFatRes.data || [])
+      .map((r: any) => String(r.fatura_numero || '').trim().toUpperCase())
+      .filter(Boolean)
+  );
+
+  const formatCandidate = (n: number) => {
+    if (!seriesRaw || seriesRaw === '1' || seriesRaw === String(year)) {
+      return `${year}/${String(n).padStart(2, '0')}`;
+    }
+    return `${seriesRaw}-${year}/${String(n).padStart(4, '0')}`;
+  };
+
+  let suggestedInvoiceNumber = formatCandidate(nextNum);
+  while (usedNumbers.has(suggestedInvoiceNumber.toUpperCase())) {
+    nextNum++;
+    suggestedInvoiceNumber = formatCandidate(nextNum);
+  }
+
+  return {
+    hexagonEmpresa,
+    empresasGrupo,
+    clientes: activeClients,
+    countries: (cntRes.data || []) as Array<{ id: string; iso2: string; name: string }>,
+    suggestedInvoiceNumber,
+  };
+}
+
+function normalizeTaxIdForLookup(tax?: string | null): string {
+  if (!tax) return '';
+  return tax.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+}
+
+function stripCountryPrefixFromTax(taxNorm: string): string {
+  return taxNorm.replace(/^(PT|ES|FR|DE|IT|BE|NL|LU|IE|AT|PL|RO)/, '');
+}
+
+async function ensureRecipientClientForHexagon(params: {
+  recipientMode: 'client' | 'empresa_grupo' | 'novo_cliente';
+  clientId?: string | null;
+  empresaGrupoSource?: any | null;
+  novoCliente?: NovoClienteDiretoInput | null;
+}): Promise<{
+  clientId: string;
+  clientSnapshot: {
+    legal_name: string;
+    trade_name: string;
+    tax_id: string;
+    address_line: string;
+    postal_code: string;
+    city: string;
+    country_name: string;
+    email: string;
+  };
+}> {
+  const { data: countriesList } = await supabase
+    .schema('core_common')
+    .from('countries')
+    .select('id, iso2, name');
+
+  const findCountryByIsoOrName = (iso2?: string | null, nameHint?: string | null) => {
+    const list = countriesList || [];
+    if (iso2) {
+      const m = list.find((c: any) => String(c.iso2 || '').toUpperCase() === iso2.toUpperCase());
+      if (m) return m;
+    }
+    if (nameHint) {
+      const h = nameHint.toLowerCase();
+      const m = list.find((c: any) => String(c.name || '').toLowerCase().includes(h));
+      if (m) return m;
+    }
+    return null;
+  };
+
+  const ensureHexagonSettings = async (targetClientId: string) => {
+    const { data: existingSetting } = await supabase
+      .schema('core_common')
+      .from('client_company_settings')
+      .select('client_id, empresa_id, status')
+      .eq('client_id', targetClientId)
+      .eq('empresa_id', HEXAGON_EMPRESA_ID)
+      .maybeSingle();
+
+    if (!existingSetting) {
+      await supabase
+        .schema('core_common')
+        .from('client_company_settings')
+        .insert({
+          client_id: targetClientId,
+          empresa_id: HEXAGON_EMPRESA_ID,
+          status: 'active',
+          billing_cycle_start_day: 1,
+          credit_limit: 0,
+        });
+    } else if (existingSetting.status !== 'active') {
+      await supabase
+        .schema('core_common')
+        .from('client_company_settings')
+        .update({ status: 'active' })
+        .eq('client_id', targetClientId)
+        .eq('empresa_id', HEXAGON_EMPRESA_ID);
+    }
+  };
+
+  if (params.recipientMode === 'client') {
+    if (!params.clientId) throw new Error('Selecione o cliente destinatário da fatura.');
+    const { data: cli, error: cliErr } = await supabase
+      .schema('core_common')
+      .from('clients')
+      .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province, email, billing_email, countries(name, iso2)')
+      .eq('id', params.clientId)
+      .single();
+    if (cliErr || !cli) throw new Error('Cliente não encontrado.');
+
+    await ensureHexagonSettings(cli.id);
+    const cName = cli.countries
+      ? (Array.isArray(cli.countries) ? cli.countries[0]?.name : (cli.countries as any).name)
+      : '';
+
+    return {
+      clientId: cli.id,
+      clientSnapshot: {
+        legal_name: cli.legal_name || cli.trade_name || 'Cliente',
+        trade_name: cli.trade_name || cli.legal_name || 'Cliente',
+        tax_id: cli.tax_id || '',
+        address_line: cli.address_line || '',
+        postal_code: cli.postal_code || '',
+        city: cli.city || '',
+        country_name: cName || '',
+        email: cli.billing_email || cli.email || '',
+      },
+    };
+  }
+
+  // Group company OR quick new client
+  let targetLegal = '';
+  let targetTrade = '';
+  let targetTax = '';
+  let targetAddress = '';
+  let targetPostal = '';
+  let targetCity = '';
+  let targetProvince = '';
+  let targetEmail = '';
+  let targetBillingEmail = '';
+  let iso2Hint = 'PT';
+  let countryNameHint = 'Portugal';
+
+  if (params.recipientMode === 'empresa_grupo') {
+    const emp = params.empresaGrupoSource;
+    if (!emp) throw new Error('Selecione a empresa destinatária.');
+    targetLegal = String(emp.legal_name || emp.nome || emp.trade_name || '').trim();
+    targetTrade = String(emp.trade_name || emp.nome || emp.legal_name || '').trim();
+    const rawTax = normalizeTaxIdForLookup(emp.tax_id);
+    // Infer country (Spanish CIFs typically start with A, B, ES; Portuguese NIFs start with 5 or PT5)
+    const looksSpanish =
+      rawTax.startsWith('ES') ||
+      /^[ABCDEFGHJNPQRSUVW]\d{7}[0-9A-J]$/.test(rawTax) ||
+      String(emp.postal_code || '').trim().length === 5;
+    if (looksSpanish) {
+      iso2Hint = 'ES';
+      countryNameHint = 'España';
+      targetTax = rawTax;
+    } else {
+      iso2Hint = 'PT';
+      countryNameHint = 'Portugal';
+      targetTax = rawTax.startsWith('PT') ? rawTax : (rawTax ? `PT${rawTax}` : '');
+    }
+    targetAddress = String(emp.address_line || '').trim();
+    targetPostal = String(emp.postal_code || '').trim();
+    targetCity = String(emp.city || '').trim();
+    targetProvince = String(emp.province || '').trim();
+    targetEmail = String(emp.email || '').trim();
+    targetBillingEmail = targetEmail;
+  } else {
+    const nc = params.novoCliente;
+    if (!nc || !nc.legal_name?.trim() || !nc.tax_id?.trim()) {
+      throw new Error('Preencha a Razão Social e o NIF/IVA do novo cliente.');
+    }
+    targetLegal = nc.legal_name.trim();
+    targetTrade = (nc.trade_name || nc.legal_name).trim();
+    targetTax = nc.tax_id.trim().toUpperCase();
+    targetAddress = (nc.address_line || '').trim();
+    targetPostal = (nc.postal_code || '').trim();
+    targetCity = (nc.city || '').trim();
+    targetProvince = (nc.province || '').trim();
+    targetEmail = (nc.email || nc.billing_email || '').trim();
+    targetBillingEmail = (nc.billing_email || nc.email || '').trim();
+    iso2Hint = nc.country_iso2 || (targetTax.startsWith('PT') ? 'PT' : targetTax.startsWith('ES') ? 'ES' : 'PT');
+    countryNameHint = nc.country_name || (iso2Hint === 'ES' ? 'España' : 'Portugal');
+  }
+
+  // Search existing client by normalized tax_id or normalized legal_name
+  const { data: allExisting } = await supabase
+    .schema('core_common')
+    .from('clients')
+    .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, province, email, billing_email, country_id')
+    .is('deleted_at', null)
+    .range(0, 9999);
+
+  const normTargetTax = normalizeTaxIdForLookup(targetTax);
+  const bareTargetTax = stripCountryPrefixFromTax(normTargetTax);
+  const normTargetLegal = normalizeName(targetLegal);
+
+  const matchedExisting = (allExisting || []).find((c: any) => {
+    const cTax = normalizeTaxIdForLookup(c.tax_id);
+    const cBare = stripCountryPrefixFromTax(cTax);
+    if (bareTargetTax && bareTargetTax.length >= 6 && (cTax === normTargetTax || cBare === bareTargetTax)) {
+      return true;
+    }
+    const cLegal = normalizeName(c.legal_name);
+    const cTrade = normalizeName(c.trade_name);
+    if (normTargetLegal && normTargetLegal.length >= 5 && (cLegal === normTargetLegal || cTrade === normTargetLegal)) {
+      return true;
+    }
+    return false;
+  });
+
+  const countryRecord = findCountryByIsoOrName(iso2Hint, countryNameHint);
+
+  if (matchedExisting) {
+    const patch: Record<string, any> = {};
+    if (!matchedExisting.tax_id && targetTax) patch.tax_id = targetTax;
+    if (!matchedExisting.address_line && targetAddress) patch.address_line = targetAddress;
+    if (!matchedExisting.postal_code && targetPostal) patch.postal_code = targetPostal;
+    if (!matchedExisting.city && targetCity) patch.city = targetCity;
+    if (!matchedExisting.country_id && countryRecord?.id) patch.country_id = countryRecord.id;
+    if (!matchedExisting.billing_email && targetBillingEmail) patch.billing_email = targetBillingEmail;
+    if (Object.keys(patch).length > 0) {
+      await supabase.schema('core_common').from('clients').update(patch).eq('id', matchedExisting.id);
+    }
+
+    await ensureHexagonSettings(matchedExisting.id);
+
+    return {
+      clientId: matchedExisting.id,
+      clientSnapshot: {
+        legal_name: matchedExisting.legal_name || targetLegal,
+        trade_name: matchedExisting.trade_name || targetTrade,
+        tax_id: matchedExisting.tax_id || targetTax,
+        address_line: matchedExisting.address_line || targetAddress,
+        postal_code: matchedExisting.postal_code || targetPostal,
+        city: matchedExisting.city || targetCity,
+        country_name: countryRecord?.name || countryNameHint,
+        email: matchedExisting.billing_email || matchedExisting.email || targetBillingEmail,
+      },
+    };
+  }
+
+  // Insert new client record cleanly
+  const { data: insertedClient, error: insErr } = await supabase
+    .schema('core_common')
+    .from('clients')
+    .insert({
+      trade_name: targetTrade || targetLegal,
+      legal_name: targetLegal,
+      tax_id: targetTax || 'PENDENTE',
+      address_line: targetAddress || null,
+      postal_code: targetPostal || null,
+      city: targetCity || null,
+      province: targetProvince || null,
+      country_id: countryRecord?.id || null,
+      email: targetEmail || null,
+      billing_email: targetBillingEmail || null,
+      vies_applicable: false,
+      vies_status: 'not_checked',
+      vies_valid: false,
+    })
+    .select('id, trade_name, legal_name, tax_id, address_line, postal_code, city, email, billing_email')
+    .single();
+
+  if (insErr || !insertedClient) throw mapSupabaseError(insErr || new Error('Erro ao cadastrar cliente destinatário.'));
+
+  await ensureHexagonSettings(insertedClient.id);
+
+  return {
+    clientId: insertedClient.id,
+    clientSnapshot: {
+      legal_name: insertedClient.legal_name || targetLegal,
+      trade_name: insertedClient.trade_name || targetTrade,
+      tax_id: insertedClient.tax_id || targetTax,
+      address_line: insertedClient.address_line || targetAddress,
+      postal_code: insertedClient.postal_code || targetPostal,
+      city: insertedClient.city || targetCity,
+      country_name: countryRecord?.name || countryNameHint,
+      email: insertedClient.billing_email || insertedClient.email || targetBillingEmail,
+    },
+  };
+}
+
+export async function salvarFaturaDiretaHexagon(payload: SalvarFaturaDiretaHexagonPayload): Promise<{
+  id: string;
+  fatura_numero: string;
+  client_id: string;
+  magic_link_token: string;
+  status: string;
+  data_emissao: string;
+  ajustes_json: any;
+}> {
+  const { clientId, clientSnapshot } = await ensureRecipientClientForHexagon({
+    recipientMode: payload.recipientMode,
+    clientId: payload.clientId,
+    empresaGrupoSource: payload.empresaGrupoSource,
+    novoCliente: payload.novoCliente,
+  });
+
+  const cleanItems = (payload.items || []).filter(
+    (it) => String(it.descricao || '').trim().length > 0 || Number(it.valorUnitario || 0) > 0
+  );
+  if (cleanItems.length === 0) {
+    throw new Error('Adicione pelo menos 1 item de serviço com valor na fatura.');
+  }
+
+  const calc = computeDirectInvoiceTotals({
+    items: cleanItems,
+    ivaMode: payload.ivaMode,
+    customIvaPct: payload.customIvaPct,
+    incrementos: payload.incrementos || 0,
+    reducoes: payload.reducoes || 0,
+  });
+
+  if (calc.totalFactura <= 0) {
+    throw new Error('O valor total da fatura deve ser maior que zero.');
+  }
+
+  // Resolve Hexagon company & numbering
+  const { data: hexEmpresa } = await supabase
+    .schema('core_common')
+    .from('empresas')
+    .select('id, invoice_series, next_invoice_number, iban, bank_details')
+    .eq('id', HEXAGON_EMPRESA_ID)
+    .maybeSingle();
+
+  let faturaNumero = String(payload.faturaNumero || '').trim();
+  const currentNextNum = Number(hexEmpresa?.next_invoice_number || 1);
+
+  if (!faturaNumero) {
+    const year = Number(String(payload.dataEmissao || '').slice(0, 4)) || new Date().getFullYear();
+    const seriesRaw = String(hexEmpresa?.invoice_series || '').trim();
+    let seq = isNaN(currentNextNum) || currentNextNum < 1 ? 1 : currentNextNum;
+
+    while (true) {
+      const candidate =
+        !seriesRaw || seriesRaw === '1' || seriesRaw === String(year)
+          ? `${year}/${String(seq).padStart(2, '0')}`
+          : `${seriesRaw}-${year}/${String(seq).padStart(4, '0')}`;
+      const { data: dup } = await supabase
+        .schema('core_finance')
+        .from('faturas')
+        .select('id')
+        .eq('empresa_id', HEXAGON_EMPRESA_ID)
+        .eq('fatura_numero', candidate)
+        .limit(1);
+      if (!dup || dup.length === 0 || (payload.faturaId && dup[0].id === payload.faturaId)) {
+        faturaNumero = candidate;
+        break;
+      }
+      seq++;
+    }
+
+    if (!payload.faturaId) {
+      await supabase
+        .schema('core_common')
+        .from('empresas')
+        .update({ next_invoice_number: seq + 1 })
+        .eq('id', HEXAGON_EMPRESA_ID);
+    }
+  } else if (!payload.faturaId) {
+    // If manual invoice number ends with digits >= currentNextNum, bump next_invoice_number
+    const trailingMatch = faturaNumero.match(/(\d+)\s*$/);
+    if (trailingMatch) {
+      const usedSeq = parseInt(trailingMatch[1], 10);
+      if (!isNaN(usedSeq) && usedSeq >= currentNextNum) {
+        await supabase
+          .schema('core_common')
+          .from('empresas')
+          .update({ next_invoice_number: usedSeq + 1 })
+          .eq('id', HEXAGON_EMPRESA_ID);
+      }
+    }
+  }
+
+  // Optionally persist IBAN onto Hexagon master record
+  if (payload.salvarIbanPadraoHexagon && payload.iban?.trim()) {
+    const cleanIban = payload.iban.trim();
+    const cleanBic = payload.bic?.trim() || '';
+    await supabase
+      .schema('core_common')
+      .from('empresas')
+      .update({
+        iban: cleanIban,
+        bank_details: cleanBic ? `${cleanIban} | BIC/SWIFT: ${cleanBic}` : cleanIban,
+      })
+      .eq('id', HEXAGON_EMPRESA_ID);
+  }
+
+  let existingFatura: any = null;
+  if (payload.faturaId) {
+    const { data: ef } = await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .select('*')
+      .eq('id', payload.faturaId)
+      .maybeSingle();
+    existingFatura = ef;
+  }
+
+  const prevAdj = existingFatura?.ajustes_json || {};
+  const monthsEs = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ];
+  const defaultPeriodLabel = `${monthsEs[Math.max(0, Math.min(11, payload.periodMonth - 1))]} ${payload.periodYear}`;
+
+  const updatedAjustes = {
+    ...prevAdj,
+    sem_horas: true,
+    tipo_fatura: 'direta',
+    template_modelo: 'hexagon_es',
+    verifactu_enabled: false,
+    iva_mode: calc.ivaMode,
+    iva_pct: calc.ivaPct,
+    iva_valor: calc.cuotaIva,
+    total_horas: 0,
+    total_valor_base: calc.baseImponible,
+    total_valor: calc.totalFactura,
+    valor_digitado:
+      cleanItems.length === 1 ? Number(cleanItems[0].valorUnitario || 0) : calc.totalFactura,
+    quantidade:
+      cleanItems.length === 1 ? Number(cleanItems[0].quantidade || 1) : 1,
+    descricao_servico: cleanItems[0]?.descricao || DEFAULT_HEXAGON_DIRECT_DESCRIPTION,
+    detalhes_apontamentos: cleanItems[0]?.subdescricao || '',
+    itens_manuais: cleanItems,
+    incrementos: Number(payload.incrementos || 0),
+    incrementos_desc: payload.incrementosDesc || '',
+    reducoes: Number(payload.reducoes || 0),
+    reducoes_desc: payload.reducoesDesc || '',
+    nota_legal_iva:
+      payload.notaLegalIva !== undefined && payload.notaLegalIva.trim() !== ''
+        ? payload.notaLegalIva.trim()
+        : calc.defaultNotaLegal,
+    forma_pagamento: payload.formaPagamento || 'Transferencia Bancaria',
+    condicoes_pagamento: payload.formaPagamento || 'Transferencia Bancaria',
+    iban: payload.iban?.trim() || '',
+    bic: payload.bic?.trim() || '',
+    data_emissao: payload.dataEmissao,
+    data_vencimento: payload.dataVencimento,
+    period_year: payload.periodYear,
+    period_month: payload.periodMonth,
+    periodo_referencia_label: payload.periodoReferenciaLabel?.trim() || defaultPeriodLabel,
+    obra: payload.obra?.trim() || '',
+    cliente_nome: clientSnapshot.legal_name,
+    cliente_nif: clientSnapshot.tax_id,
+    cliente_morada: clientSnapshot.address_line,
+    cliente_cp: clientSnapshot.postal_code,
+    cliente_cidade: clientSnapshot.city,
+    cliente_pais: clientSnapshot.country_name,
+  };
+
+  if (payload.faturaId && existingFatura) {
+    const { data: updatedRow, error: updErr } = await supabase
+      .schema('core_finance')
+      .from('faturas')
+      .update({
+        client_id: clientId,
+        empresa_id: HEXAGON_EMPRESA_ID,
+        data_emissao: payload.dataEmissao,
+        fatura_numero: faturaNumero,
+        ajustes_json: updatedAjustes,
+      })
+      .eq('id', payload.faturaId)
+      .select('id, fatura_numero, client_id, magic_link_token, status, data_emissao, ajustes_json')
+      .single();
+
+    if (updErr || !updatedRow) throw mapSupabaseError(updErr || new Error('Erro ao atualizar fatura direta.'));
+
+    // Keep linked open contas_receber synchronized if cobro was already generated and is 'A vencer'
+    if (updatedAjustes.cobro_gerado) {
+      await supabase
+        .from('contas_receber')
+        .update({
+          cliente: clientSnapshot.trade_name || clientSnapshot.legal_name,
+          obra: updatedAjustes.obra || 'SIN OBRA',
+          num_doc: faturaNumero.replace(/^Factura\s*(n[º°]\s*)?/i, '').trim(),
+          data_emissao: new Date(`${payload.dataEmissao}T00:00:00.000Z`).toISOString(),
+          dt_venc: new Date(`${payload.dataVencimento}T00:00:00.000Z`).toISOString(),
+          valot_total: calc.totalFactura.toFixed(2),
+          saldo_a_pagar: calc.totalFactura.toFixed(2),
+        })
+        .eq('fatura_id', payload.faturaId)
+        .eq('status', 'A vencer');
+    }
+
+    return updatedRow;
+  }
+
+  const token = crypto.randomUUID();
+  const { data: createdRow, error: insFatErr } = await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .insert({
+      client_id: clientId,
+      empresa_id: HEXAGON_EMPRESA_ID,
+      status: 'approved',
+      magic_link_token: token,
+      data_emissao: payload.dataEmissao,
+      fatura_numero: faturaNumero,
+      ajustes_json: updatedAjustes,
+    })
+    .select('id, fatura_numero, client_id, magic_link_token, status, data_emissao, ajustes_json')
+    .single();
+
+  if (insFatErr || !createdRow) throw mapSupabaseError(insFatErr || new Error('Erro ao criar fatura direta Hexagon.'));
+
+  return createdRow;
+}
+
 
 
 

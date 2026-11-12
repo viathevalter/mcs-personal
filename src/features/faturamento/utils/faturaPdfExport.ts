@@ -12,6 +12,11 @@ import {
 } from '../api/faturamentoApi';
 import { getBillingCycleDays } from '../pages/FaturasPendentes';
 import { supabase } from '@/shared/supabase/client';
+import {
+  isHexagonOrDirectSpanishFatura,
+  extractHexagonFinancialsFromFatura,
+  renderHexagonFacturaPDF,
+} from './hexagonFacturaTemplate';
 
 const MONTH_NAMES_PT = [
   'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -27,6 +32,13 @@ export function sanitizeFilenamePart(str: string): string {
 }
 
 export function getFaturaBillingPeriod(fat: any, hours?: any[]): string {
+  // 0. Check explicit period_year / period_month on direct invoices
+  const adjPeriodY = Number(fat?.ajustes_json?.period_year || fat?.period_year || 0);
+  const adjPeriodM = Number(fat?.ajustes_json?.period_month || fat?.period_month || 0);
+  if (adjPeriodY > 2000 && adjPeriodM >= 1 && adjPeriodM <= 12) {
+    return `${MONTH_NAMES_PT[adjPeriodM - 1]} ${adjPeriodY}`;
+  }
+
   // 1. Check hours (respecting custom billing cycle)
   if (hours && hours.length > 0) {
     const { year: y, month: m } = resolveFaturaBillingCycle(fat, hours);
@@ -232,13 +244,34 @@ export async function generateFacturaPDF(
   const disputedHoursObj = normalizeDisputedHoursMap(baseDisputed);
   const targetObraId = adj.obra_id || 'all';
 
-  const { totalHorasCalculadas, totalBaseVal } = computeDisputeTotalsAndCells(
-    hours,
+  const { totalHorasCalculadas, totalBaseVal: rawHoursBaseVal } = computeDisputeTotalsAndCells(
+    hours || [],
     disputedHoursObj,
     targetObraId
   );
 
+  const totalBaseVal =
+    rawHoursBaseVal > 0
+      ? rawHoursBaseVal
+      : Number(adj.total_valor_base ?? fat.total_valor_base ?? 0);
+
   const { emissionDateStr, vencimentoDateStr } = resolveFaturaDatesForPdf(fat);
+
+  if (isHexagonOrDirectSpanishFatura(fat, targetEmpresa)) {
+    const hexFin = extractHexagonFinancialsFromFatura(fat, rawHoursBaseVal, totalHorasCalculadas);
+    return renderHexagonFacturaPDF({
+      fat,
+      targetEmpresa,
+      clientName,
+      emissionDateStr,
+      vencimentoDateStr,
+      totalHoras: hexFin.totalHoras,
+      baseImponible: hexFin.baseImponible,
+      cuotaIva: hexFin.cuotaIva,
+      ivaPct: hexFin.ivaPct,
+      totalFactura: hexFin.totalFactura,
+    });
+  }
 
   let qrSvgString = '';
   try {
