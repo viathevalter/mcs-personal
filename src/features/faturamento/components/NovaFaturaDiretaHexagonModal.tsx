@@ -311,23 +311,11 @@ export const NovaFaturaDiretaHexagonModal: React.FC<NovaFaturaDiretaHexagonModal
           setSalvarIbanPadrao(!defaultBankDetails);
           setNotaLegalTouched(false);
 
-          // Pre-select Wiseowe if present in group companies, otherwise default to 'client' tab
-          const wiseoweEmp = res.empresasGrupo.find(
-            (e: any) =>
-              String(e.nome || '').toLowerCase().includes('wiseowe') ||
-              String(e.legal_name || '').toLowerCase().includes('wiseowe')
-          );
-          if (wiseoweEmp) {
-            setRecipientMode('empresa_grupo');
-            setSelectedEmpresaGrupoId(wiseoweEmp.id);
-            setIvaMode('exento_intracomunitario');
-            setNotaLegalIva(getDefaultNotaLegalForMode('exento_intracomunitario', 0));
-          } else {
-            setRecipientMode('client');
-            setSelectedEmpresaGrupoId(res.empresasGrupo[0]?.id || '');
-            setIvaMode('iva_incluido');
-            setNotaLegalIva(getDefaultNotaLegalForMode('iva_incluido', 21));
-          }
+          // Do not pre-select any recipient in memory; require explicit selection
+          setRecipientMode('client');
+          setSelectedEmpresaGrupoId('');
+          setIvaMode('iva_incluido');
+          setNotaLegalIva(getDefaultNotaLegalForMode('iva_incluido', 21));
 
           setSelectedClientId('');
           setClientSearch('');

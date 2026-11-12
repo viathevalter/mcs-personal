@@ -2354,6 +2354,20 @@ export function FaturasTracking() {
       }
       const data = await getFaturasTracking(selectedEmpresaId);
       setFaturas(data);
+
+      // Se a aba estiver em "Em Andamento" (0 pendentes de horas), mas houver faturas aprovadas/emitidas
+      // (como faturas diretas da Hexagon), alterna automaticamente para exibir todas as faturas visíveis.
+      if (!isSilent && data.length > 0) {
+        const hasPending = data.some(
+          (f: any) => f.status === 'pending_client_approval' || f.status === 'disputed'
+        );
+        const hasCompleted = data.some(
+          (f: any) => f.status === 'approved' || f.status === 'invoice_sent'
+        );
+        if (!hasPending && hasCompleted) {
+          setTrackingTab('all');
+        }
+      }
     } catch (error: any) {
       toast.error('Erro ao carregar faturas', { description: error.message });
     } finally {
@@ -3076,7 +3090,12 @@ MCS - Gestão Comercial`;
       {/* 3. Cards de Resumo / KPI do Período */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: Total do Período */}
-        <Card className="border-slate-200 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50">
+        <Card
+          onClick={() => setTrackingTab('all')}
+          className={`cursor-pointer transition-all border-slate-200 dark:border-slate-800 shadow-sm bg-gradient-to-br from-white to-slate-50/50 dark:from-slate-900 dark:to-slate-900/50 hover:shadow-md ${
+            trackingTab === 'all' ? 'ring-2 ring-blue-500/60 border-blue-400' : ''
+          }`}
+        >
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-xs font-bold text-slate-500 uppercase tracking-wider">Total no Período</p>
@@ -3094,7 +3113,12 @@ MCS - Gestão Comercial`;
         </Card>
 
         {/* Card 2: Em Andamento / Pendentes */}
-        <Card className="border-amber-200/80 dark:border-amber-900/40 shadow-sm bg-gradient-to-br from-white to-amber-50/30 dark:from-slate-900 dark:to-amber-950/20">
+        <Card
+          onClick={() => setTrackingTab('pending')}
+          className={`cursor-pointer transition-all border-amber-200/80 dark:border-amber-900/40 shadow-sm bg-gradient-to-br from-white to-amber-50/30 dark:from-slate-900 dark:to-amber-950/20 hover:shadow-md ${
+            trackingTab === 'pending' ? 'ring-2 ring-amber-500/60 border-amber-400' : ''
+          }`}
+        >
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-xs font-bold text-amber-700 dark:text-amber-400 uppercase tracking-wider">Em Andamento</p>
@@ -3112,7 +3136,12 @@ MCS - Gestão Comercial`;
         </Card>
 
         {/* Card 3: Finalizadas / Faturadas */}
-        <Card className="border-emerald-200/80 dark:border-emerald-900/40 shadow-sm bg-gradient-to-br from-white to-emerald-50/30 dark:from-slate-900 dark:to-emerald-950/20">
+        <Card
+          onClick={() => setTrackingTab('completed')}
+          className={`cursor-pointer transition-all border-emerald-200/80 dark:border-emerald-900/40 shadow-sm bg-gradient-to-br from-white to-emerald-50/30 dark:from-slate-900 dark:to-emerald-950/20 hover:shadow-md ${
+            trackingTab === 'completed' ? 'ring-2 ring-emerald-500/60 border-emerald-400' : ''
+          }`}
+        >
           <CardContent className="p-4 flex items-center justify-between">
             <div className="space-y-1">
               <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wider">Finalizadas</p>
@@ -3232,8 +3261,48 @@ MCS - Gestão Comercial`;
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
             </div>
           ) : filteredFaturas.length === 0 ? (
-            <div className="flex flex-col items-center justify-center h-48 text-center p-6">
-              <p className="text-lg font-medium text-muted-foreground">Nenhuma fatura encontrada.</p>
+            <div className="flex flex-col items-center justify-center min-h-[12rem] text-center p-6 gap-3">
+              {trackingTab === 'pending' && completedFaturas.length > 0 ? (
+                <>
+                  <p className="text-base font-semibold text-slate-700 dark:text-slate-200">
+                    Nenhuma fatura aguardando aprovação de horas nesta aba.
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md">
+                    Existem <strong className="text-emerald-700 dark:text-emerald-400">{completedFaturas.length} {completedFaturas.length === 1 ? 'fatura aprovada/emitida' : 'faturas aprovadas/emitidas'}</strong> neste período (incluindo faturas diretas).
+                  </p>
+                  <Button
+                    size="sm"
+                    onClick={() => setTrackingTab('all')}
+                    className="bg-[#183935] hover:bg-[#122b28] text-white font-bold gap-2 mt-1"
+                  >
+                    <CheckCircle2 className="w-4 h-4 text-[#c88d65]" />
+                    Ver {completedFaturas.length === 1 ? 'a Fatura Emitida' : `as ${completedFaturas.length} Faturas Emitidas`}
+                  </Button>
+                </>
+              ) : periodFaturas.length === 0 && faturas.length > 0 && selectedMonth !== 'all' ? (
+                <>
+                  <p className="text-base font-semibold text-slate-700 dark:text-slate-200">
+                    Nenhuma fatura encontrada no mês selecionado.
+                  </p>
+                  <p className="text-xs text-muted-foreground max-w-md">
+                    Existem <strong>{faturas.length}</strong> {faturas.length === 1 ? 'fatura emitida' : 'faturas emitidas'} em outros períodos desta empresa.
+                  </p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => {
+                      setSelectedMonth('all');
+                      setTrackingTab('all');
+                    }}
+                    className="font-semibold gap-2 mt-1"
+                  >
+                    <Calendar className="w-4 h-4" />
+                    Ver Todos os Meses ({faturas.length})
+                  </Button>
+                </>
+              ) : (
+                <p className="text-lg font-medium text-muted-foreground">Nenhuma fatura encontrada.</p>
+              )}
             </div>
           ) : (
             <div className="overflow-y-auto max-h-[calc(100vh-320px)] pr-2 scrollbar-thin scrollbar-thumb-slate-350 dark:scrollbar-thumb-slate-750 overscroll-contain w-full">
@@ -6112,7 +6181,7 @@ MCS - Gestão Comercial`;
         defaultYear={typeof selectedYear === 'number' ? selectedYear : new Date().getFullYear()}
         editingFatura={editingDirectFatura}
         onSuccess={async ({ periodMonth, periodYear }) => {
-          setTrackingTab('completed');
+          setTrackingTab('all');
           setSelectedMonth(periodMonth - 1);
           setSelectedYear(periodYear);
           if (selectedEmpresaId !== HEXAGON_EMPRESA_ID) {

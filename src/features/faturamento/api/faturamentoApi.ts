@@ -1493,6 +1493,14 @@ export async function solicitarAprovacaoCliente(
 }
 
 export async function cancelarFatura(faturaId: string): Promise<void> {
+  // 0. Capture fatura metadata before deletion so we can rewind next_invoice_number if it was the latest
+  const { data: targetFat } = await supabase
+    .schema('core_finance')
+    .from('faturas')
+    .select('id, empresa_id, fatura_numero')
+    .eq('id', faturaId)
+    .maybeSingle();
+
   // 1. Reset horas_trabalhadas pointing to this fatura back to validado and fatura_id = null
   const { error: horasError } = await supabase
     .schema('core_finance')
@@ -1535,6 +1543,32 @@ export async function cancelarFatura(faturaId: string): Promise<void> {
     .eq('id', faturaId);
 
   if (faturaError) throw mapSupabaseError(faturaError);
+
+  // 4. If this was the most recently numbered invoice of the company, rewind next_invoice_number
+  // so the sequence (e.g. 2026/01) is immediately freed for reuse without gaps.
+  if (targetFat?.empresa_id && targetFat?.fatura_numero) {
+    const trailingMatch = String(targetFat.fatura_numero).trim().match(/(\d+)\s*$/);
+    if (trailingMatch) {
+      const deletedSeq = parseInt(trailingMatch[1], 10);
+      if (!isNaN(deletedSeq) && deletedSeq >= 1) {
+        const { data: empRow } = await supabase
+          .schema('core_common')
+          .from('empresas')
+          .select('next_invoice_number')
+          .eq('id', targetFat.empresa_id)
+          .maybeSingle();
+
+        const currentNext = Number(empRow?.next_invoice_number || 1);
+        if (currentNext === deletedSeq + 1) {
+          await supabase
+            .schema('core_common')
+            .from('empresas')
+            .update({ next_invoice_number: deletedSeq })
+            .eq('id', targetFat.empresa_id);
+        }
+      }
+    }
+  }
 }
 
 export async function getFaturaByToken(token: string): Promise<{ fatura: Fatura, horas: HoraTrabalhada[], obras?: Array<{ id: string; name: string }> }> {
