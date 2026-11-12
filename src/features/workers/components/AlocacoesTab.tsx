@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Card, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Loader2, PlusCircle, Edit2, ShieldCheck, FileDown, Eye, AlertTriangle, CheckCircle2, Clock } from 'lucide-react';
+import { Loader2, PlusCircle, Edit2, ShieldCheck, FileDown, Eye, AlertTriangle, CheckCircle2, Clock, Home } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWorkerAlocacoes } from '../hooks/useWorkerAlocacoes';
 import { format } from 'date-fns';
@@ -13,6 +13,7 @@ import {
     termoResponsabilidadeService,
     type TermoResponsabilidadeAlojamento
 } from '@/features/logistica/services/termoResponsabilidadeService';
+import { logisticsService, type Alocacao } from '@/features/logistica/services/logisticsService';
 import { TermoResponsabilidadeModal } from '@/features/logistica/components/TermoResponsabilidadeModal';
 import { downloadTermoAlojamentoPdf } from '@/features/logistica/utils/termoAlojamentoPdfGenerator';
 
@@ -27,12 +28,18 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
     const [isEditModalOpen, setIsEditModalOpen] = useState(false);
     const [selectedAllocation, setSelectedAllocation] = useState<WorkerAlocacao | null>(null);
     const [termosAlojamento, setTermosAlojamento] = useState<TermoResponsabilidadeAlojamento[]>([]);
+    const [historicoAlojamentos, setHistoricoAlojamentos] = useState<Alocacao[]>([]);
     const [selectedTermoModal, setSelectedTermoModal] = useState<TermoResponsabilidadeAlojamento | null>(null);
 
     useEffect(() => {
         termoResponsabilidadeService
             .fetchTermosByWorker({ workerCodigo: workerCodColab, workerNome: workerName })
             .then(setTermosAlojamento)
+            .catch(() => {});
+
+        logisticsService
+            .fetchHistoricoAlojamentosTrabalhador({ codigoColab: workerCodColab, workerNome: workerName })
+            .then(setHistoricoAlojamentos)
             .catch(() => {});
     }, [workerCodColab, workerName]);
 
@@ -167,6 +174,129 @@ export function AlocacoesTab({ workerCodColab, workerName }: AlocacoesTabProps) 
                                 </TableCell>
                             </TableRow>
                         ))
+                    )}
+                </TableBody>
+            </Table>
+        </Card>
+
+        <Card className="overflow-hidden border-purple-200 dark:border-purple-900">
+            <CardHeader className="bg-purple-50/50 dark:bg-purple-950/30">
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <Home className="h-5 w-5 text-purple-600" />
+                        <div>
+                            <CardTitle className="text-base">
+                                Histórico de Alojamentos & Auxílio Moradia (Logística)
+                            </CardTitle>
+                            <CardDescription>
+                                Registro cronológico de estadias em alojamentos fixos/temporários da empresa, alojamento por cliente e períodos de alojamento próprio (€ 300/mês).
+                            </CardDescription>
+                        </div>
+                    </div>
+                </div>
+            </CardHeader>
+            <Table>
+                <TableHeader>
+                    <TableRow className="bg-muted/50">
+                        <TableHead className="font-semibold text-foreground">Modalidade</TableHead>
+                        <TableHead className="font-semibold text-foreground">Alojamento / Imóvel</TableHead>
+                        <TableHead className="font-semibold text-foreground">Cliente / Obra</TableHead>
+                        <TableHead className="font-semibold text-foreground">Entrada (Desde)</TableHead>
+                        <TableHead className="font-semibold text-foreground">Saída / Check-out</TableHead>
+                        <TableHead className="font-semibold text-foreground">Status & Observações</TableHead>
+                    </TableRow>
+                </TableHeader>
+                <TableBody>
+                    {historicoAlojamentos.length === 0 ? (
+                        <TableRow>
+                            <TableCell colSpan={6} className="text-center h-20 text-muted-foreground">
+                                Nenhum registro de alojamento encontrado para este trabalhador na Logística.
+                            </TableCell>
+                        </TableRow>
+                    ) : (
+                        historicoAlojamentos.map(item => {
+                            const tipoUpper = String(item.tipo_alojamento || '').toUpperCase();
+                            const isPropio =
+                                item.status === 'Alojamiento Propio' ||
+                                tipoUpper === 'PROPIO' ||
+                                item.alojamento_id === 'propio';
+                            const isCliente =
+                                item.status === 'Alojamiento Cliente' ||
+                                tipoUpper === 'CLIENTE' ||
+                                item.alojamento_id === 'cliente';
+                            const isCheckout = item.status === 'Checkout';
+
+                            return (
+                                <TableRow key={item.id}>
+                                    <TableCell>
+                                        {isPropio ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300">
+                                                🏠 Alojamento Próprio (€ 300)
+                                            </span>
+                                        ) : isCliente ? (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300">
+                                                🏨 Alojamento Cliente
+                                            </span>
+                                        ) : (
+                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300">
+                                                🏢 Imóvel Empresa ({tipoUpper || 'FIJO'})
+                                            </span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <p className="font-semibold text-sm">
+                                            {isPropio
+                                                ? 'Alojamento Próprio / Por Conta Própria'
+                                                : `${item.alojamento_codigo ? `${item.alojamento_codigo} - ` : ''}${item.alojamento_nome}`}
+                                        </p>
+                                        {!isPropio && item.cama_identificador && (
+                                            <p className="text-xs text-muted-foreground">
+                                                🛏️ {item.cama_identificador} {item.municipio ? `• ${item.municipio}` : ''}
+                                            </p>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        <p className="font-medium text-sm">{item.cliente_nome || '-'}</p>
+                                        <p className="text-xs text-muted-foreground">{item.obra_nome || ''}</p>
+                                    </TableCell>
+                                    <TableCell className="font-mono text-sm font-semibold">
+                                        {item.data_inicio || '-'}
+                                    </TableCell>
+                                    <TableCell className="font-mono text-sm">
+                                        {isCheckout && item.data_fim ? (
+                                            <span className="font-bold text-destructive">{item.data_fim}</span>
+                                        ) : (
+                                            <span className="text-emerald-600 font-semibold">Em curso</span>
+                                        )}
+                                    </TableCell>
+                                    <TableCell>
+                                        {isCheckout ? (
+                                            <div>
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-slate-100 text-slate-700 border border-slate-300">
+                                                    Finalizado / Check-out
+                                                </span>
+                                                {(item.motivo_checkout || item.observacoes) && (
+                                                    <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                                                        {item.motivo_checkout || item.observacoes}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                                                    Ativo
+                                                </span>
+                                                {item.observacoes && (
+                                                    <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+                                                        {item.observacoes}
+                                                    </p>
+                                                )}
+                                            </div>
+                                        )}
+                                    </TableCell>
+                                </TableRow>
+                            );
+                        })
                     )}
                 </TableBody>
             </Table>

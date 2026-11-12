@@ -424,20 +424,21 @@ function calculateDurationText(startStr: string, endStr?: string): string {
 }
 
 export const logisticsService = {
-  // Trabalhadores Reais do Banco (Apenas Ativos ou Pendentes de Ingresso)
+  // Trabalhadores Reais do Banco (Quando há busca textual, inclui também inativos para permitir lançamentos retroativos de histórico/alojamento próprio)
   async searchTrabalhadores(query: string = ''): Promise<any[]> {
     try {
       let q = supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, cod_colab, nome, status_trabajador, status_seguridad, contratante, location, cliente, funcion, email, movil')
-        .in('status_trabajador', ['Ativo', 'ATIVO', 'Pendente Ingresso', 'PENDENTE INGRESSO', 'Pendente de Ingresso', 'Pendiente Ingresar', 'Pendente', 'Em Regularização', 'EM REGULARIZACAO'])
+        .select('id, cod_colab, nome, status_trabajador, status_seguridad, data_baixa, data_baixa_seguridad, contratante, location, cliente, funcion, email, movil')
         .order('nome', { ascending: true })
         .limit(100);
 
       if (query && query.trim().length > 0) {
         const clean = query.trim();
         q = q.or(`nome.ilike.%${clean}%,cod_colab.ilike.%${clean}%`);
+      } else {
+        q = q.in('status_trabajador', ['Ativo', 'ATIVO', 'Pendente Ingresso', 'PENDENTE INGRESSO', 'Pendente de Ingresso', 'Pendiente Ingresar', 'Pendente', 'Em Regularização', 'EM REGULARIZACAO']);
       }
 
       const { data, error } = await q;
@@ -450,6 +451,7 @@ export const logisticsService = {
           nombre: w.nome,
           status_trabajador: w.status_trabajador,
           status_seguridad: w.status_seguridad,
+          data_baixa: w.data_baixa ? formatToLocalDate(w.data_baixa) : (w.data_baixa_seguridad ? formatToLocalDate(w.data_baixa_seguridad) : undefined),
           contratante: normalizeLogisticaEmpresa(w.contratante),
           empresa_interna: normalizeLogisticaEmpresa(w.contratante),
           ubicacion: w.location || 'Espanha',
@@ -874,12 +876,12 @@ export const logisticsService = {
           codigo_colab: codColab,
           worker_movil: workerInfo.movil || workerBase.worker_movil || '',
           empresa_contratante: normalizeLogisticaEmpresa(row.empresa_id || workerBase.empresa_contratante, workerInfo.contratante),
-          cliente_nome: row.cliente_obra_nome || row.project_name || base.cliente_nome || 'Cliente Obra',
-          obra_nome: row.project_name || row.cliente_obra_nome || base.obra_nome || 'Obra Principal',
-          municipio: alojInfo.cidade || alojInfo.municipio || base.municipio || 'España',
+          cliente_nome: row.cliente_obra_nome || row.project_name || base.cliente_nome || workerBase.cliente_nome || workerInfo.cliente || 'Cliente Obra',
+          obra_nome: row.project_name || row.cliente_obra_nome || base.obra_nome || workerBase.obra_nome || 'Obra Principal',
+          municipio: alojInfo.cidade || alojInfo.municipio || base.municipio || workerBase.municipio || 'España',
           endereco: alojInfo.endereco_completo || alojInfo.endereco || base.endereco || '',
-          pedido_id: row.pedido_id || base.pedido_id,
-          pedido_codigo: base.pedido_codigo,
+          pedido_id: row.pedido_id || base.pedido_id || workerBase.pedido_id,
+          pedido_codigo: base.pedido_codigo || workerBase.pedido_codigo,
           data_inicio: row.data_inicio ? formatToLocalDate(row.data_inicio) : (base.data_inicio || formatToLocalDate(new Date())),
           data_fim: row.data_fim ? formatToLocalDate(row.data_fim) : base.data_fim,
           data_checkin: row.data_inicio ? formatToLocalDate(row.data_inicio) : base.data_checkin,
@@ -965,6 +967,9 @@ export const logisticsService = {
           .neq('status', 'Checkout');
       }
 
+      const todayStr = formatToLocalDate(new Date());
+      const isFinishedPropio = Boolean(payload.data_fim && payload.data_fim <= todayStr);
+
       const { data: inserted, error } = await client
         .from('alocacoes')
         .insert({
@@ -974,12 +979,14 @@ export const logisticsService = {
           pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
           data_inicio: payload.data_inicio,
           data_fim: payload.data_fim || null,
-          status: 'Alojamiento Propio',
+          status: isFinishedPropio ? 'Checkout' : 'Alojamiento Propio',
+          motivo_checkout: isFinishedPropio ? 'Fin de Período / Salida Registrada' : null,
           tipo_alojamento: 'Propio',
+          gerou_auxilio_moradia: true,
           observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
           cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
           project_name: payload.obra_nome || payload.cliente_nome || null,
-          valor_ajuda_moradia: payload.custo_alojamento || 0
+          valor_ajuda_moradia: payload.custo_alojamento || 300
         })
         .select()
         .single();
@@ -992,6 +999,8 @@ export const logisticsService = {
     }
 
     const alocacoes = await this.fetchAlocacoesAtivas();
+    const todayStr = formatToLocalDate(new Date());
+    const isFinishedPropio = Boolean(payload.data_fim && payload.data_fim <= todayStr);
     const newAloc: Alocacao = {
       id: newId,
       cama_id: `propio-cama-${payload.worker_id}`,
@@ -1006,10 +1015,11 @@ export const logisticsService = {
       data_inicio: payload.data_inicio,
       data_fim: payload.data_fim,
       observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
-      status: 'Alojamiento Propio',
+      status: isFinishedPropio ? 'Checkout' : 'Alojamiento Propio',
+      motivo_checkout: isFinishedPropio ? 'Fin de Período / Salida Registrada' : undefined,
       tipo_alojamento: 'Propio',
       empresa_contratante: normalizeLogisticaEmpresa(payload.empresa_contratante),
-      custo_alojamento: payload.custo_alojamento || 0,
+      custo_alojamento: payload.custo_alojamento || 300,
       alojamento: {
         id: 'propio',
         nome: 'Alojamiento Propio / Por Cuenta Propia',
@@ -1024,7 +1034,7 @@ export const logisticsService = {
       }
     };
 
-    const filtered = alocacoes.filter(a => a.worker_id !== payload.worker_id);
+    const filtered = alocacoes.filter(a => a.id !== newId && (a.worker_id !== payload.worker_id || a.status === 'Checkout'));
     const updated = [newAloc, ...filtered];
 
     try {
@@ -1459,8 +1469,8 @@ export const logisticsService = {
         for (const alocId of alocacaoIds) {
           const alocObj = combinedAlocs.find(a => a.id === alocId || a.worker_id === alocId);
           const customDate = perWorkerDates![alocId] || effectiveDate;
-          const targets = [alocId, alocObj?.id, alocObj?.worker_id].filter(isUuid);
-          if (targets.length > 0) {
+          const targetAlocUuid = isUuid(alocId) ? alocId : (isUuid(alocObj?.id) ? alocObj!.id : undefined);
+          if (targetAlocUuid) {
             await client
               .from('alocacoes')
               .update({
@@ -1469,19 +1479,31 @@ export const logisticsService = {
                 motivo_checkout: motivo || 'Fin de Pedido / Obra',
                 updated_at: new Date().toISOString()
               })
-              .or(`id.in.(${targets.join(',')}),worker_id.in.(${targets.join(',')})`);
+              .eq('id', targetAlocUuid);
+          } else if (isUuid(alocObj?.worker_id)) {
+            await client
+              .from('alocacoes')
+              .update({
+                status: 'Checkout',
+                data_fim: customDate,
+                motivo_checkout: motivo || 'Fin de Pedido / Obra',
+                updated_at: new Date().toISOString()
+              })
+              .eq('worker_id', alocObj!.worker_id)
+              .neq('status', 'Checkout');
           }
         }
       } else {
-        const validUuids = alocacaoIds.filter(isUuid);
-        const matchingWorkerAndAlocIds = combinedAlocs
-          .filter(a => idsSet.has(a.id) || idsSet.has(a.worker_id))
-          .flatMap(a => [a.id, a.worker_id])
-          .filter(isUuid);
+        const validAlocUuids = [
+          ...alocacaoIds.filter(isUuid),
+          ...combinedAlocs
+            .filter(a => idsSet.has(a.id))
+            .map(a => a.id)
+            .filter(isUuid)
+        ];
+        const uniqueAlocUuids = [...new Set(validAlocUuids)];
 
-        const allTargetIds = [...new Set([...validUuids, ...matchingWorkerAndAlocIds])];
-
-        if (allTargetIds.length > 0) {
+        if (uniqueAlocUuids.length > 0) {
           await client
             .from('alocacoes')
             .update({
@@ -1490,7 +1512,25 @@ export const logisticsService = {
               motivo_checkout: motivo || 'Fin de Pedido / Obra',
               updated_at: new Date().toISOString()
             })
-            .or(`id.in.(${allTargetIds.join(',')}),worker_id.in.(${allTargetIds.join(',')})`);
+            .in('id', uniqueAlocUuids);
+        } else {
+          const fallbackWorkerUuids = combinedAlocs
+            .filter(a => idsSet.has(a.id) || idsSet.has(a.worker_id))
+            .map(a => a.worker_id)
+            .filter(isUuid);
+          const uniqueWorkerUuids = [...new Set(fallbackWorkerUuids)];
+          if (uniqueWorkerUuids.length > 0) {
+            await client
+              .from('alocacoes')
+              .update({
+                status: 'Checkout',
+                data_fim: effectiveDate,
+                motivo_checkout: motivo || 'Fin de Pedido / Obra',
+                updated_at: new Date().toISOString()
+              })
+              .in('worker_id', uniqueWorkerUuids)
+              .neq('status', 'Checkout');
+          }
         }
       }
 
@@ -2544,19 +2584,37 @@ export const logisticsService = {
         const tipoOrig = (a.tipo_alojamento || '').toUpperCase().trim();
         const obs = ((a.observacoes || '') + ' ' + (a.endereco || '')).toUpperCase();
 
-        const isCliente = a.tipo_alojamento === 'Cliente' || 
-                          tipoOrig === 'CLIENTE' || 
-                          nomeAloj.includes('CUENTA DEL CLIENTE') || 
-                          nomeAloj.includes('HOTEL COGULLADA') ||
-                          obs.includes('CUENTA DEL CLIENTE');
+        // Se o registro possui um alojamento_id real de imóvel da empresa ou tipo_alojamento FIJO/TEMPORAL,
+        // nunca deve ser reclassificado como Propio/Cliente apenas por texto nas observações
+        const hasRealCompanyAlojamento = Boolean(
+          a.alojamento_id &&
+          a.alojamento_id !== 'propio' &&
+          a.alojamento_id !== 'cliente' &&
+          alojMap.has(a.alojamento_id)
+        );
+        const isFijoOrTemporal = tipoOrig === 'FIJO' || tipoOrig === 'TEMPORAL';
 
-        const isPropio = !isCliente && (
-          a.status === 'Alojamiento Propio' || 
-          a.tipo_alojamento === 'Propio' || 
-          tipoOrig === 'PROPIO' || 
-          a.alojamento_id === 'propio' || 
-          nomeAloj.includes('CUENTA PROPIA') ||
-          obs.includes('CUENTA PROPIA')
+        const isCliente = !hasRealCompanyAlojamento && (
+          a.status === 'Alojamiento Cliente' ||
+          a.tipo_alojamento === 'Cliente' ||
+          tipoOrig === 'CLIENTE' ||
+          a.alojamento_id === 'cliente' ||
+          (!isFijoOrTemporal && (
+            nomeAloj.includes('CUENTA DEL CLIENTE') ||
+            nomeAloj.includes('HOTEL COGULLADA') ||
+            obs.includes('CUENTA DEL CLIENTE')
+          ))
+        );
+
+        const isPropio = !hasRealCompanyAlojamento && !isCliente && (
+          a.status === 'Alojamiento Propio' ||
+          a.tipo_alojamento === 'Propio' ||
+          tipoOrig === 'PROPIO' ||
+          a.alojamento_id === 'propio' ||
+          (!isFijoOrTemporal && (
+            nomeAloj.includes('CUENTA PROPIA') ||
+            obs.includes('CUENTA PROPIA')
+          ))
         );
 
         // Para alojamentos da empresa ou cliente, ignora os que já realizaram check-out.
@@ -2619,5 +2677,24 @@ export const logisticsService = {
         } as TrabalhadorAlojado;
       })
       .filter((item): item is TrabalhadorAlojado => item !== null);
+  },
+
+  async fetchHistoricoAlojamentosTrabalhador(params: {
+    workerId?: string;
+    codigoColab?: string;
+    workerNome?: string;
+  }): Promise<Alocacao[]> {
+    const allAlocacoes = await this.fetchAlocacoesAtivas();
+    const codeKey = (params.codigoColab || '').toUpperCase().trim();
+    const nameKey = (params.workerNome || '').toUpperCase().trim();
+
+    return allAlocacoes
+      .filter(a => {
+        if (params.workerId && a.worker_id === params.workerId) return true;
+        if (codeKey && a.codigo_colab && a.codigo_colab.toUpperCase().trim() === codeKey) return true;
+        if (nameKey && nameKey.length > 4 && a.worker_nome && a.worker_nome.toUpperCase().trim() === nameKey) return true;
+        return false;
+      })
+      .sort((a, b) => String(b.data_inicio || '').localeCompare(String(a.data_inicio || '')));
   }
 };

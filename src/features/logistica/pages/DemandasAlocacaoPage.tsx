@@ -1623,6 +1623,32 @@ export const DemandasAlocacaoPage: React.FC = () => {
         Object.keys(perWorkerDates).length > 0 ? perWorkerDates : undefined
       );
 
+      // Se o motivo do check-out for mudança para Alojamento Próprio, cria automaticamente o novo período de Alojamento Próprio
+      if (
+        motivoCheckout === 'Cambio a Alojamiento Propio' &&
+        checkingOutData.alojamentoIdPrincipal !== 'propio'
+      ) {
+        for (const w of checkingOutData.workers) {
+          const origAloc = alojados.find(a => (a.alocacao_id || a.id) === w.id);
+          const startPropioDate = perWorkerDates[w.id] || dataSaidaEfetiva;
+          if (origAloc && origAloc.worker_id) {
+            await logisticsService.registrarAlojamentoPropio({
+              worker_id: origAloc.worker_id,
+              worker_nome: origAloc.worker_nome,
+              codigo_colab: origAloc.codigo_colab,
+              cliente_nome: origAloc.cliente_nome,
+              obra_nome: origAloc.obra_nome,
+              pedido_codigo: origAloc.pedido_codigo,
+              empresa_contratante: origAloc.empresa_contratante,
+              data_inicio: startPropioDate,
+              data_fim: origAloc.is_inativo_rh && origAloc.data_baixa ? origAloc.data_baixa : undefined,
+              observacoes: observacoesCheckout || `Alojamiento Propio desde ${startPropioDate} (tras check-out de ${origAloc.alojamento_nome})`
+            });
+          }
+        }
+        syncPropioMonthFromDate(dataSaidaEfetiva);
+      }
+
       const alojIdForVistoria = checkingOutData.alojamentoIdPrincipal;
       setCheckingOutData(null);
       setSelectedAlojadosIds([]);
@@ -5124,26 +5150,39 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     ) : propioSearchResults.length === 0 ? (
                       <div className="p-6 text-center text-slate-400">Ningún colaborador encontrado.</div>
                     ) : (
-                      propioSearchResults.map((w: any) => (
-                        <div
-                          key={w.id}
-                          onClick={() => {
-                            setSelectedPropioWorker(w);
-                            setPropioClienteNome(w.contratante || '');
-                            setPropioObraNome(w.ubicacion || '');
-                            setPropioEmpresa(w.contratante || 'LUMINOUS');
-                          }}
-                          className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50/40 dark:hover:bg-purple-950/20 cursor-pointer flex justify-between items-center transition-all"
-                        >
-                          <div>
-                            <p className="font-bold text-slate-800 dark:text-slate-100">{w.Nombre || w.nombre}</p>
-                            <p className="text-[11px] text-slate-400">{w.funcion || 'Especialista'} • {w.ubicacion || 'España'}</p>
+                      propioSearchResults.map((w: any) => {
+                        const isInativo = String(w.status_trabajador || '').toUpperCase().includes('INATIV');
+                        return (
+                          <div
+                            key={w.id}
+                            onClick={() => {
+                              setSelectedPropioWorker(w);
+                              setPropioClienteNome(w.cliente || w.contratante || '');
+                              setPropioObraNome(w.ubicacion || '');
+                              setPropioEmpresa(w.contratante || 'LUMINOUS');
+                              if (isInativo && w.data_baixa) {
+                                setPropioDataFim(w.data_baixa);
+                              }
+                            }}
+                            className="p-3 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-purple-500 hover:bg-purple-50/40 dark:hover:bg-purple-950/20 cursor-pointer flex justify-between items-center transition-all"
+                          >
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-bold text-slate-800 dark:text-slate-100">{w.Nombre || w.nombre}</p>
+                                {isInativo && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                                    INACTIVO RRHH{w.data_baixa ? ` (${w.data_baixa})` : ''}
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-400">{w.funcion || 'Especialista'} • {w.cliente || w.ubicacion || 'España'}</p>
+                            </div>
+                            <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-600">
+                              {w.Cod_colab || w.cod_colab}
+                            </span>
                           </div>
-                          <span className="font-mono text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-slate-600">
-                            {w.Cod_colab || w.cod_colab}
-                          </span>
-                        </div>
-                      ))
+                        );
+                      })
                     )}
                   </div>
                 </div>
@@ -5689,6 +5728,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 >
                   <option value="Baja en Personal / Fin de Contrato">Baja en Personal / Fin de Contrato (RRHH)</option>
                   <option value="Fin de Pedido / Obra">Fin de Pedido / Obra</option>
+                  <option value="Cambio a Alojamiento Propio">🏠 Cambio a Alojamiento Propio (€ 300 / mes)</option>
                   <option value="Traslado / Reubicación">Traslado / Reubicación a otro Alojamiento</option>
                   <option value="Fin de Contrato de Arrendamiento">Fin de Arrendamiento / Desmovilización</option>
                   <option value="Baja Médica / Renuncia">Baja Médica / Renuncia del Colaborador</option>
