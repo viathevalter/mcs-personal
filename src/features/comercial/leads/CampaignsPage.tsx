@@ -469,6 +469,7 @@ export function CampaignsPage() {
     updateTemplate, 
     deleteTemplate, 
     createCampaign, 
+    updateCampaign,
     startCampaign, 
     deleteCampaign 
   } = useMutateMarketing();
@@ -476,9 +477,14 @@ export function CampaignsPage() {
   const [activeTab, setActiveTab] = useState('campaigns');
   const queryClient = useQueryClient();
 
+  const campaignIdsKey = useMemo(
+    () => campaigns.map((c: any) => c.id).sort().join(','),
+    [campaigns]
+  );
+
   // Query: Estatísticas agregadas da fila para cada campanha (total, sent, pending, failed, first_sent_at, last_sent_at)
   const { data: campaignStats = {}, refetch: refetchCampaignStats } = useQuery<Record<string, { total: number; sent: number; pending: number; failed: number; first_sent_at?: string; last_sent_at?: string }>>({
-    queryKey: ['campaign_queue_stats', selectedEmpresaId, campaigns],
+    queryKey: ['campaign_queue_stats', selectedEmpresaId, campaignIdsKey],
     queryFn: async () => {
       const validEmpresaId = (selectedEmpresaId && selectedEmpresaId !== 'all' && selectedEmpresaId.length === 36) ? selectedEmpresaId : null;
       const { data, error } = await supabase.rpc('fn_get_campaigns_stats', {
@@ -655,6 +661,8 @@ export function CampaignsPage() {
   const [allQueuedLeads, setAllQueuedLeads] = useState<any[]>([]);
   const [loadingAudienceLeads, setLoadingAudienceLeads] = useState(false);
   const [isSavingAudience, setIsSavingAudience] = useState(false);
+  const [isSavingCampaign, setIsSavingCampaign] = useState(false);
+  const inFlightLeadsPromiseRef = useRef<{ key: string; promise: Promise<any[]> } | null>(null);
 
   // Saved Audiences feature
   const [savedAudiences, setSavedAudiences] = useState<any[]>([]);
@@ -3452,6 +3460,7 @@ export function CampaignsPage() {
 
   // Sempre que a empresa ou comercial ativo mudar, limpa a base de leads em memória para evitar filtros obsoletos
   useEffect(() => {
+    inFlightLeadsPromiseRef.current = null;
     setAllLeads([]);
   }, [selectedEmpresaId, effectiveOwnerKey]);
 
@@ -3671,6 +3680,54 @@ export function CampaignsPage() {
     }
   };
 
+  const replaceCampaignQueue = async (campaignId: string, leadIds: string[]): Promise<number> => {
+    const uniqueLeadIds = Array.from(new Set(leadIds.filter(Boolean)));
+    const { data: rpcCount, error: rpcErr } = await supabase.rpc('fn_replace_campaign_queue', {
+      p_campaign_id: campaignId,
+      p_lead_ids: uniqueLeadIds,
+    });
+
+    if (!rpcErr && typeof rpcCount === 'number') {
+      return rpcCount;
+    }
+
+    // Fallback chunked client-side replacement if RPC is unavailable
+    const { error: deleteErr } = await supabase
+      .schema('core_comercial')
+      .from('marketing_campaign_queue')
+      .delete()
+      .eq('campaign_id', campaignId);
+    if (deleteErr) throw deleteErr;
+
+    if (uniqueLeadIds.length > 0) {
+      const queueItems = uniqueLeadIds.map(leadId => ({
+        campaign_id: campaignId,
+        lead_id: leadId,
+        status: 'pending',
+      }));
+      const chunkSize = 500;
+      for (let i = 0; i < queueItems.length; i += chunkSize) {
+        const chunk = queueItems.slice(i, i + chunkSize);
+        const { error: qErr } = await supabase
+          .schema('core_comercial')
+          .from('marketing_campaign_queue')
+          .insert(chunk);
+        if (qErr) throw qErr;
+      }
+    }
+    return uniqueLeadIds.length;
+  };
+
+  const handleQuickUpdateCampaignTemplate = async (campaignId: string, templateId: string) => {
+    if (!templateId) return;
+    try {
+      await updateCampaign({ id: campaignId, payload: { template_id: templateId } });
+      toast.success('Template vinculado à campanha com sucesso!');
+    } catch (err: any) {
+      toast.error(err.message || 'Erro ao vincular template à campanha');
+    }
+  };
+
   // Handle Campaigns
   const handleOpenCreateCampaign = () => {
     setCampaignForm({ title: '', template_id: '' });
@@ -3684,20 +3741,29 @@ export function CampaignsPage() {
 
   const handleSaveCampaign = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingCampaign) return;
     if (!campaignForm.title || !campaignForm.template_id) {
       toast.error('Defina o título da campanha e o template associado.');
       return;
     }
 
+    if (selectedAudienceIdsForCampaign.length === 0) {
+      const proceedWithoutAudience = confirm(
+        'Você ainda não marcou nenhum público-alvo na lista abaixo.\n\nDeseja criar a campanha em rascunho sem público mesmo assim?'
+      );
+      if (!proceedWithoutAudience) return;
+    }
+
+    setIsSavingCampaign(true);
     try {
+      let currentLeads = allLeads;
+      if (selectedAudienceIdsForCampaign.length > 0 && currentLeads.length === 0) {
+        currentLeads = await fetchAudienceLeads();
+      }
+
       const newCamp = await createCampaign({ ...campaignForm, sender_email: activeSenderEmail, reply_to_email: activeReplyToEmail });
 
       if (newCamp?.id && selectedAudienceIdsForCampaign.length > 0) {
-        let currentLeads = allLeads;
-        if (currentLeads.length === 0) {
-          currentLeads = await fetchAudienceLeads();
-        }
-
         const selectedAudiences = savedAudiences.filter(a => selectedAudienceIdsForCampaign.includes(a.id));
         const combinedLeadIdsSet = new Set<string>();
 
@@ -3727,30 +3793,16 @@ export function CampaignsPage() {
         });
 
         if (targetLeadIds.length > 0) {
-          const queueItems = targetLeadIds.map(leadId => ({
-            campaign_id: newCamp.id,
-            lead_id: leadId,
-            status: 'pending',
-          }));
-
-          const chunkSize = 500;
-          for (let i = 0; i < queueItems.length; i += chunkSize) {
-            const chunk = queueItems.slice(i, i + chunkSize);
-            const { error: qErr } = await supabase
-              .schema('core_comercial')
-              .from('marketing_campaign_queue')
-              .insert(chunk);
-
-            if (qErr) {
-              console.error('Erro ao popular fila da campanha:', qErr);
-              toast.error('Campanha criada, mas houve erro ao popular fila: ' + qErr.message);
-              break;
-            }
+          try {
+            const insertedCount = await replaceCampaignQueue(newCamp.id, targetLeadIds);
+            await queryClient.invalidateQueries({ queryKey: ['campaign_queue_stats'] });
+            await refetchCampaignStats();
+            refetchLeadsLastSent();
+            toast.success(`Campanha criada com ${insertedCount} leads na fila (combinando ${selectedAudiences.length} público(s))!`);
+          } catch (qErr: any) {
+            console.error('Erro ao popular fila da campanha:', qErr);
+            toast.error('Campanha criada, mas houve erro ao popular fila: ' + (qErr.message || 'Erro desconhecido'));
           }
-
-          refetchCampaignStats();
-          refetchLeadsLastSent();
-          toast.success(`Campanha criada com ${queueItems.length} leads na fila (combinando ${selectedAudiences.length} público(s))!`);
         } else {
           toast.warning(`Campanha criada em rascunho. Nenhum lead foi enfileirado pois todos foram filtrados pelo controle de fadiga (${recency === 'never' ? 'já receberam campanhas' : `receberam nos últimos ${recency} dias`}).`);
         }
@@ -3763,6 +3815,8 @@ export function CampaignsPage() {
       setSelectedAudienceIdsForCampaign([]);
     } catch (err: any) {
       toast.error(err.message || 'Erro ao criar campanha');
+    } finally {
+      setIsSavingCampaign(false);
     }
   };
 
@@ -3901,106 +3955,124 @@ export function CampaignsPage() {
   };
 
   const fetchAudienceLeads = async (overrideOwnerUserId?: string | null): Promise<any[]> => {
-    setLoadingAudienceLeads(true);
-    try {
-      let allFetchedLeads: any[] = [];
-      let from = 0;
-      const step = 1000;
-      let hasMore = true;
+    const scopedUserId =
+      (isCommercialOperator && loggedCommercialProfile?.userId) ||
+      overrideOwnerUserId ||
+      activeCommercialProfile?.userId ||
+      null;
+    const scopedOwnerKey =
+      (isCommercialOperator && loggedCommercialProfile?.key) ||
+      (overrideOwnerUserId === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'
+        ? 'giada'
+        : overrideOwnerUserId === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa'
+          ? 'liseth'
+          : overrideOwnerUserId === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2'
+            ? 'fatumata'
+            : overrideOwnerUserId === 'ca69863d-998b-4bad-865a-19720e7a1f67'
+              ? 'alba'
+              : overrideOwnerUserId === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
+                ? 'alex'
+                : activeCommercialProfile?.key) ||
+      null;
+    const effectiveEmpresaId =
+      (isCommercialOperator && loggedCommercialProfile?.empresaId) ||
+      activeCommercialProfile?.empresaId ||
+      (selectedEmpresaId && selectedEmpresaId !== 'all' ? selectedEmpresaId : null);
 
-      const scopedUserId =
-        (isCommercialOperator && loggedCommercialProfile?.userId) ||
-        overrideOwnerUserId ||
-        activeCommercialProfile?.userId ||
-        null;
-      const scopedOwnerKey =
-        (isCommercialOperator && loggedCommercialProfile?.key) ||
-        (overrideOwnerUserId === '76f9a2f5-116a-456e-a7d9-9a6a0401ac65'
-          ? 'giada'
-          : overrideOwnerUserId === 'cdc74a13-e41a-4fa5-b51b-5a27b8f310fa'
-            ? 'liseth'
-            : overrideOwnerUserId === '2a25dd76-8a1b-44ea-8ea9-47e9232beee2'
-              ? 'fatumata'
-              : overrideOwnerUserId === 'ca69863d-998b-4bad-865a-19720e7a1f67'
-                ? 'alba'
-                : overrideOwnerUserId === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
-                  ? 'alex'
-                  : activeCommercialProfile?.key) ||
-        null;
-
-      while (hasMore) {
-        let query = supabase
-          .schema('core_comercial')
-          .from('leads')
-          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
-          .order('name', { ascending: true });
-
-        if (scopedUserId) {
-          query = query.eq('assigned_to', scopedUserId);
-        }
-        if (selectedEmpresaId) {
-          query = query.eq('empresa_id', selectedEmpresaId);
-        }
-
-        const { data, error } = await query.range(from, from + step - 1);
-
-        if (error) throw error;
-
-        if (data && data.length > 0) {
-          allFetchedLeads = [...allFetchedLeads, ...data];
-          from += step;
-          if (data.length < step) hasMore = false;
-        } else {
-          hasMore = false;
-        }
-      }
-
-      // Also include Liseth's tagged leads only when viewing Liseth or global Wiseowe/Luminous
-      if ((isWiseowe || isLuminous) && (!scopedOwnerKey || scopedOwnerKey === 'liseth')) {
-        const { data: lisethData } = await supabase
-          .schema('core_comercial')
-          .from('leads')
-          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
-          .contains('tags', ['Mailing Liseth']);
-
-        if (lisethData && lisethData.length > 0) {
-          const existingIds = new Set(allFetchedLeads.map(l => l.id));
-          for (const row of lisethData) {
-            if (!existingIds.has(row.id)) {
-              allFetchedLeads.push(row);
-              existingIds.add(row.id);
-            }
-          }
-        }
-      }
-
-      // Also include Alba's tagged leads when viewing Triangulo so cross-company leads resolve
-      if (isTriangulo && (!scopedOwnerKey || scopedOwnerKey === 'alba')) {
-        const { data: albaData } = await supabase
-          .schema('core_comercial')
-          .from('leads')
-          .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
-          .contains('tags', ['Mailing Alba']);
-
-        if (albaData && albaData.length > 0) {
-          const existingIds = new Set(allFetchedLeads.map(l => l.id));
-          for (const row of albaData) {
-            if (!existingIds.has(row.id)) {
-              allFetchedLeads.push(row);
-              existingIds.add(row.id);
-            }
-          }
-        }
-      }
-
-      setAllLeads(allFetchedLeads);
-      return allFetchedLeads;
-    } catch (err: any) {
-      toast.error('Erro ao carregar leads da empresa: ' + err.message);
-      return [];
-    } finally {
-      setLoadingAudienceLeads(false);
+    const requestKey = `${effectiveEmpresaId || 'all'}::${scopedUserId || 'all'}::${scopedOwnerKey || 'all'}`;
+    if (inFlightLeadsPromiseRef.current && inFlightLeadsPromiseRef.current.key === requestKey) {
+      return inFlightLeadsPromiseRef.current.promise;
     }
+
+    const fetchPromise = (async (): Promise<any[]> => {
+      setLoadingAudienceLeads(true);
+      try {
+        let allFetchedLeads: any[] = [];
+        let from = 0;
+        const step = 1000;
+        let hasMore = true;
+
+        while (hasMore) {
+          let query = supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
+            .order('name', { ascending: true })
+            .order('id', { ascending: true });
+
+          if (scopedUserId) {
+            query = query.eq('assigned_to', scopedUserId);
+          }
+          if (effectiveEmpresaId) {
+            query = query.eq('empresa_id', effectiveEmpresaId);
+          }
+
+          const { data, error } = await query.range(from, from + step - 1);
+
+          if (error) throw error;
+
+          if (data && data.length > 0) {
+            allFetchedLeads = [...allFetchedLeads, ...data];
+            from += step;
+            if (data.length < step) hasMore = false;
+          } else {
+            hasMore = false;
+          }
+        }
+
+        // Also include Liseth's tagged leads only when viewing Liseth or global Wiseowe/Luminous
+        if ((isWiseowe || isLuminous) && (!scopedOwnerKey || scopedOwnerKey === 'liseth')) {
+          const { data: lisethData } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
+            .contains('tags', ['Mailing Liseth']);
+
+          if (lisethData && lisethData.length > 0) {
+            const existingIds = new Set(allFetchedLeads.map(l => l.id));
+            for (const row of lisethData) {
+              if (!existingIds.has(row.id)) {
+                allFetchedLeads.push(row);
+                existingIds.add(row.id);
+              }
+            }
+          }
+        }
+
+        // Also include Alba's tagged leads when viewing Triangulo so cross-company leads resolve
+        if (isTriangulo && (!scopedOwnerKey || scopedOwnerKey === 'alba')) {
+          const { data: albaData } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
+            .contains('tags', ['Mailing Alba']);
+
+          if (albaData && albaData.length > 0) {
+            const existingIds = new Set(allFetchedLeads.map(l => l.id));
+            for (const row of albaData) {
+              if (!existingIds.has(row.id)) {
+                allFetchedLeads.push(row);
+                existingIds.add(row.id);
+              }
+            }
+          }
+        }
+
+        setAllLeads(allFetchedLeads);
+        return allFetchedLeads;
+      } catch (err: any) {
+        toast.error('Erro ao carregar leads da empresa: ' + err.message);
+        return [];
+      } finally {
+        if (inFlightLeadsPromiseRef.current?.key === requestKey) {
+          inFlightLeadsPromiseRef.current = null;
+        }
+        setLoadingAudienceLeads(false);
+      }
+    })();
+
+    inFlightLeadsPromiseRef.current = { key: requestKey, promise: fetchPromise };
+    return fetchPromise;
   };
 
   const handleOpenAudienceModal = async (campaignId: string) => {
@@ -4518,40 +4590,18 @@ export function CampaignsPage() {
         toast.success(`Público Salvo "${audienceSaveName}" criado com sucesso (${filteredLeads.length} leads)!`);
       }
 
-      // Delete existing queue for this campaign
-      const { error: deleteErr } = await supabase
-        .schema('core_comercial')
-        .from('marketing_campaign_queue')
-        .delete()
-        .eq('campaign_id', selectedCampaignIdForAudience);
+      const insertedCount = await replaceCampaignQueue(
+        selectedCampaignIdForAudience,
+        filteredLeads.map(l => l.id)
+      );
 
-      if (deleteErr) throw deleteErr;
-
-      // Insert new queue items in chunks of 500
-      if (filteredLeads.length > 0) {
-        const queueItems = filteredLeads.map(l => ({
-          campaign_id: selectedCampaignIdForAudience,
-          lead_id: l.id,
-          status: 'pending',
-        }));
-
-        const chunkSize = 500;
-        for (let i = 0; i < queueItems.length; i += chunkSize) {
-          const chunk = queueItems.slice(i, i + chunkSize);
-          const { error: insertErr } = await supabase
-            .schema('core_comercial')
-            .from('marketing_campaign_queue')
-            .insert(chunk);
-
-          if (insertErr) throw insertErr;
-        }
-      }
-
-      toast.success(`Público-alvo definido! ${filteredLeads.length} leads inseridos na fila.`);
+      await queryClient.invalidateQueries({ queryKey: ['campaign_queue_stats'] });
+      await refetchCampaignStats();
+      refetchLeadsLastSent();
+      toast.success(`Público-alvo definido! ${insertedCount} leads inseridos na fila.`);
       setIsAudienceModalOpen(false);
       setShouldSaveAsPreset(false);
       setAudienceSaveName('');
-      refetchCampaignStats();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao definir público-alvo');
     } finally {
@@ -4996,9 +5046,28 @@ export function CampaignsPage() {
                             </div>
                             <div className="text-[11px] text-slate-500 flex items-center gap-1 mt-0.5">
                               <FileText size={11} className="text-slate-400 shrink-0" />
-                              <span className="truncate max-w-[240px]">
-                                {camp.marketing_templates?.title || 'Sem template'}
-                              </span>
+                              {camp.status === 'draft' ? (
+                                <select
+                                  value={camp.template_id || ''}
+                                  onChange={(e) => handleQuickUpdateCampaignTemplate(camp.id, e.target.value)}
+                                  className={cn(
+                                    "text-[11px] rounded border px-1.5 py-0.5 max-w-[230px] bg-card focus:outline-none focus:ring-1 focus:ring-amber-500",
+                                    !camp.template_id
+                                      ? "border-amber-400 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold"
+                                      : "border-transparent hover:border-slate-300 dark:hover:border-slate-700 text-slate-600 dark:text-slate-400"
+                                  )}
+                                  title="Alterar template da campanha em rascunho"
+                                >
+                                  <option value="">Selecionar template...</option>
+                                  {templates.map(t => (
+                                    <option key={t.id} value={t.id}>{t.title}</option>
+                                  ))}
+                                </select>
+                              ) : (
+                                <span className="truncate max-w-[240px]">
+                                  {camp.marketing_templates?.title || 'Sem template'}
+                                </span>
+                              )}
                             </div>
                           </td>
                           <td className="py-3 px-3 whitespace-nowrap">
@@ -5158,10 +5227,30 @@ export function CampaignsPage() {
                         </div>
                       </div>
                       <h3 className="font-semibold text-slate-900 dark:text-slate-100 text-base truncate mb-1">{camp.title}</h3>
-                      <p className="text-xs text-slate-500 flex items-center gap-1.5 mb-2">
-                        <FileText size={12} />
-                        Template: <span className="font-medium truncate max-w-[150px]">{camp.marketing_templates?.title || 'Sem template'}</span>
-                      </p>
+                      <div className="text-xs text-slate-500 flex items-center gap-1.5 mb-2">
+                        <FileText size={12} className="shrink-0" />
+                        <span className="shrink-0">Template:</span>
+                        {camp.status === 'draft' ? (
+                          <select
+                            value={camp.template_id || ''}
+                            onChange={(e) => handleQuickUpdateCampaignTemplate(camp.id, e.target.value)}
+                            className={cn(
+                              "text-xs rounded border px-1.5 py-0.5 min-w-0 flex-1 truncate bg-card focus:outline-none focus:ring-1 focus:ring-amber-500",
+                              !camp.template_id
+                                ? "border-amber-400 bg-amber-500/10 text-amber-700 dark:text-amber-300 font-semibold"
+                                : "border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 font-medium"
+                            )}
+                            title="Selecionar ou alterar template da campanha"
+                          >
+                            <option value="">Selecionar template...</option>
+                            {templates.map(t => (
+                              <option key={t.id} value={t.id}>{t.title}</option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="font-medium truncate max-w-[180px]">{camp.marketing_templates?.title || 'Sem template'}</span>
+                        )}
+                      </div>
 
                       {/* Datas da Campanha */}
                       <div className="space-y-1 text-[10px] text-muted-foreground border-y py-2 my-2">
@@ -5903,7 +5992,12 @@ export function CampaignsPage() {
       </Dialog>
 
       {/* Campaign Modal */}
-      <Dialog open={isCampaignModalOpen} onOpenChange={setIsCampaignModalOpen}>
+      <Dialog
+        open={isCampaignModalOpen}
+        onOpenChange={(open) => {
+          if (!isSavingCampaign) setIsCampaignModalOpen(open);
+        }}
+      >
         <DialogContent className="sm:max-w-[760px] md:max-w-[840px] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-xl">Criar Nova Campanha de E-mail</DialogTitle>
@@ -6097,11 +6191,27 @@ export function CampaignsPage() {
             )}
 
             <DialogFooter className="pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsCampaignModalOpen(false)}>
+              <Button
+                type="button"
+                variant="outline"
+                disabled={isSavingCampaign}
+                onClick={() => setIsCampaignModalOpen(false)}
+              >
                 Cancelar
               </Button>
-              <Button type="submit" className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold">
-                Criar Campanha
+              <Button
+                type="submit"
+                disabled={isSavingCampaign}
+                className="bg-yellow-500 hover:bg-yellow-600 text-slate-950 font-semibold"
+              >
+                {isSavingCampaign ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                    Salvando campanha e público...
+                  </>
+                ) : (
+                  'Criar Campanha'
+                )}
               </Button>
             </DialogFooter>
           </form>

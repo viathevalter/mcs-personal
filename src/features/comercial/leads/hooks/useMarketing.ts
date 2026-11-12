@@ -233,13 +233,62 @@ export function useMutateMarketing() {
     },
   });
 
+  const updateCampaign = useMutation({
+    mutationFn: async ({
+      id,
+      payload,
+    }: {
+      id: string;
+      payload: Partial<Pick<MarketingCampaign, 'title' | 'template_id' | 'sender_email' | 'reply_to_email'>>;
+    }) => {
+      const { data, error } = await supabase
+        .schema('core_comercial')
+        .from('marketing_campaigns')
+        .update({
+          ...payload,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return data as MarketingCampaign;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['marketing_campaigns'] });
+    },
+  });
+
   const startCampaign = useMutation({
     mutationFn: async ({ campaignId, scheduledAt }: { campaignId: string; scheduledAt?: string }) => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
+
+      const { data: existingCamp, error: errFetchCamp } = await supabase
+        .schema('core_comercial')
+        .from('marketing_campaigns')
+        .select('id, template_id')
+        .eq('id', campaignId)
+        .single();
+
+      if (errFetchCamp) throw errFetchCamp;
+      if (!existingCamp?.template_id) {
+        throw new Error('Selecione um template de e-mail para esta campanha antes de disparar.');
+      }
+
+      const { count: queueCount, error: errCheck } = await supabase
+        .schema('core_comercial')
+        .from('marketing_campaign_queue')
+        .select('id', { count: 'exact', head: true })
+        .eq('campaign_id', campaignId);
+
+      if (errCheck) throw errCheck;
+      if (!queueCount || queueCount === 0) {
+        throw new Error('Configure o público-alvo da campanha antes de iniciar o disparo.');
+      }
       
       const newStatus = scheduledAt ? 'scheduled' : 'sending';
 
-      // 1. Atualizar o status da campanha
       const { data: campaign, error: errCamp } = await supabase
         .schema('core_comercial')
         .from('marketing_campaigns')
@@ -253,54 +302,6 @@ export function useMutateMarketing() {
         .single();
 
       if (errCamp) throw errCamp;
-
-      // 2. Verificar se a fila já foi pré-configurada/populada (Inteligência de Envios)
-      const { count: queueCount, error: errCheck } = await supabase
-        .schema('core_comercial')
-        .from('marketing_campaign_queue')
-        .select('id', { count: 'exact', head: true })
-        .eq('campaign_id', campaignId);
-
-      if (errCheck) throw errCheck;
-
-      if (queueCount && queueCount > 0) {
-        return campaign as MarketingCampaign;
-      }
-
-      // 3. Caso contrário (fallback): Buscar leads da empresa
-      const { data: leads, error: errLeads } = await supabase
-        .schema('core_comercial')
-        .from('leads')
-        .select('id, email, name, notes')
-        .eq('empresa_id', selectedEmpresaId);
-
-      if (errLeads) throw errLeads;
-
-      if (!leads || leads.length === 0) {
-        throw new Error('Nenhum lead cadastrado na base de dados.');
-      }
-
-      // 4. Montar a fila de disparos
-      const queueItems = leads
-        .filter((l) => {
-          if (!l.email || !l.email.includes('@')) return false;
-          const isOptedOut = (l.name || '').startsWith('[DESCADASTRADO]') || (l.notes || '').includes('[Opt-out]');
-          return !isOptedOut;
-        })
-        .map((l) => ({
-          campaign_id: campaignId,
-          lead_id: l.id,
-          status: 'pending',
-        }));
-
-      if (queueItems.length > 0) {
-        const { error: errQueue } = await supabase
-          .schema('core_comercial')
-          .from('marketing_campaign_queue')
-          .insert(queueItems);
-
-        if (errQueue) throw errQueue;
-      }
 
       return campaign as MarketingCampaign;
     },
@@ -334,6 +335,8 @@ export function useMutateMarketing() {
     
     createCampaign: createCampaign.mutateAsync,
     isCreatingCampaign: createCampaign.isPending,
+    updateCampaign: updateCampaign.mutateAsync,
+    isUpdatingCampaign: updateCampaign.isPending,
     startCampaign: startCampaign.mutateAsync,
     isStartingCampaign: startCampaign.isPending,
     deleteCampaign: deleteCampaign.mutateAsync,
