@@ -451,10 +451,12 @@ export function HoleritesPage() {
             }
 
             const lastDay = new Date(year, month, 0).getDate();
-            const startDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-01`;
+            const prevMonthLastDay = new Date(prevYear, prevMonth, 0).getDate();
+            const startDateStr = `${prevYear}-${String(prevMonth).padStart(2, '0')}-${String(Math.max(1, prevMonthLastDay - 2)).padStart(2, '0')}`;
             const endDateStr = `${year}-${String(month).padStart(2, '0')}-${String(lastDay).padStart(2, '0')}`;
 
             let allRows: any[] = [];
+            const seenRowIds = new Set<string>();
             let pageIndex = 0;
             const pageSize = 1000;
             let hasMore = true;
@@ -466,6 +468,7 @@ export function HoleritesPage() {
                     .select('id, worker_id, data_trabalho, horas_totais, fatura_id, client_id, obra_id')
                     .gte('data_trabalho', startDateStr)
                     .lte('data_trabalho', endDateStr)
+                    .order('id', { ascending: true })
                     .range(pageIndex * pageSize, (pageIndex + 1) * pageSize - 1);
 
                 if (error) {
@@ -474,7 +477,14 @@ export function HoleritesPage() {
                 }
 
                 if (data && data.length > 0) {
-                    allRows = [...allRows, ...data];
+                    for (const row of data) {
+                        if (row.id && !seenRowIds.has(row.id)) {
+                            seenRowIds.add(row.id);
+                            allRows.push(row);
+                        } else if (!row.id) {
+                            allRows.push(row);
+                        }
+                    }
                     if (data.length < pageSize) {
                         hasMore = false;
                     } else {
@@ -547,14 +557,25 @@ export function HoleritesPage() {
                     if (disp && typeof disp === 'object' && Object.keys(disp).length > 0) {
                         faturaDisputedMap.set(f.id, disp);
                         if (f.client_id) {
-                            clientDisputedMap.set(f.client_id, disp);
+                            const existingClientDisp = clientDisputedMap.get(f.client_id) || {};
+                            Object.keys(disp).forEach(wId => {
+                                if (disp[wId] && typeof disp[wId] === 'object') {
+                                    existingClientDisp[wId] = { ...(existingClientDisp[wId] || {}), ...disp[wId] };
+                                }
+                            });
+                            clientDisputedMap.set(f.client_id, existingClientDisp);
                         }
                         Object.keys(disp).forEach(wId => {
                             const datesObj = disp[wId];
                             if (datesObj && typeof datesObj === 'object') {
                                 Object.keys(datesObj).forEach(dateStr => {
-                                    const val = Number(datesObj[dateStr]);
-                                    globalDisputedHours.set(`${wId}_${dateStr}`, val);
+                                    const rawVal = datesObj[dateStr];
+                                    const val = typeof rawVal === 'object' && rawVal !== null
+                                        ? (rawVal.proposed !== undefined ? Number(rawVal.proposed) : Number(rawVal.original ?? 0))
+                                        : Number(rawVal);
+                                    if (!isNaN(val)) {
+                                        globalDisputedHours.set(`${wId}_${dateStr}`, val);
+                                    }
                                 });
                             }
                         });
@@ -674,6 +695,17 @@ export function HoleritesPage() {
                 }
             });
 
+            // Track which (worker_id, dateKey) already exist in groupedHours and which match faturaDisputedMap directly
+            const existingWorkerDates = new Set<string>();
+            const faturaMatchedWorkerDates = new Set<string>();
+            groupedHours.forEach(g => {
+                existingWorkerDates.add(`${g.worker_id}__${g.dateKey}`);
+                const fDisp = (g.fatura_id && g.fatura_id !== 'none') ? faturaDisputedMap.get(g.fatura_id) : null;
+                if (fDisp?.[g.worker_id]?.[g.dateKey] !== undefined) {
+                    faturaMatchedWorkerDates.add(`${g.worker_id}__${g.dateKey}`);
+                }
+            });
+
             // Also include newly added tracking hours where raw rows did not exist in horas_trabalhadas
             faturaDisputedMap.forEach((disp, fId) => {
                 const fInfo = faturaInfoMap.get(fId);
@@ -683,7 +715,8 @@ export function HoleritesPage() {
                         Object.keys(datesObj).forEach(dateKey => {
                             if (!dateKey.startsWith(mesReferencia)) return;
                             const groupKey = `${wId}__${fInfo?.client_id || 'none'}__${fId}__${dateKey}`;
-                            if (!groupedHours.has(groupKey)) {
+                            const workerDateKey = `${wId}__${dateKey}`;
+                            if (!groupedHours.has(groupKey) && !existingWorkerDates.has(workerDateKey)) {
                                 groupedHours.set(groupKey, {
                                     worker_id: wId,
                                     client_id: fInfo?.client_id,
@@ -691,6 +724,8 @@ export function HoleritesPage() {
                                     dateKey,
                                     rawHours: 0
                                 });
+                                existingWorkerDates.add(workerDateKey);
+                                faturaMatchedWorkerDates.add(workerDateKey);
                             }
                         });
                     }
@@ -707,19 +742,29 @@ export function HoleritesPage() {
             const workerAllContratantes = new Map<string, Set<string>>();
             const workerAllClients = new Map<string, Set<string>>();
 
+            const resolveDispNumber = (rawVal: any): number | undefined => {
+                if (rawVal === undefined || rawVal === null) return undefined;
+                const num = typeof rawVal === 'object'
+                    ? (rawVal.proposed !== undefined ? Number(rawVal.proposed) : Number(rawVal.original ?? 0))
+                    : Number(rawVal);
+                return isNaN(num) ? undefined : num;
+            };
+
             groupedHours.forEach(g => {
                 const { worker_id, client_id, fatura_id, dateKey, rawHours } = g;
 
                 let effectiveHours = rawHours;
                 const faturaDisp = (fatura_id && fatura_id !== 'none') ? faturaDisputedMap.get(fatura_id) : null;
                 const clientDisp = (client_id && client_id !== 'none') ? clientDisputedMap.get(client_id) : null;
+                const workerDateKey = `${worker_id}__${dateKey}`;
 
                 let proposedVal: number | undefined = undefined;
                 if (faturaDisp?.[worker_id]?.[dateKey] !== undefined) {
-                    proposedVal = Number(faturaDisp[worker_id][dateKey]);
-                } else if (!fatura_id || fatura_id === 'none') {
-                    if (clientDisp?.[worker_id]?.[dateKey] !== undefined) {
-                        proposedVal = Number(clientDisp[worker_id][dateKey]);
+                    proposedVal = resolveDispNumber(faturaDisp[worker_id][dateKey]);
+                } else if (!faturaMatchedWorkerDates.has(workerDateKey) && clientDisp?.[worker_id]?.[dateKey] !== undefined) {
+                    proposedVal = resolveDispNumber(clientDisp[worker_id][dateKey]);
+                    if (proposedVal !== undefined) {
+                        faturaMatchedWorkerDates.add(workerDateKey);
                     }
                 }
 
