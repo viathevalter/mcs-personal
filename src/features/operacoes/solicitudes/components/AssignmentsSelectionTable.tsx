@@ -17,6 +17,8 @@ interface AssignmentsSelectionTableProps {
   onToggleSelection: (assignmentId: string) => void;
   onToggleAll: () => void;
   isCompact?: boolean;
+  showEnableRecentBajasHint?: boolean;
+  onEnableRecentBajas?: () => void;
 }
 
 export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps> = ({
@@ -24,12 +26,28 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
   selectedIds,
   onToggleSelection,
   onToggleAll,
-  isCompact = false
+  isCompact = false,
+  showEnableRecentBajasHint = false,
+  onEnableRecentBajas
 }) => {
   if (!assignments || assignments.length === 0) {
     return (
-      <div className="p-8 text-center text-muted-foreground border rounded-md bg-slate-50 dark:bg-slate-900/50">
-        Nenhum trabalhador ativo encontrado para os filtros selecionados.
+      <div className="p-8 text-center text-muted-foreground border rounded-md bg-slate-50 dark:bg-slate-900/50 space-y-3">
+        <div>Nenhum trabalhador ativo encontrado para os filtros selecionados.</div>
+        {showEnableRecentBajasHint && onEnableRecentBajas && (
+          <div className="max-w-md mx-auto p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs space-y-2">
+            <p>
+              Os trabalhadores deste pedido já saíram da obra ou tiveram baixa recente (ex: pedido pausado ou saída encerrada)?
+            </p>
+            <button
+              type="button"
+              onClick={onEnableRecentBajas}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer"
+            >
+              Mostrar saídas / baixas recentes (últimos 60 dias)
+            </button>
+          </div>
+        )}
       </div>
     );
   }

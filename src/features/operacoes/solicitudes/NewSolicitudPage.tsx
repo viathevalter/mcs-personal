@@ -638,6 +638,7 @@ export function NewSolicitudPage() {
 
                 if (draft.workerSearch !== undefined) setWorkerSearch(draft.workerSearch);
                 if (draft.pedidoSearch !== undefined) setPedidoSearch(draft.pedidoSearch);
+                if (draft.includeRecentBajas !== undefined) setIncludeRecentBajas(Boolean(draft.includeRecentBajas));
 
                 if (draft.emailSubject !== undefined && draft.emailSubject !== '') setEmailSubject(draft.emailSubject);
                 if (draft.emailBody !== undefined && draft.emailBody !== '') setEmailBody(draft.emailBody);
@@ -702,6 +703,7 @@ export function NewSolicitudPage() {
             selectedAssignments,
             workerSearch,
             pedidoSearch,
+            includeRecentBajas,
             title,
             priority,
             dueDate,
@@ -726,7 +728,7 @@ export function NewSolicitudPage() {
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
     }, [
         actionType, selectedClientId, selectedClientSiteId, selectedPedidoId,
-        selectedAssignments, workerSearch, pedidoSearch, title, priority, dueDate,
+        selectedAssignments, workerSearch, pedidoSearch, includeRecentBajas, title, priority, dueDate,
         reason, notes, requiresReplacement, targetClientId, targetClientSiteId,
         requiresHousing, housingStartDate, housingEndDate, sendEmailNotification,
         additionalEmails, selectedEmails, emailLanguage, emailSubject, emailBody,
@@ -747,6 +749,7 @@ export function NewSolicitudPage() {
         setSelectedPedidoId('all');
         setWorkerSearch('');
         setPedidoSearch('');
+        setIncludeRecentBajas(false);
         setRequiresHousing(false);
         setHousingStartDate('');
         setHousingEndDate('');
@@ -2114,8 +2117,16 @@ export function NewSolicitudPage() {
                                 <div className="flex justify-between items-center mb-3 shrink-0">
                                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Resultados ({filteredAssignments.length})</span>
                                     {selectedAssignments.length > 0 && (
-                                        <span className="text-sm font-bold text-blue-600 bg-blue-50 px-2 py-1 rounded-md">
-                                            {selectedAssignments.length} selecionado(s)
+                                        <span className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-md">
+                                            <span>{selectedAssignments.length} selecionado(s)</span>
+                                            <button
+                                                type="button"
+                                                onClick={() => setSelectedAssignments([])}
+                                                className="text-xs font-medium text-blue-500 hover:text-rose-600 underline cursor-pointer"
+                                                title="Limpar trabalhadores selecionados"
+                                            >
+                                                Limpar
+                                            </button>
                                         </span>
                                     )}
                                 </div>
@@ -2126,6 +2137,8 @@ export function NewSolicitudPage() {
                                         onToggleSelection={handleToggleSelection}
                                         onToggleAll={handleToggleAll}
                                         isCompact={actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause'}
+                                        showEnableRecentBajasHint={actionType === 'replacement' && !includeRecentBajas}
+                                        onEnableRecentBajas={() => setIncludeRecentBajas(true)}
                                     />
                                 </div>
                             </div>

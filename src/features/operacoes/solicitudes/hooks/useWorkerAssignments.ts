@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import { isHoldingId } from '@/shared/utils/empresaUtils';
 
 export interface WorkerAssignmentFilters {
@@ -19,109 +20,113 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
 
             if (!filters.empresa_id && !isHolding) return [];
 
-            console.log('--- DEBUG: useWorkerAssignments ---', { filters, isHolding, effectiveEmpresaId });
-            let query = supabase
-                .schema('core_personal')
-                .from('worker_assignments')
-                .select(`
-                    *,
-                    worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
-                    replaced_assignment:worker_assignments!replacement_of_assignment_id(
-                        id,
-                        worker:workers(id, nome)
-                    )
-                `)
-                .in('status', ['planned', 'active']); // Ativos ou planejados
+            // 1. Fetch active, planned, or paused assignments (paginated to avoid 1000-row truncation)
+            const assignmentsData = await fetchAllPages<any>((from, to) => {
+                let query = supabase
+                    .schema('core_personal')
+                    .from('worker_assignments')
+                    .select(`
+                        *,
+                        worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante),
+                        replaced_assignment:worker_assignments!replacement_of_assignment_id(
+                            id,
+                            worker:workers(id, nome)
+                        )
+                    `)
+                    .in('status', ['planned', 'active', 'paused']);
 
-            if (effectiveEmpresaId) {
-                query = query.eq('empresa_id', effectiveEmpresaId);
-            }
+                if (effectiveEmpresaId) {
+                    query = query.eq('empresa_id', effectiveEmpresaId);
+                }
+                if (filters.client_id) {
+                    query = query.eq('client_id', filters.client_id);
+                }
+                if (filters.client_site_id) {
+                    query = query.eq('client_site_id', filters.client_site_id);
+                }
+                if (filters.pedido_id) {
+                    query = query.eq('pedido_id', filters.pedido_id);
+                }
 
-            if (filters.client_id) {
-                query = query.eq('client_id', filters.client_id);
-            }
-            if (filters.client_site_id) {
-                query = query.eq('client_site_id', filters.client_site_id);
-            }
-            if (filters.pedido_id) {
-                query = query.eq('pedido_id', filters.pedido_id);
-            }
+                return query.order('start_date', { ascending: false }).range(from, to);
+            });
 
-            const { data: assignments, error } = await query.order('start_date', { ascending: false });
-            console.log('--- DEBUG RESULT ---', { count: assignments?.length, error });
-            if (error) throw error;
-
-            const assignmentsData = assignments || [];
-
-            // Fetch related data
-            const pedidoIds = [...new Set(assignmentsData.map(a => a.pedido_id).filter(Boolean))];
-            const siteIds = [...new Set(assignmentsData.map(a => a.client_site_id).filter(Boolean))];
-            const empresaIds = [...new Set(assignmentsData.map(a => a.empresa_id).filter(Boolean))];
-
-            // If filters.empresa_id is not in the list, add it so we fetch its name
-            if (filters.empresa_id && !empresaIds.includes(filters.empresa_id)) {
-                empresaIds.push(filters.empresa_id);
-            }
-
-            // When include_recent_bajas is enabled, query recent offboard targets and terminated assignments
+            // 2. When include_recent_bajas is enabled, query recent offboard targets and ended/terminated assignments
             const sixtyDaysAgo = new Date();
             sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
             const dateStr = sixtyDaysAgo.toISOString();
             const dateShortStr = dateStr.split('T')[0];
 
-            let recentBajasTargetsPromise = Promise.resolve({ data: [] as any[] });
-            let recentTerminatedAssignmentsPromise = Promise.resolve({ data: [] as any[] });
-            let recentBajasWorkersPromise = Promise.resolve({ data: [] as any[] });
+            let recentBajasTargetsPromise = Promise.resolve([] as any[]);
+            let recentTerminatedAssignmentsPromise = Promise.resolve([] as any[]);
+            let recentBajasWorkersPromise = Promise.resolve([] as any[]);
 
             if (filters.include_recent_bajas) {
-                let offboardQuery = supabase
-                    .schema('core_operacoes')
-                    .from('solicitud_targets')
-                    .select('id, empresa_id, source_worker_id, source_client_id, source_client_site_id, source_pedido_id, source_pedido_item_id, action_type, status, created_at, reason, notes')
-                    .eq('action_type', 'offboard')
-                    .gte('created_at', dateStr);
+                recentBajasTargetsPromise = fetchAllPages<any>((from, to) => {
+                    let offboardQuery = supabase
+                        .schema('core_operacoes')
+                        .from('solicitud_targets')
+                        .select('id, empresa_id, source_worker_id, source_client_id, source_client_site_id, source_pedido_id, source_pedido_item_id, action_type, status, created_at, reason, notes')
+                        .eq('action_type', 'offboard')
+                        .gte('created_at', dateStr);
 
-                if (effectiveEmpresaId) {
-                    offboardQuery = offboardQuery.eq('empresa_id', effectiveEmpresaId);
-                }
-                if (filters.client_id) {
-                    offboardQuery = offboardQuery.eq('source_client_id', filters.client_id);
-                }
-                recentBajasTargetsPromise = offboardQuery as any;
+                    if (effectiveEmpresaId) {
+                        offboardQuery = offboardQuery.eq('empresa_id', effectiveEmpresaId);
+                    }
+                    if (filters.client_id) {
+                        offboardQuery = offboardQuery.eq('source_client_id', filters.client_id);
+                    }
+                    return offboardQuery.order('created_at', { ascending: false }).range(from, to);
+                });
 
-                let termQuery = supabase
-                    .schema('core_personal')
-                    .from('worker_assignments')
-                    .select(`
-                        *,
-                        worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, data_baixa, data_ingresso)
-                    `)
-                    .eq('status', 'terminated')
-                    .gte('updated_at', dateStr);
+                recentTerminatedAssignmentsPromise = fetchAllPages<any>((from, to) => {
+                    let termQuery = supabase
+                        .schema('core_personal')
+                        .from('worker_assignments')
+                        .select(`
+                            *,
+                            worker:workers(id, nome, nif, dni, email, movil, funcion, cod_colab, contratante, data_baixa, data_ingresso)
+                        `)
+                        .in('status', ['terminated', 'completed'])
+                        .or(`updated_at.gte.${dateStr},end_date.gte.${dateShortStr}`);
 
-                if (effectiveEmpresaId) {
-                    termQuery = termQuery.eq('empresa_id', effectiveEmpresaId);
-                }
-                if (filters.client_id) {
-                    termQuery = termQuery.eq('client_id', filters.client_id);
-                }
-                recentTerminatedAssignmentsPromise = termQuery as any;
+                    if (effectiveEmpresaId) {
+                        termQuery = termQuery.eq('empresa_id', effectiveEmpresaId);
+                    }
+                    if (filters.client_id) {
+                        termQuery = termQuery.eq('client_id', filters.client_id);
+                    }
+                    if (filters.client_site_id) {
+                        termQuery = termQuery.eq('client_site_id', filters.client_site_id);
+                    }
+                    if (filters.pedido_id) {
+                        termQuery = termQuery.eq('pedido_id', filters.pedido_id);
+                    }
+                    return termQuery.order('end_date', { ascending: false, nullsFirst: false }).range(from, to);
+                });
 
-                recentBajasWorkersPromise = supabase
-                    .schema('core_personal')
-                    .from('workers')
-                    .select('id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso, cliente, cod_cliente, status_trabajador')
-                    .gte('data_baixa', dateShortStr) as any;
+                recentBajasWorkersPromise = fetchAllPages<any>((from, to) =>
+                    supabase
+                        .schema('core_personal')
+                        .from('workers')
+                        .select('id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso, cliente, cod_cliente, status_trabajador')
+                        .gte('data_baixa', dateShortStr)
+                        .order('data_baixa', { ascending: false })
+                        .range(from, to)
+                );
             }
 
-            const [pedidosRes, allClientsRes, sitesRes, empresasRes, activeWorkersRes, recentBajasTargetsRes, recentTerminatedAssignmentsRes, recentBajasWorkersRes] = await Promise.all([
-                pedidoIds.length > 0 
-                  ? supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', pedidoIds)
-                  : Promise.resolve({ data: [] }),
-                supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
-                siteIds.length > 0
-                  ? supabase.schema('core_common').from('client_sites').select('id, name').in('id', siteIds)
-                  : Promise.resolve({ data: [] }),
+            const [
+                allClients,
+                empresasRes,
+                activeWorkersRes,
+                offboardTargets,
+                terminatedAssignments,
+                directBajasWorkers
+            ] = await Promise.all([
+                fetchAllPages<any>((from, to) =>
+                    supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').order('id').range(from, to)
+                ),
                 supabase.schema('core_common').from('empresas').select('id, nome, trade_name'),
                 supabase.schema('core_personal').rpc('get_hours_control_workers', {
                     p_empresa_id: effectiveEmpresaId,
@@ -135,12 +140,37 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                 recentBajasWorkersPromise
             ]);
 
-            const pedidosMap = new Map(pedidosRes.data?.map(p => [p.id, p]) || []);
-            const clientsMap = new Map(allClientsRes.data?.map(c => [c.id, c]) || []);
-            const sitesMap = new Map(sitesRes.data?.map(s => [s.id, s]) || []);
-            const empresasMap = new Map(empresasRes.data?.map(e => [e.id, e]) || []);
-            const allClients = allClientsRes.data || [];
+            // Collect ALL pedidoIds and siteIds across active assignments AND recent bajas so pedidosMap/sitesMap never miss ended orders
+            const pedidoIds = [
+                ...new Set([
+                    ...assignmentsData.map(a => a.pedido_id),
+                    ...terminatedAssignments.map((ta: any) => ta.pedido_id),
+                    ...offboardTargets.map((t: any) => t.source_pedido_id),
+                ].filter(Boolean))
+            ];
+
+            const siteIds = [
+                ...new Set([
+                    ...assignmentsData.map(a => a.client_site_id),
+                    ...terminatedAssignments.map((ta: any) => ta.client_site_id),
+                    ...offboardTargets.map((t: any) => t.source_client_site_id),
+                ].filter(Boolean))
+            ];
+
+            const [pedidosData, sitesData] = await Promise.all([
+                fetchInChunks<any>(pedidoIds, chunk =>
+                    supabase.schema('core_comercial').from('pedidos').select('id, codigo').in('id', chunk)
+                ),
+                fetchInChunks<any>(siteIds, chunk =>
+                    supabase.schema('core_common').from('client_sites').select('id, name').in('id', chunk)
+                )
+            ]);
+
+            const pedidosMap = new Map(pedidosData.map(p => [p.id, p]));
+            const clientsMap = new Map(allClients.map(c => [c.id, c]));
+            const sitesMap = new Map(sitesData.map(s => [s.id, s]));
             const allEmpresas = empresasRes.data || [];
+            const empresasMap = new Map(allEmpresas.map(e => [e.id, e]));
 
             const normalizeString = (str: string) => {
                 if (!str) return '';
@@ -161,7 +191,10 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
             }));
 
             // Generate virtual assignments for active workers from hours control who do not have an active assignment row
-            const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id));
+            const existingWorkerIds = new Set(mappedRealAssignments.map(a => a.worker_id).filter(Boolean));
+            const existingWorkerContextKeys = new Set(
+                mappedRealAssignments.map(a => `${a.worker_id}:${a.pedido_id || a.client_id || 'none'}`)
+            );
             const activeWorkers = activeWorkersRes.data || [];
 
             const virtualAssignments = activeWorkers
@@ -219,7 +252,6 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     };
                 })
                 .filter((a: any) => {
-                    // Apply filters in memory for virtual assignments
                     if (filters.client_id && a.client_id !== filters.client_id) {
                         return false;
                     }
@@ -232,37 +264,49 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     return true;
                 });
 
+            virtualAssignments.forEach((va: any) => {
+                if (va.worker_id) {
+                    existingWorkerIds.add(va.worker_id);
+                    existingWorkerContextKeys.add(`${va.worker_id}:${va.pedido_id || va.client_id || 'none'}`);
+                }
+            });
+
             // Map and add recent bajas if enabled
             const recentBajasList: any[] = [];
             if (filters.include_recent_bajas) {
-                const offboardTargets = recentBajasTargetsRes.data || [];
-                const terminatedAssignments = recentTerminatedAssignmentsRes.data || [];
-                const directBajasWorkers = recentBajasWorkersRes.data || [];
-
                 // Collect worker IDs from targets that need to be fetched
-                const missingWorkerIds = offboardTargets
-                    .map((t: any) => t.source_worker_id)
-                    .filter((id: string) => id && !existingWorkerIds.has(id));
-
                 const workersLookupMap = new Map<string, any>();
                 directBajasWorkers.forEach((w: any) => {
                     if (w?.id) workersLookupMap.set(w.id, w);
                 });
+                terminatedAssignments.forEach((ta: any) => {
+                    if (ta?.worker?.id) workersLookupMap.set(ta.worker.id, ta.worker);
+                });
 
-                const idsToQuery = missingWorkerIds.filter(id => !workersLookupMap.has(id));
-                if (idsToQuery.length > 0) {
-                    const { data: fetchedWorkers } = await supabase
-                        .schema('core_personal')
-                        .from('workers')
-                        .select('id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso, cliente, cod_cliente, status_trabajador')
-                        .in('id', idsToQuery);
-                    
-                    (fetchedWorkers || []).forEach(w => workersLookupMap.set(w.id, w));
+                const missingWorkerIds = [
+                    ...new Set(
+                        offboardTargets
+                            .map((t: any) => t.source_worker_id)
+                            .filter((id: string) => id && !workersLookupMap.has(id))
+                    )
+                ];
+
+                if (missingWorkerIds.length > 0) {
+                    const fetchedWorkers = await fetchInChunks<any>(missingWorkerIds, chunk =>
+                        supabase
+                            .schema('core_personal')
+                            .from('workers')
+                            .select('id, nome, cod_colab, nif, dni, email, movil, funcion, contratante, data_baixa, data_ingresso, cliente, cod_cliente, status_trabajador')
+                            .in('id', chunk)
+                    );
+                    fetchedWorkers.forEach(w => workersLookupMap.set(w.id, w));
                 }
 
-                // 1. Process terminated assignments
+                // 1. Process ended/completed/terminated assignments (preserves pedido_id, pedido_item_id, real assignment UUID)
                 terminatedAssignments.forEach((ta: any) => {
-                    if (!existingWorkerIds.has(ta.worker_id)) {
+                    const contextKey = `${ta.worker_id}:${ta.pedido_id || ta.client_id || 'none'}`;
+                    if (ta.worker_id && !existingWorkerContextKeys.has(contextKey)) {
+                        existingWorkerContextKeys.add(contextKey);
                         existingWorkerIds.add(ta.worker_id);
                         recentBajasList.push({
                             ...ta,
@@ -271,14 +315,16 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                             client_site: sitesMap.get(ta.client_site_id) || null,
                             empresa: empresasMap.get(ta.empresa_id) || null,
                             is_baja_recente: true,
-                            data_baixa: ta.worker?.data_baixa || ta.end_date || ta.updated_at
+                            data_baixa: ta.end_date || ta.worker?.data_baixa || ta.updated_at
                         });
                     }
                 });
 
-                // 2. Process offboard targets from solicitudes (like Jorge)
+                // 2. Process offboard targets from solicitudes (e.g. offboarding / withdrawal without ended assignment row)
                 offboardTargets.forEach((t: any) => {
-                    if (t.source_worker_id && !existingWorkerIds.has(t.source_worker_id)) {
+                    const contextKey = `${t.source_worker_id}:${t.source_pedido_id || t.source_client_id || 'none'}`;
+                    if (t.source_worker_id && !existingWorkerContextKeys.has(contextKey)) {
+                        existingWorkerContextKeys.add(contextKey);
                         existingWorkerIds.add(t.source_worker_id);
                         const w = workersLookupMap.get(t.source_worker_id) || {};
                         
@@ -355,7 +401,7 @@ export function useWorkerAssignments(filters: WorkerAssignmentFilters) {
                     }
                 });
 
-                // 3. Process direct worker bajas (workers marked with data_baixa in core_personal.workers)
+                // 3. Process direct worker bajas (workers marked with data_baixa in core_personal.workers without assignment)
                 const selectedEmpresaNome = effectiveEmpresaId ? (empresasMap.get(effectiveEmpresaId)?.nome || '') : '';
                 directBajasWorkers.forEach((w: any) => {
                     if (w.id && !existingWorkerIds.has(w.id)) {
