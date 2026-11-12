@@ -2,8 +2,29 @@ import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 
 export const HEXAGON_EMPRESA_ID = '2c944db5-f1d0-4789-a562-8cfa1c0155b7';
-export const HEXAGON_DEFAULT_LOGO_URL =
-  'https://unbepkdzvsfvylnysrcq.supabase.co/storage/v1/object/public/company-logos/public/logo-hexagon.png';
+export const HEXAGON_DEFAULT_LOGO_URL = '/logos/hexagon-logo-main.png';
+
+export function resolveHexagonLogoUrl(rawUrl?: string | null): string {
+  const origin =
+    typeof window !== 'undefined' && window.location?.origin
+      ? window.location.origin
+      : 'https://mcs.gestaologinpro.com';
+  const mainLogoFullUrl = `${origin}/logos/hexagon-logo-main.png`;
+
+  if (!rawUrl) return mainLogoFullUrl;
+  const trimmed = String(rawUrl).trim();
+  if (!trimmed) return mainLogoFullUrl;
+  if (trimmed.startsWith('data:')) return trimmed;
+
+  // Replace white-emblem dark-background logo (logo-hexagon.png) with green+copper white-paper logo
+  if (trimmed.includes('logo-hexagon.png') || trimmed.endsWith('/logos/hexagon-logo-main.png')) {
+    return mainLogoFullUrl;
+  }
+  if (trimmed.startsWith('/')) {
+    return `${origin}${trimmed}`;
+  }
+  return trimmed;
+}
 
 export const DEFAULT_HEXAGON_DIRECT_DESCRIPTION =
   'Prestación de servicios comerciales, administrativos, ayudas con buscas de alojamientos, alquileres de coches, compra de epis y herramientas.';
@@ -504,12 +525,13 @@ export function buildHexagonFacturaHtml(params: HexagonFacturaHtmlParams): strin
     adj?.condicoes_pagamento ||
     'Transferencia Bancaria';
 
-  const effectiveLogoUrl =
+  const effectiveLogoUrl = resolveHexagonLogoUrl(
     logoSrc ||
-    targetEmpresa?.invoice_logo_url ||
-    targetEmpresa?.invoiceLogoUrl ||
-    fat?.empresaInvoiceLogoUrl ||
-    HEXAGON_DEFAULT_LOGO_URL;
+      targetEmpresa?.invoice_logo_url ||
+      targetEmpresa?.invoiceLogoUrl ||
+      fat?.empresaInvoiceLogoUrl ||
+      HEXAGON_DEFAULT_LOGO_URL
+  );
 
   const itemsRowsHtml = extracted.items
     .map((item, index) => {
@@ -592,9 +614,9 @@ export function buildHexagonFacturaHtml(params: HexagonFacturaHtmlParams): strin
 
           <div style="display: flex; align-items: flex-start; gap: 16px;">
             <div style="text-align: right;">
-              <span style="display: inline-block; background: #183935; color: #ffffff; font-size: 8.5px; font-weight: 700; padding: 3px 9px; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;">
+              <div style="display: inline-block; background: #183935; color: #ffffff; font-size: 8.5px; font-weight: 700; padding: 3px 10px 6px 10px; line-height: 1.1; border-radius: 4px; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 6px;">
                 Factura Oficial · Original
-              </span>
+              </div>
               <div style="font-size: 23px; font-weight: 800; color: #0f172a; letter-spacing: -0.02em; line-height: 1.1;">
                 FACTURA
               </div>
@@ -798,12 +820,13 @@ export function buildHexagonFacturaHtml(params: HexagonFacturaHtmlParams): strin
 }
 
 export async function renderHexagonFacturaPDF(params: HexagonFacturaHtmlParams): Promise<jsPDF | null> {
-  const logoUrl =
+  const logoUrl = resolveHexagonLogoUrl(
     params.logoSrc ||
-    params.targetEmpresa?.invoice_logo_url ||
-    params.targetEmpresa?.invoiceLogoUrl ||
-    params.fat?.empresaInvoiceLogoUrl ||
-    HEXAGON_DEFAULT_LOGO_URL;
+      params.targetEmpresa?.invoice_logo_url ||
+      params.targetEmpresa?.invoiceLogoUrl ||
+      params.fat?.empresaInvoiceLogoUrl ||
+      HEXAGON_DEFAULT_LOGO_URL
+  );
 
   const dataUrlLogo = await preloadImageAsDataUrl(logoUrl);
   const html = buildHexagonFacturaHtml({
