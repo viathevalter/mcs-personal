@@ -8,19 +8,20 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { PedidoStatusBadge } from '../PedidoStatusBadge';
 import { formatCurrency } from '@/shared/utils/currency';
-import type { Pedido, PedidoItem } from '../../types';
+import type { Pedido, PedidoItem, PedidoSummaryMetrics } from '../../types';
 import { usePedidoFinanceAccess } from '../../hooks/usePedidoFinanceAccess';
 import { supabase } from '@/shared/supabase/client';
 import { toast } from 'sonner';
-import { Plus, Pencil, Trash2, Loader2, Users } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Users, Home, UserCheck, UserMinus, ArrowUpRight } from 'lucide-react';
 import { updatePedidoItemQuantity, addPedidoItem, deletePedidoItem } from '../../services/pedidoItemsService';
 
 interface Props {
   items: PedidoItem[];
   pedido?: Pedido;
+  summary?: PedidoSummaryMetrics;
 }
 
-export function PedidoItemsTab({ items, pedido }: Props) {
+export function PedidoItemsTab({ items, pedido, summary }: Props) {
   const { hasFinanceAccess } = usePedidoFinanceAccess();
   const queryClient = useQueryClient();
 
@@ -276,6 +277,44 @@ export function PedidoItemsTab({ items, pedido }: Props) {
                           </span>
                         )}
                       </div>
+                      {(() => {
+                        const itemFnName = (item.job_function?.name || item.job_function_name_snapshot || '').toLowerCase();
+                        const itemWorkers = (summary?.workers || []).filter(
+                          w => w.pedido_item_id === item.id || (!w.pedido_item_id && itemFnName && w.funcao.toLowerCase() === itemFnName)
+                        );
+                        if (itemWorkers.length === 0) return null;
+                        return (
+                          <div className="mt-2 pt-2 border-t border-slate-100 dark:border-slate-800 flex flex-wrap gap-1.5">
+                            {itemWorkers.map(w => (
+                              <span
+                                key={w.assignment_id}
+                                className={`inline-flex items-center gap-1 text-[11px] font-medium px-2 py-0.5 rounded-md border ${
+                                  w.movement_type === 'exited'
+                                    ? 'bg-rose-50/50 text-rose-700 border-rose-200 dark:bg-rose-950/30 dark:text-rose-300 dark:border-rose-800 line-through opacity-80'
+                                    : w.movement_type === 'entering'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800'
+                                    : 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800'
+                                }`}
+                              >
+                                {w.movement_type === 'exited' ? (
+                                  <UserMinus className="h-3 w-3 shrink-0" />
+                                ) : w.movement_type === 'entering' ? (
+                                  <ArrowUpRight className="h-3 w-3 shrink-0" />
+                                ) : (
+                                  <UserCheck className="h-3 w-3 shrink-0" />
+                                )}
+                                <strong className="font-mono text-[10px]">{w.cod_colab}</strong>
+                                <span>{w.nome}</span>
+                                {w.housing && (
+                                  <span className="inline-flex items-center gap-0.5 text-[10px] bg-white/80 dark:bg-slate-900 px-1 rounded text-indigo-600 dark:text-indigo-400">
+                                    <Home className="h-2.5 w-2.5" /> {w.housing.alojamento_codigo || w.housing.alojamento_nome}
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </td>
                     <td className="px-4 py-3 text-center">
                       <PedidoStatusBadge type="item" status={item.item_status || 'pending'} />

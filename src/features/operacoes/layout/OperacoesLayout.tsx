@@ -23,7 +23,7 @@ const OperacoesContent: React.FC = () => {
       <Sidebar />
       <main className={`flex-1 flex flex-col h-screen overflow-hidden transition-all duration-300 ${isSidebarOpen ? 'ml-64' : 'ml-20'}`}>
         <Header />
-        <div className="flex-1 overflow-y-auto scrollbar-hide p-4 md:p-6 lg:p-8">
+        <div className="flex-1 overflow-y-auto scrollbar-hide p-3 md:p-4 lg:px-5 lg:py-4">
             <Outlet context={{ filters, setFilters }} />
         </div>
       </main>

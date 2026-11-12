@@ -1,3 +1,76 @@
+export interface PedidoWorkerHousing {
+  alocacao_id: string;
+  alojamento_id?: string;
+  alojamento_codigo?: string;
+  alojamento_nome: string;
+  cama_identificador?: string;
+  municipio?: string;
+  endereco?: string;
+  data_checkin?: string;
+  data_checkout_prevista?: string;
+  status: string;
+  tipo_alojamento?: string;
+  custo_alojamento?: number;
+}
+
+export interface PedidoWorkerEntry {
+  assignment_id: string;
+  worker_id: string;
+  cod_colab: string;
+  nome: string;
+  nif?: string;
+  dni?: string;
+  pasaporte?: string;
+  movil?: string;
+  email?: string;
+  funcao: string;
+  pedido_item_id?: string | null;
+  status: string;
+  movement_type: 'active' | 'entering' | 'exiting' | 'exited';
+  movement_label: string;
+  planned_start_date?: string | null;
+  start_date?: string | null;
+  end_date?: string | null;
+  tarifa_acordada?: number | null;
+  camiseta?: string | null;
+  pantalones?: string | null;
+  licencia_conducir?: string | null;
+  status_trabajador?: string | null;
+  status_seguridad?: string | null;
+  data_baixa?: string | null;
+  notes?: string | null;
+  replacement_of_assignment_id?: string | null;
+  replaced_worker_name?: string | null;
+  replaced_by_worker_name?: string | null;
+  solicitud_codigo?: string | null;
+  solicitud_tipo?: string | null;
+  exit_reason?: string | null;
+  housing?: PedidoWorkerHousing | null;
+  requires_housing?: boolean;
+}
+
+export interface PedidoSummaryMetrics {
+  requested: number;
+  fulfilled: number;
+  profiles: string[];
+  includesHousing: boolean;
+  activeWorkersCount: number;
+  enteringWorkersCount: number;
+  exitingWorkersCount: number;
+  exitedWorkersCount: number;
+  housedWorkersCount: number;
+  pendingHousingCount: number;
+  alojamentos: Array<{
+    id: string;
+    codigo?: string;
+    nome: string;
+    municipio?: string;
+    endereco?: string;
+    workersCount: number;
+  }>;
+  workers: PedidoWorkerEntry[];
+}
+
 export interface Pedido {
   id: string;
   empresa_id: string;
@@ -11,6 +84,8 @@ export interface Pedido {
   operational_status: 'pending_operations' | 'partially_fulfilled' | 'fulfilled' | 'cancelled' | 'paused' | 'completed';
   commercial_owner_id?: string;
   responsible_id?: string;
+  created_by?: string;
+  updated_by?: string;
   approved_at?: string;
   expected_start_date?: string;
   expected_end_date?: string;
@@ -21,10 +96,13 @@ export interface Pedido {
   created_at: string;
   updated_at: string;
 
-  // Relacionamentos manuais (core_common)
+  // Relacionamentos manuais (core_common / core_operacoes)
   client?: any;
   client_site?: any;
   empresa?: any;
+  commercial_owner?: { id: string; display_name?: string; email?: string } | null;
+  responsible_user?: { id: string; display_name?: string; email?: string } | null;
+  source_estimacion?: { id: string; codigo?: string; status?: string } | null;
 }
 
 export interface PedidoItem {
