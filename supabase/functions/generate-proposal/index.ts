@@ -623,6 +623,9 @@ serve(async (req) => {
       PLAZO_PAGO: est.payment_terms || (isFr ? "À convenir" : "A convenir"),
       VALIDEZ_PRESUPUESTO: est.validity_date ? Math.max(1, Math.ceil((new Date(est.validity_date).getTime() - new Date(est.created_at || Date.now()).getTime()) / (1000 * 3600 * 24))) : "30",
       OBSERVACIONES: est.general_notes || "",
+      OBSERVACOES: est.general_notes || "",
+      NOTAS_GENERALES: est.general_notes || "",
+      NOTAS: est.general_notes || "",
       CLIENTE_NIF: clientTaxId || "",
       CIF_CLIENTE: clientTaxId || "",
       EMPRESA_CLIENTE_NIF: clientTaxId || "",
@@ -702,6 +705,7 @@ serve(async (req) => {
         template: templateBuffer,
         data: mergeData,
         cmdDelimiter: ["{{", "}}"],
+        processLineBreaks: true,
         noSandbox: true,
         errorHandler: (err, command_code) => {
           console.error(`Erro ao processar tag proposta "${command_code}":`, err);
@@ -759,6 +763,7 @@ serve(async (req) => {
           template: contractTemplateBuffer,
           data: mergeData,
           cmdDelimiter: ["{{", "}}"],
+          processLineBreaks: true,
           noSandbox: true,
           errorHandler: (err, command_code) => {
             console.error(`Erro ao processar tag contrato "${command_code}":`, err);
