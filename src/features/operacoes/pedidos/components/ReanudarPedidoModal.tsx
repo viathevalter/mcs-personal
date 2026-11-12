@@ -62,7 +62,7 @@ export function ReanudarPedidoModal({ isOpen, onClose, pedido, onSuccess }: Rean
         const { data, error } = await supabase
           .schema('core_comercial')
           .from('notification_emails')
-          .select('id, email, name, event_type')
+          .select('id, email, event_type')
           .eq('empresa_id', pedido.empresa_id)
           .in('event_type', ['retomada', 'pedido', 'pausa']);
 
@@ -77,7 +77,7 @@ export function ReanudarPedidoModal({ isOpen, onClose, pedido, onSuccess }: Rean
           const { data: fallbackData } = await supabase
             .schema('core_comercial')
             .from('notification_emails')
-            .select('id, email, name')
+            .select('id, email')
             .eq('empresa_id', pedido.empresa_id);
 
           if (fallbackData && fallbackData.length > 0) {
