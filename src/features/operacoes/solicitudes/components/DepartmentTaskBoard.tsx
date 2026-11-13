@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useDepartmentTasks } from '../hooks/useDepartmentTasks';
 import { useSolicitudActions } from '../hooks/useSolicitudActions';
 import { SolicitudStatusBadge } from './SolicitudStatusBadge';
@@ -25,6 +26,7 @@ interface Props {
 }
 
 export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Props) {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const { data: tasks = [], isLoading, refetch } = useDepartmentTasks(departmentCodes);
   
@@ -37,10 +39,10 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
   const [priorityFilter, setPriorityFilter] = useState('all');
 
   const stats = {
-    pending: tasks.filter(t => t.status === 'pending').length,
-    inProgress: tasks.filter(t => t.status === 'in_progress').length,
-    blocked: tasks.filter(t => t.status === 'blocked').length,
-    completed: tasks.filter(t => t.status === 'completed').length,
+    pending: tasks.filter(tk => tk.status === 'pending').length,
+    inProgress: tasks.filter(tk => tk.status === 'in_progress').length,
+    blocked: tasks.filter(tk => tk.status === 'blocked').length,
+    completed: tasks.filter(tk => tk.status === 'completed').length,
   };
 
   const filteredTasks = useMemo(() => {
@@ -50,8 +52,8 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
       const taskTitle = task.title || '';
       const taskDescription = task.description || '';
       
-      const empresaName = task.solicitud?.empresa?.name || 'Sin Empresa';
-      const clientName = task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || 'Sin Asignación';
+      const empresaName = task.solicitud?.empresa?.name || t('torre_controle.department_tasks.no_company');
+      const clientName = task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || t('torre_controle.department_tasks.no_assignment');
       
       const textMatch = 
         solicitudCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -66,27 +68,27 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
       
       return textMatch && statusMatch && priorityMatch;
     });
-  }, [tasks, searchTerm, statusFilter, priorityFilter]);
+  }, [tasks, searchTerm, statusFilter, priorityFilter, t]);
 
   return (
     <div className="flex flex-col space-y-6 flex-1 min-h-0 overflow-hidden">
       <div className="flex items-center justify-between shrink-0">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">{title}</h1>
+          <h1 className="text-3xl font-bold tracking-tight">{title || t('torre_controle.department_tasks.title_ops')}</h1>
           <p className="text-muted-foreground">
-            Gestión de tareas operativas asignadas al departamento.
+            {t('torre_controle.department_tasks.subtitle')}
           </p>
         </div>
         <Button variant="outline" onClick={() => refetch()}>
           <RefreshCw className="mr-2 h-4 w-4" />
-          Actualizar
+          {t('torre_controle.department_tasks.refresh')}
         </Button>
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 shrink-0">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Pendientes (Libres)</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('torre_controle.department_tasks.kpi_pending')}</CardTitle>
             <Clock className="h-4 w-4 text-slate-500" />
           </CardHeader>
           <CardContent>
@@ -96,7 +98,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">En Curso</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('torre_controle.department_tasks.kpi_in_progress')}</CardTitle>
             <Activity className="h-4 w-4 text-blue-500" />
           </CardHeader>
           <CardContent>
@@ -106,7 +108,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Bloqueadas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('torre_controle.department_tasks.kpi_blocked')}</CardTitle>
             <AlertCircle className="h-4 w-4 text-orange-500" />
           </CardHeader>
           <CardContent>
@@ -116,7 +118,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Completadas</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">{t('torre_controle.department_tasks.kpi_completed')}</CardTitle>
             <CheckCircle2 className="h-4 w-4 text-emerald-500" />
           </CardHeader>
           <CardContent>
@@ -132,7 +134,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
           <Input
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            placeholder="Buscar por tarea, código, empresa o cliente..."
+            placeholder={t('torre_controle.department_tasks.search_placeholder')}
             className="pl-9 pr-8 bg-white dark:bg-black"
           />
           {searchTerm && (
@@ -149,14 +151,14 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
           <div className="w-[180px]">
             <Select value={statusFilter} onValueChange={setStatusFilter}>
               <SelectTrigger className="bg-white dark:bg-black">
-                <SelectValue placeholder="Estado" />
+                <SelectValue placeholder={t('torre_controle.department_tasks.status_placeholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todos los Estados</SelectItem>
-                <SelectItem value="pending">Pendiente (Libre)</SelectItem>
-                <SelectItem value="in_progress">En Curso</SelectItem>
-                <SelectItem value="blocked">Bloqueada</SelectItem>
-                <SelectItem value="completed">Completada</SelectItem>
+                <SelectItem value="all">{t('torre_controle.department_tasks.all_statuses')}</SelectItem>
+                <SelectItem value="pending">{t('torre_controle.department_tasks.status_pending_free')}</SelectItem>
+                <SelectItem value="in_progress">{t('torre_controle.department_tasks.status_in_progress')}</SelectItem>
+                <SelectItem value="blocked">{t('torre_controle.department_tasks.status_blocked')}</SelectItem>
+                <SelectItem value="completed">{t('torre_controle.department_tasks.status_completed')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -164,14 +166,14 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
           <div className="w-[180px]">
             <Select value={priorityFilter} onValueChange={setPriorityFilter}>
               <SelectTrigger className="bg-white dark:bg-black">
-                <SelectValue placeholder="Prioridad" />
+                <SelectValue placeholder={t('torre_controle.department_tasks.priority_placeholder')} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="all">Todas las Prioridades</SelectItem>
-                <SelectItem value="urgent">Urgente</SelectItem>
-                <SelectItem value="high">Alta</SelectItem>
-                <SelectItem value="normal">Normal</SelectItem>
-                <SelectItem value="low">Baja</SelectItem>
+                <SelectItem value="all">{t('torre_controle.department_tasks.all_priorities')}</SelectItem>
+                <SelectItem value="urgent">{t('torre_controle.priorities.urgent')}</SelectItem>
+                <SelectItem value="high">{t('torre_controle.priorities.high')}</SelectItem>
+                <SelectItem value="normal">{t('torre_controle.priorities.normal')}</SelectItem>
+                <SelectItem value="low">{t('torre_controle.priorities.low')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -187,7 +189,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
               }}
               className="text-indigo-600 dark:text-indigo-400 font-semibold"
             >
-              Limpiar Filtros
+              {t('torre_controle.department_tasks.clear_filters')}
             </Button>
           )}
         </div>
@@ -196,21 +198,21 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
       <div className="rounded-md border bg-card flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="flex-1 relative [&>div]:absolute [&>div]:inset-0 [&>div]:overflow-auto">
         {isLoading ? (
-          <div className="p-8 text-center text-muted-foreground">Cargando tareas del departamento...</div>
+          <div className="p-8 text-center text-muted-foreground">{t('torre_controle.department_tasks.loading')}</div>
         ) : filteredTasks.length === 0 ? (
-          <div className="p-8 text-center text-muted-foreground">No se encontraron tareas para los filtros aplicados.</div>
+          <div className="p-8 text-center text-muted-foreground">{t('torre_controle.department_tasks.empty')}</div>
         ) : (
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Solicitud Madre</TableHead>
-                <TableHead>Empresa</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Tarea</TableHead>
-                <TableHead>Prioridad</TableHead>
-                <TableHead>Estado</TableHead>
-                <TableHead>Dependencia</TableHead>
-                <TableHead className="text-right">Acciones</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_solicitud')}</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_company')}</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_client')}</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_task')}</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_priority')}</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_status')}</TableHead>
+                <TableHead>{t('torre_controle.department_tasks.col_dependency')}</TableHead>
+                <TableHead className="text-right">{t('torre_controle.department_tasks.col_actions')}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -235,10 +237,10 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                     </div>
                   </TableCell>
                   <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                    {task.solicitud?.empresa?.name || 'Sin Empresa'}
+                    {task.solicitud?.empresa?.name || t('torre_controle.department_tasks.no_company')}
                   </TableCell>
                   <TableCell className="font-medium text-slate-800 dark:text-slate-200">
-                    {task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || 'Sin Asignación'}
+                    {task.solicitud?.pedido?.client?.trade_name || task.solicitud?.pedido?.client?.legal_name || t('torre_controle.department_tasks.no_assignment')}
                   </TableCell>
                   <TableCell>
                     <div className="font-medium">{task.title}</div>
@@ -255,7 +257,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                       task.priority === 'normal' ? 'bg-blue-500/10 text-blue-500' :
                       'bg-slate-500/10 text-slate-500'
                     }`}>
-                      {task.priority.toUpperCase()}
+                      {t(`torre_controle.priorities.${task.priority}`, task.priority.toUpperCase())}
                     </span>
                   </TableCell>
                   <TableCell>
@@ -265,10 +267,10 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                     {task.status === 'blocked' && task.blocked_by_task ? (
                       <div className="flex items-center text-xs text-orange-500">
                         <Lock className="h-3 w-3 mr-1" />
-                        Bloqueada por: {task.blocked_by_task.title}
+                        {t('torre_controle.department_tasks.blocked_by')} {task.blocked_by_task.title}
                       </div>
                     ) : (
-                      <span className="text-muted-foreground text-xs">Libre</span>
+                      <span className="text-muted-foreground text-xs">{t('torre_controle.department_tasks.free')}</span>
                     )}
                   </TableCell>
                   <TableCell className="text-right">
@@ -281,7 +283,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                         disabled={startTask.isPending}
                       >
                         <PlayCircle className="h-4 w-4 mr-2" />
-                        Iniciar
+                        {t('torre_controle.department_tasks.start')}
                       </Button>
                     )}
                     {task.status === 'in_progress' && (
@@ -293,12 +295,12 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                         disabled={completeTask.isPending}
                       >
                         <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Completar
+                        {t('torre_controle.department_tasks.complete')}
                       </Button>
                     )}
                     {task.status === 'completed' && (
                       <div className="text-xs text-emerald-500 font-medium flex flex-col items-end">
-                        <span>Finalizada</span>
+                        <span>{t('torre_controle.department_tasks.finished')}</span>
                         {task.completed_at && (
                           <span className="text-[10px] text-muted-foreground mt-0.5">
                             {format(new Date(task.completed_at), 'dd/MM/yyyy HH:mm')}

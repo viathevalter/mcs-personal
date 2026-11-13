@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useAuth } from '@/features/operacoes/contexts/AuthContext';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess, previousDueDate, overrideDueDate }: Props) {
+    const { t, i18n } = useTranslation();
     const { selectedEmpresaId } = useEmpresa();
     const { user } = useAuth();
     const { data: targets = [] } = useSolicitudTargets(solicitud.id);
@@ -35,8 +37,18 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
     const [sending, setSending] = useState(false);
     const [isSubjectEdited, setIsSubjectEdited] = useState(false);
     const [isBodyEdited, setIsBodyEdited] = useState(false);
-    const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+    const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>(
+        i18n.language?.startsWith('es') ? 'es' : 'pt'
+    );
     const editorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        if (i18n.language?.startsWith('es')) {
+            setEmailLanguage('es');
+        } else {
+            setEmailLanguage('pt');
+        }
+    }, [i18n.language]);
 
     // Map action type to event type string
     const eventTypeMap: Record<string, string> = {
@@ -266,7 +278,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
         ]));
 
         if (toEmails.length === 0) {
-            toast.error('Informe pelo menos um e-mail de destinatário.');
+            toast.error(t('solicitud_detail.resend_modal.toast_no_recipients'));
             return;
         }
 
@@ -298,12 +310,12 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                     created_by: user?.id
                 });
 
-            toast.success('E-mail de notificação enviado com sucesso!');
+            toast.success(t('solicitud_detail.resend_modal.toast_sent'));
             if (onSuccess) onSuccess();
             onClose();
         } catch (err: any) {
             console.error('Failed to resend notification email:', err);
-            toast.error('Erro ao enviar e-mail de notificação', { description: err.message });
+            toast.error(t('solicitud_detail.resend_modal.toast_error'), { description: err.message });
         } finally {
             setSending(false);
         }
@@ -315,10 +327,10 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-850 dark:text-slate-100">
                         <Mail className="h-5 w-5 text-blue-500" />
-                        Reenviar Notificação Operacional por E-mail ({solicitud.codigo})
+                        {t('solicitud_detail.resend_modal.title', { code: solicitud.codigo })}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground">
-                        Configure o idioma, destinatários, assunto e corpo da notificação por e-mail referente a esta solicitação.
+                        {t('solicitud_detail.resend_modal.desc')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -327,18 +339,18 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         {/* Idioma */}
                         <div className="space-y-1.5">
-                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Idioma do E-mail</label>
+                            <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">{t('solicitud_detail.resend_modal.email_lang')}</label>
                             <Select 
                                 value={emailLanguage} 
                                 onValueChange={(val: 'pt' | 'es' | 'en') => handleLanguageChange(val)}
                             >
                                 <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                    <SelectValue placeholder="Selecione o idioma" />
+                                    <SelectValue />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 Português (Padrão)</SelectItem>
-                                    <SelectItem value="es" className="text-xs font-semibold">🇪🇸 Espanhol (Spanish)</SelectItem>
-                                    <SelectItem value="en" className="text-xs font-semibold">🇬🇧 Inglês (English)</SelectItem>
+                                    <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 {t('cockpit_pedidos.resend_modal.lang_pt')}</SelectItem>
+                                    <SelectItem value="es" className="text-xs font-semibold">🇪🇸 {t('cockpit_pedidos.resend_modal.lang_es')}</SelectItem>
+                                    <SelectItem value="en" className="text-xs font-semibold">🇬🇧 {t('cockpit_pedidos.resend_modal.lang_en')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -346,7 +358,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                         {/* E-mails Adicionais */}
                         <div className="space-y-1.5">
                             <label htmlFor="resend_additional_emails" className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                                E-mails Adicionais (separados por vírgula)
+                                {t('solicitud_detail.resend_modal.additional_emails')}
                             </label>
                             <Input
                                 id="resend_additional_emails"
@@ -362,17 +374,17 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                     {/* Destinatários Configurados */}
                     <div className="space-y-2">
                         <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                            Destinatários Configurados ({eventType})
+                            {t('solicitud_detail.resend_modal.configured_recipients', { type: eventType })}
                         </label>
                         {loadingEmails ? (
                             <div className="flex items-center space-x-2 text-slate-400">
                                 <Loader2 className="h-4 w-4 animate-spin" />
-                                <span className="text-xs">Carregando e-mails configurados...</span>
+                                <span className="text-xs">{t('solicitud_detail.resend_modal.loading_emails')}</span>
                             </div>
                         ) : notificationEmails.length === 0 ? (
                             <p className="text-xs text-amber-600 font-medium flex items-start bg-amber-50 dark:bg-amber-950/20 p-2.5 rounded-lg border border-amber-200">
                                 <AlertCircle className="mr-1.5 h-4 w-4 flex-shrink-0 mt-0.5" />
-                                Nenhum e-mail pré-configurado encontrado para este evento. Você pode informar destinatários no campo de e-mails adicionais acima.
+                                {t('solicitud_detail.resend_modal.no_configured_emails')}
                             </p>
                         ) : (
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-3 rounded-lg max-h-[120px] overflow-y-auto bg-slate-50/50 dark:bg-slate-950/20">
@@ -400,12 +412,12 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                     {/* Assunto do E-mail */}
                     <div className="space-y-1.5">
                         <label htmlFor="resend_email_subject" className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                            Assunto do E-mail
+                            {t('solicitud_detail.resend_modal.subject_label')}
                         </label>
                         <Input
                             id="resend_email_subject"
                             type="text"
-                            placeholder="Assunto da notificação"
+                            placeholder={t('solicitud_detail.resend_modal.subject_placeholder')}
                             value={emailSubject}
                             onChange={e => {
                                 setIsSubjectEdited(true);
@@ -419,7 +431,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                     <div className="space-y-1.5 flex flex-col">
                         <div className="flex justify-between items-center mb-1">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                                Corpo do E-mail
+                                {t('solicitud_detail.resend_modal.body_label')}
                             </label>
                             <Button 
                                 type="button" 
@@ -427,11 +439,11 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                                 onClick={() => {
                                     setIsSubjectEdited(false);
                                     setIsBodyEdited(false);
-                                    toast.success('Modelo restaurado para o idioma selecionado.');
+                                    toast.success(t('solicitud_detail.resend_modal.toast_restored'));
                                 }}
                                 className="h-6 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50/50"
                             >
-                                Restaurar Padrão
+                                {t('solicitud_detail.resend_modal.restore_default')}
                             </Button>
                         </div>
                         
@@ -504,7 +516,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
 
                 <DialogFooter className="pt-2 border-t mt-4 gap-2">
                     <Button type="button" variant="outline" onClick={onClose} disabled={sending}>
-                        Cancelar
+                        {t('solicitud_detail.resend_modal.cancel')}
                     </Button>
                     <Button 
                         type="button" 
@@ -513,7 +525,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                         className="bg-blue-600 hover:bg-blue-700 text-white font-semibold flex items-center gap-1.5"
                     >
                         {sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        {sending ? 'Enviando...' : 'Enviar Notificação por E-mail'}
+                        {sending ? t('solicitud_detail.resend_modal.sending') : t('solicitud_detail.resend_modal.send_btn')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

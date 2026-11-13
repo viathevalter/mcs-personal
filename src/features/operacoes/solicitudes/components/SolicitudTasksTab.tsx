@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import {
   Table,
   TableBody,
@@ -19,14 +20,15 @@ interface Props {
 }
 
 export function SolicitudTasksTab({ solicitudId, tasks, isLoading }: Props) {
+  const { t } = useTranslation();
   const { startTask, completeTask } = useSolicitudActions(solicitudId);
 
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando tarefas...</div>;
+    return <div className="p-8 text-center text-muted-foreground">{t('solicitud_detail.tasks_tab.loading')}</div>;
   }
 
   if (tasks.length === 0) {
-    return <div className="p-8 text-center text-muted-foreground">Nenhuma tarefa encontrada.</div>;
+    return <div className="p-8 text-center text-muted-foreground">{t('solicitud_detail.tasks_tab.empty')}</div>;
   }
 
   return (
@@ -34,11 +36,11 @@ export function SolicitudTasksTab({ solicitudId, tasks, isLoading }: Props) {
       <Table>
         <TableHeader>
           <TableRow>
-            <TableHead>Tarefa</TableHead>
-            <TableHead>Departamento</TableHead>
-            <TableHead>Status</TableHead>
-            <TableHead>Dependência</TableHead>
-            <TableHead className="text-right">Ações</TableHead>
+            <TableHead>{t('solicitud_detail.tasks_tab.col_task')}</TableHead>
+            <TableHead>{t('solicitud_detail.tasks_tab.col_department')}</TableHead>
+            <TableHead>{t('solicitud_detail.tasks_tab.col_status')}</TableHead>
+            <TableHead>{t('solicitud_detail.tasks_tab.col_dependency')}</TableHead>
+            <TableHead className="text-right">{t('solicitud_detail.tasks_tab.col_actions')}</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -60,10 +62,10 @@ export function SolicitudTasksTab({ solicitudId, tasks, isLoading }: Props) {
                 {task.status === 'blocked' && task.blocked_by_task ? (
                   <div className="flex items-center text-xs text-orange-500">
                     <Lock className="h-3 w-3 mr-1" />
-                    Bloqueada por: {task.blocked_by_task.title}
+                    {t('solicitud_detail.tasks_tab.blocked_by')} {task.blocked_by_task.title}
                   </div>
                 ) : (
-                  <span className="text-muted-foreground text-xs">Livre</span>
+                  <span className="text-muted-foreground text-xs">{t('solicitud_detail.tasks_tab.free')}</span>
                 )}
               </TableCell>
               <TableCell className="text-right">
@@ -76,7 +78,7 @@ export function SolicitudTasksTab({ solicitudId, tasks, isLoading }: Props) {
                     disabled={startTask.isPending}
                   >
                     <PlayCircle className="h-4 w-4 mr-2" />
-                    Iniciar
+                    {t('solicitud_detail.tasks_tab.start')}
                   </Button>
                 )}
                 {task.status === 'in_progress' && (
@@ -88,11 +90,11 @@ export function SolicitudTasksTab({ solicitudId, tasks, isLoading }: Props) {
                     disabled={completeTask.isPending}
                   >
                     <CheckCircle2 className="h-4 w-4 mr-2" />
-                    Concluir
+                    {t('solicitud_detail.tasks_tab.complete')}
                   </Button>
                 )}
                 {task.status === 'completed' && (
-                  <span className="text-xs text-emerald-500 font-medium">Finalizada</span>
+                  <span className="text-xs text-emerald-500 font-medium">{t('solicitud_detail.tasks_tab.finished')}</span>
                 )}
               </TableCell>
             </TableRow>

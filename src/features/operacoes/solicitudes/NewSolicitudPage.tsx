@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Button } from '@/components/ui/button';
@@ -33,6 +34,7 @@ export function formatLocalDate(dateStr?: string | null): string {
 }
 
 export function NewSolicitudPage() {
+    const { t, i18n } = useTranslation();
     const queryClient = useQueryClient();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
@@ -206,7 +208,9 @@ export function NewSolicitudPage() {
     const [isSubjectEdited, setIsSubjectEdited] = useState(false);
     const [isBodyEdited, setIsBodyEdited] = useState(false);
     const editorRef = useRef<HTMLDivElement>(null);
-    const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>('pt');
+    const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en'>(
+        i18n.language?.startsWith('es') ? 'es' : 'pt'
+    );
     const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
     // Target Client/Site and Housing logistics state for Relocations
@@ -243,13 +247,13 @@ export function NewSolicitudPage() {
     const empresaOptions = React.useMemo(() => {
         const operatingCompanies = empresas.filter(e => !e.is_holding && e.codigo !== 'GRP');
         return [
-            { value: 'all', label: 'Todas as Empresas' },
+            { value: 'all', label: t('torre_controle.new_solicitud.all_companies') },
             ...operatingCompanies.map(e => ({
                 value: e.id,
                 label: e.trade_name || e.nome
             }))
         ];
-    }, [empresas]);
+    }, [empresas, t]);
 
     const clientOptions = React.useMemo(() => {
         const list = clients
@@ -261,10 +265,10 @@ export function NewSolicitudPage() {
             .filter(c => c.value && c.label);
         
         return [
-            { value: 'all', label: 'Todos os Clientes' },
+            { value: 'all', label: t('torre_controle.new_solicitud.all_clients') },
             ...list
         ];
-    }, [clients, selectedClientId]);
+    }, [clients, selectedClientId, t]);
 
     const targetClientOptions = React.useMemo(() => {
         const list = clients
@@ -276,10 +280,10 @@ export function NewSolicitudPage() {
             .filter(c => c.value && c.label);
         
         return [
-            { value: 'all', label: 'Selecione o Cliente' },
+            { value: 'all', label: t('torre_controle.new_solicitud.select_client') },
             ...list
         ];
-    }, [clients, targetClientId]);
+    }, [clients, targetClientId, t]);
 
     const filteredDropdownPedidos = selectedClientId !== 'all' 
         ? pedidos.filter(p => {
@@ -297,10 +301,10 @@ export function NewSolicitudPage() {
             .filter(p => p.value);
 
         return [
-            { value: 'all', label: 'Todos os Pedidos' },
+            { value: 'all', label: t('torre_controle.new_solicitud.all_orders') },
             ...list
         ];
-    }, [filteredDropdownPedidos]);
+    }, [filteredDropdownPedidos, t]);
 
     const filteredReemplazos = React.useMemo(() => {
         let list = (reemplazos as any[]);
@@ -1621,16 +1625,16 @@ export function NewSolicitudPage() {
                         <ArrowLeft className="h-5 w-5" />
                     </Button>
                     <div>
-                        <h1 className="text-3xl font-bold tracking-tight">Nova Operação sobre Alocações</h1>
+                        <h1 className="text-3xl font-bold tracking-tight">{t('torre_controle.new_solicitud.title')}</h1>
                         <p className="text-muted-foreground">
-                            Selecione os trabalhadores ativos e inicie processos de substituição, realocação ou desligamento.
+                            {t('torre_controle.new_solicitud.subtitle')}
                         </p>
                     </div>
                 </div>
 
                 {isDraftRestored && (
                     <div className="bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 text-amber-800 dark:text-amber-300 px-3 py-1.5 rounded-lg text-xs flex items-center gap-2 shadow-xs">
-                        <span>ℹ️ <strong>Rascunho mantido:</strong> Seus dados digitados anteriormente foram restaurados.</span>
+                        <span>ℹ️ <strong>{t('torre_controle.new_solicitud.draft_restored')}</strong> {t('torre_controle.new_solicitud.draft_restored_desc')}</span>
                         <Button 
                             variant="ghost" 
                             size="sm" 
@@ -1638,7 +1642,7 @@ export function NewSolicitudPage() {
                             className="h-6 text-xs text-amber-800 hover:text-amber-955 dark:text-amber-300 dark:hover:text-amber-100 underline p-0 font-medium flex items-center gap-1 ml-2"
                         >
                             <RotateCcw className="w-3 h-3" />
-                            Limpar formulário
+                            {t('torre_controle.new_solicitud.clear_form')}
                         </Button>
                     </div>
                 )}
@@ -1659,12 +1663,12 @@ export function NewSolicitudPage() {
                             <Users className="w-5 h-5 text-blue-500" />
                             <h2 className="text-lg font-semibold">
                                 {actionType === 'order_postponement'
-                                    ? '1. Selecionar Origem do Adiamento'
+                                    ? t('torre_controle.new_solicitud.step1_postponement')
                                     : actionType === 'order_pause'
-                                    ? '1. Selecionar Pedido a ser Pausado'
+                                    ? t('torre_controle.new_solicitud.step1_pause')
                                     : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_cancellation')
-                                    ? '1. Selecionar Pedido (Obra)'
-                                    : '1. Buscar Alocações (Trabalhadores)'}
+                                    ? t('torre_controle.new_solicitud.step1_order')
+                                    : t('torre_controle.new_solicitud.step1_workers')}
                             </h2>
                         </div>
                         
@@ -1684,7 +1688,7 @@ export function NewSolicitudPage() {
                                                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                             }`}
                                         >
-                                            Pedido (Obra Completa)
+                                            {t('torre_controle.new_solicitud.origin_order_full')}
                                         </button>
                                         <button
                                             type="button"
@@ -1699,7 +1703,7 @@ export function NewSolicitudPage() {
                                                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                             }`}
                                         >
-                                            Reemplazo (Substituição)
+                                            {t('torre_controle.new_solicitud.origin_replacement')}
                                         </button>
                                     </div>
                                 )}
@@ -1717,7 +1721,7 @@ export function NewSolicitudPage() {
                                                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                             }`}
                                         >
-                                            Pedido (Obra Completa)
+                                            {t('torre_controle.new_solicitud.origin_order_full')}
                                         </button>
                                         <button
                                             type="button"
@@ -1732,7 +1736,7 @@ export function NewSolicitudPage() {
                                                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                             }`}
                                         >
-                                            Reemplazo (Substituição)
+                                            {t('torre_controle.new_solicitud.origin_replacement')}
                                         </button>
                                         <button
                                             type="button"
@@ -1747,7 +1751,7 @@ export function NewSolicitudPage() {
                                                     : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
                                             }`}
                                         >
-                                            Reubicación (Realocação)
+                                            {t('torre_controle.new_solicitud.origin_relocation')}
                                         </button>
                                     </div>
                                 )}
@@ -1755,13 +1759,13 @@ export function NewSolicitudPage() {
                                 {(actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation')) || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo') ? (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Filtrar por Cliente</label>
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.filter_by_client')}</label>
                                             <Combobox
                                                 options={clientOptions}
                                                 value={selectedClientId === 'all' ? null : selectedClientId}
                                                 onChange={(val) => setSelectedClientId(val || 'all')}
-                                                placeholder="Todos os Clientes"
-                                                emptyText="Nenhum cliente encontrado."
+                                                placeholder={t('torre_controle.new_solicitud.all_clients')}
+                                                emptyText={t('torre_controle.new_solicitud.no_client_found')}
                                                 className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
                                             />
                                         </div>
@@ -1875,24 +1879,24 @@ export function NewSolicitudPage() {
                                 ) : (
                                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                         <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.client')}</label>
                                             <Combobox
                                                 options={clientOptions}
                                                 value={selectedClientId === 'all' ? null : selectedClientId}
                                                 onChange={(val) => setSelectedClientId(val || 'all')}
-                                                placeholder="Todos os Clientes"
-                                                emptyText="Nenhum cliente encontrado."
+                                                placeholder={t('torre_controle.new_solicitud.all_clients')}
+                                                emptyText={t('torre_controle.new_solicitud.no_client_found')}
                                                 className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
                                             />
                                         </div>
                                         <div className="space-y-1.5">
-                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Pedido (Obra)</label>
+                                            <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.order_site')}</label>
                                             <Combobox
                                                 options={pedidoOptions}
                                                 value={selectedPedidoId === 'all' ? null : selectedPedidoId}
                                                 onChange={(val) => setSelectedPedidoId(val || 'all')}
-                                                placeholder="Todos os Pedidos"
-                                                emptyText="Nenhum pedido encontrado."
+                                                placeholder={t('torre_controle.new_solicitud.all_orders')}
+                                                emptyText={t('torre_controle.new_solicitud.no_order_found')}
                                                 className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
                                             />
                                         </div>
@@ -1902,20 +1906,20 @@ export function NewSolicitudPage() {
                                             return (
                                                 <div className="md:col-span-2 bg-slate-50 dark:bg-slate-900 border border-slate-205 dark:border-slate-800 p-3 rounded-lg space-y-2">
                                                     <div className="flex justify-between items-center border-b pb-1.5 border-slate-200 dark:border-slate-800">
-                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Informações da Obra Selecionada</span>
+                                                        <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">{t('torre_controle.new_solicitud.selected_site_info')}</span>
                                                         <span className="text-xs font-mono font-bold bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-400 px-2 py-0.5 rounded border border-blue-200 dark:border-blue-900/50">
                                                             {p.codigo}
                                                         </span>
                                                     </div>
                                                     <div className="grid grid-cols-2 gap-2 text-xs">
                                                         <div className="col-span-1">
-                                                            <span className="text-slate-450 dark:text-slate-500 block">Cliente:</span>
+                                                            <span className="text-slate-450 dark:text-slate-500 block">{t('torre_controle.new_solicitud.client')}:</span>
                                                             <span className="font-semibold text-slate-700 dark:text-slate-300">
                                                                 {p.client?.trade_name || p.client?.legal_name || 'N/A'}
                                                             </span>
                                                         </div>
                                                         <div className="col-span-1">
-                                                            <span className="text-slate-450 dark:text-slate-500 block">Obra / Local:</span>
+                                                            <span className="text-slate-450 dark:text-slate-500 block">{t('torre_controle.new_solicitud.site_location')}:</span>
                                                             <span className="font-semibold text-slate-700 dark:text-slate-300">
                                                                 {p.client_site?.name || 'N/A'}
                                                             </span>
@@ -1929,12 +1933,12 @@ export function NewSolicitudPage() {
                                                             <span className={`block text-[10px] uppercase tracking-wider font-bold ${
                                                                 actionType === 'order_postponement' ? 'text-amber-800 dark:text-amber-400' : 'text-slate-450 dark:text-slate-500'
                                                             }`}>
-                                                                Data de Início Original:
+                                                                {t('torre_controle.new_solicitud.original_start_date')}
                                                             </span>
                                                             <span className={`font-extrabold text-sm ${
                                                                 actionType === 'order_postponement' ? 'text-amber-900 dark:text-amber-300' : 'text-slate-750 dark:text-slate-300'
                                                             }`}>
-                                                                {p.expected_start_date ? formatLocalDate(p.expected_start_date) : 'Não informada'}
+                                                                {p.expected_start_date ? formatLocalDate(p.expected_start_date) : t('torre_controle.new_solicitud.not_informed')}
                                                             </span>
                                                         </div>
                                                         
@@ -1946,17 +1950,17 @@ export function NewSolicitudPage() {
                                                             <span className={`block text-[10px] uppercase tracking-wider font-bold ${
                                                                 actionType === 'order_extension' ? 'text-emerald-800 dark:text-emerald-400' : 'text-slate-450 dark:text-slate-500'
                                                             }`}>
-                                                                Data de Fim Prevista:
+                                                                {t('torre_controle.new_solicitud.expected_end_date')}
                                                             </span>
                                                             <span className={`font-extrabold text-sm ${
                                                                 actionType === 'order_extension' ? 'text-emerald-900 dark:text-emerald-300' : 'text-slate-750 dark:text-slate-300'
                                                             }`}>
-                                                                {p.expected_end_date ? formatLocalDate(p.expected_end_date) : 'Não informada'}
+                                                                {p.expected_end_date ? formatLocalDate(p.expected_end_date) : t('torre_controle.new_solicitud.not_informed')}
                                                             </span>
                                                         </div>
                                                         {parentSolicitud && (
                                                             <div className="col-span-2 pt-1.5 border-t border-dashed border-slate-200 dark:border-slate-800">
-                                                                <span className="text-slate-450 dark:text-slate-500 block">Solicitação de Origem (Novo Pedido):</span>
+                                                                <span className="text-slate-450 dark:text-slate-500 block">{t('torre_controle.new_solicitud.source_solicitud')}</span>
                                                                 <div className="flex items-center gap-1.5 mt-0.5 font-sans">
                                                                     <span className="font-mono font-semibold text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/30 px-1.5 py-0.5 rounded text-[11px] border border-indigo-200 dark:border-indigo-900/30">
                                                                         {parentSolicitud.codigo}
@@ -1974,13 +1978,13 @@ export function NewSolicitudPage() {
                                                                     <PauseCircle className="w-5 h-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
                                                                     <div className="text-xs text-amber-900 dark:text-amber-200 space-y-1">
                                                                         <span className="font-bold block text-sm text-amber-700 dark:text-amber-300">
-                                                                            Atenção: Pausa Temporária de Pedido
+                                                                            {t('torre_controle.new_solicitud.pause_warning_title')}
                                                                         </span>
                                                                         <p>
-                                                                            Ao confirmar, o pedido será marcado como <strong>Pausado</strong> e novas contratações/alocações serão congeladas.
+                                                                            {t('torre_controle.new_solicitud.pause_warning_p1')}
                                                                         </p>
                                                                         <p>
-                                                                            Os trabalhadores já vinculados a este pedido <strong>não serão desligados</strong>. A equipe receberá tarefas operacionais para formalizar o aviso de suspensão temporária do início e sustar a emissão de Altas na Seguridade Social até a retomada da obra.
+                                                                            {t('torre_controle.new_solicitud.pause_warning_p2')}
                                                                         </p>
                                                                     </div>
                                                                 </div>
@@ -1993,13 +1997,13 @@ export function NewSolicitudPage() {
                                                                     <AlertCircle className="w-5 h-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
                                                                     <div className="text-xs text-rose-900 dark:text-rose-200 space-y-1">
                                                                         <span className="font-bold block text-sm text-rose-700 dark:text-rose-300">
-                                                                            Atenção: Cancelamento Operacional e Comercial
+                                                                            {t('torre_controle.new_solicitud.cancel_warning_title')}
                                                                         </span>
                                                                         <p>
-                                                                            Ao confirmar, este pedido será marcado como <strong>Cancelado</strong>. Todas as solicitações operacionais ativas e tarefas pendentes vinculadas a esta obra serão canceladas.
+                                                                            {t('torre_controle.new_solicitud.cancel_warning_p1')}
                                                                         </p>
                                                                         <p>
-                                                                            Os trabalhadores alocados nesta obra serão automaticamente desmobilizados e seus status retornarão para <strong>Disponível</strong> no RH/Operações.
+                                                                            {t('torre_controle.new_solicitud.cancel_warning_p2')}
                                                                         </p>
                                                                     </div>
                                                                 </div>
@@ -2016,13 +2020,13 @@ export function NewSolicitudPage() {
                             <div className="space-y-4">
                                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Empresa</label>
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.company')}</label>
                                         <Select 
                                             value={selectedEmpresaFilter} 
                                             onValueChange={setSelectedEmpresaFilter}
                                         >
                                             <SelectTrigger className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800">
-                                                <SelectValue placeholder="Todas as Empresas" />
+                                                <SelectValue placeholder={t('torre_controle.new_solicitud.all_companies')} />
                                             </SelectTrigger>
                                             <SelectContent>
                                                 {empresaOptions.map(opt => (
@@ -2032,24 +2036,24 @@ export function NewSolicitudPage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente</label>
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.client')}</label>
                                         <Combobox
                                             options={clientOptions}
                                             value={selectedClientId === 'all' ? null : selectedClientId}
                                             onChange={(val) => setSelectedClientId(val || 'all')}
-                                            placeholder="Todos os Clientes"
-                                            emptyText="Nenhum cliente encontrado."
+                                            placeholder={t('torre_controle.new_solicitud.all_clients')}
+                                            emptyText={t('torre_controle.new_solicitud.no_client_found')}
                                             className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
                                         />
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Obra / Local</label>
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.site_location')}</label>
                                         <Select value={selectedClientSiteId} onValueChange={setSelectedClientSiteId} disabled={selectedClientId === 'all'}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder={selectedClientId === 'all' ? 'Selecione um cliente primeiro' : 'Todas as Obras'} />
+                                                <SelectValue placeholder={selectedClientId === 'all' ? t('torre_controle.new_solicitud.select_client_first') : t('torre_controle.new_solicitud.all_sites')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Todas as Obras</SelectItem>
+                                                <SelectItem value="all">{t('torre_controle.new_solicitud.all_sites')}</SelectItem>
                                                 {clientSites.map(s => (
                                                     <SelectItem key={s.id} value={s.id || ''}>{s.name}</SelectItem>
                                                 ))}
@@ -2057,9 +2061,9 @@ export function NewSolicitudPage() {
                                         </Select>
                                     </div>
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Código do Pedido</label>
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.order_code')}</label>
                                         <Input 
-                                            placeholder="Ex: PED-2026-..."
+                                            placeholder={t('torre_controle.new_solicitud.order_code_placeholder')}
                                             value={pedidoSearch}
                                             onChange={e => setPedidoSearch(e.target.value)}
                                             className="h-10 text-sm"
@@ -2068,9 +2072,9 @@ export function NewSolicitudPage() {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Buscar Trabalhador</label>
+                                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.search_worker')}</label>
                                     <Input 
-                                        placeholder="Buscar por nome ou código do trabalhador..."
+                                        placeholder={t('torre_controle.new_solicitud.search_worker_placeholder')}
                                         value={workerSearch}
                                         onChange={e => setWorkerSearch(e.target.value)}
                                         className="h-10 text-sm w-full"
@@ -2088,14 +2092,14 @@ export function NewSolicitudPage() {
                                                 className="h-4 w-4 rounded border-amber-300 text-amber-600 focus:ring-amber-500 cursor-pointer"
                                             />
                                             <label htmlFor="includeRecentBajas" className="text-xs font-semibold text-amber-900 dark:text-amber-300 cursor-pointer flex items-center gap-1.5">
-                                                <span>Incluir baixas recentes do cliente (desligados nos últimos 60 dias)</span>
+                                                <span>{t('torre_controle.new_solicitud.include_recent_bajas')}</span>
                                                 <span className="text-[10px] bg-amber-200/60 dark:bg-amber-900/60 px-1.5 py-0.5 rounded font-mono font-bold">
-                                                    Reemplazo Tardio
+                                                    {t('torre_controle.new_solicitud.late_replacement_badge')}
                                                 </span>
                                             </label>
                                         </div>
                                         <span className="text-[11px] text-amber-700/80 dark:text-amber-400/80 hidden sm:inline">
-                                            Permite substituir trabalhadores cuja saída já foi processada
+                                            {t('torre_controle.new_solicitud.late_replacement_hint')}
                                         </span>
                                     </div>
                                 )}
@@ -2107,25 +2111,24 @@ export function NewSolicitudPage() {
                                 <div className="p-3 bg-rose-100 dark:bg-rose-955/40 text-rose-600 dark:text-rose-400 rounded-full mb-3 shadow-xs">
                                     <XCircle className="w-8 h-8" />
                                 </div>
-                                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">Cancelamento Direto da Substituição</h3>
+                                <h3 className="font-bold text-sm text-slate-800 dark:text-slate-200">{t('torre_controle.new_solicitud.direct_cancel_title')}</h3>
                                 <p className="text-xs text-muted-foreground max-w-md mt-1.5 leading-relaxed">
-                                    Nesta modalidade, você cancela a solicitação de reemplazo pendente diretamente. Não é necessário selecionar trabalhadores na tabela. Preencha o motivo ao lado e confirme.
+                                    {t('torre_controle.new_solicitud.direct_cancel_desc')}
                                 </p>
                             </div>
                         ) : (
                             <div className="flex-1 min-h-0 flex flex-col pt-2 overflow-hidden">
                                 <div className="flex justify-between items-center mb-3 shrink-0">
-                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Resultados ({filteredAssignments.length})</span>
+                                    <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.results_count', { count: filteredAssignments.length })}</span>
                                     {selectedAssignments.length > 0 && (
                                         <span className="inline-flex items-center gap-2 text-sm font-bold text-blue-600 bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-md">
-                                            <span>{selectedAssignments.length} selecionado(s)</span>
+                                            <span>{t('torre_controle.new_solicitud.selected_count', { count: selectedAssignments.length })}</span>
                                             <button
                                                 type="button"
                                                 onClick={() => setSelectedAssignments([])}
                                                 className="text-xs font-medium text-blue-500 hover:text-rose-600 underline cursor-pointer"
-                                                title="Limpar trabalhadores selecionados"
                                             >
-                                                Limpar
+                                                {t('torre_controle.new_solicitud.clear')}
                                             </button>
                                         </span>
                                     )}
@@ -2155,50 +2158,50 @@ export function NewSolicitudPage() {
                     <div className="bg-white dark:bg-slate-950 p-4 md:p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800/80 shadow-md space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b">
                             <FileText className="w-5 h-5 text-indigo-500" />
-                            <h2 className="text-lg font-semibold">2. Detalhes da Solicitação</h2>
+                            <h2 className="text-lg font-semibold">{t('torre_controle.new_solicitud.step2_title')}</h2>
                         </div>
 
                         <div className="space-y-4">
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Tipo de Ação</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.action_type')}</label>
                                 <Select value={actionType} onValueChange={setActionType}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Tipo" />
+                                        <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="replacement">Reemplazo (Substituição)</SelectItem>
-                                        <SelectItem value="relocation">Reubicación (Realocação)</SelectItem>
-                                        <SelectItem value="technical_test">Prueba (Teste Técnico)</SelectItem>
-                                        <SelectItem value="offboarding">Baja (Desligamento)</SelectItem>
-                                        <SelectItem value="order_postponement">Adiamento de Início de Obra</SelectItem>
-                                        <SelectItem value="order_pause" className="text-amber-600 font-semibold focus:text-amber-700">Pausa de Pedido</SelectItem>
-                                        <SelectItem value="order_extension">Prorrogação de Obra</SelectItem>
-                                        <SelectItem value="order_termination">Finalização de Obra</SelectItem>
-                                        <SelectItem value="order_cancellation" className="text-rose-600 font-semibold focus:text-rose-700">Cancelamento de Pedido</SelectItem>
+                                        <SelectItem value="replacement">{t('solicitud_types.replacement')}</SelectItem>
+                                        <SelectItem value="relocation">{t('solicitud_types.relocation')}</SelectItem>
+                                        <SelectItem value="technical_test">{t('solicitud_types.technical_test')}</SelectItem>
+                                        <SelectItem value="offboarding">{t('solicitud_types.offboarding')}</SelectItem>
+                                        <SelectItem value="order_postponement">{t('solicitud_types.order_postponement')}</SelectItem>
+                                        <SelectItem value="order_pause" className="text-amber-600 font-semibold focus:text-amber-700">{t('solicitud_types.order_pause')}</SelectItem>
+                                        <SelectItem value="order_extension">{t('solicitud_types.order_extension')}</SelectItem>
+                                        <SelectItem value="order_termination">{t('solicitud_types.order_termination')}</SelectItem>
+                                        <SelectItem value="order_cancellation" className="text-rose-600 font-semibold focus:text-rose-700">{t('solicitud_types.order_cancellation')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Título Automático</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.auto_title')}</label>
                                 <Input 
                                     value={title} 
                                     onChange={e => setTitle(e.target.value)}
-                                    placeholder="Ex: Reemplazo para Google..." 
+                                    placeholder={t('torre_controle.new_solicitud.auto_title_placeholder')} 
                                 />
                             </div>
 
                              <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Prioridade</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.priority')}</label>
                                 <Select value={priority} onValueChange={setPriority}>
                                     <SelectTrigger>
-                                        <SelectValue placeholder="Prioridade" />
+                                        <SelectValue placeholder={t('torre_controle.new_solicitud.priority')} />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="low">Baixa</SelectItem>
-                                        <SelectItem value="normal">Normal</SelectItem>
-                                        <SelectItem value="high">Alta</SelectItem>
-                                        <SelectItem value="urgent">Urgente</SelectItem>
+                                        <SelectItem value="low">{t('torre_controle.new_solicitud.priority_low')}</SelectItem>
+                                        <SelectItem value="normal">{t('torre_controle.new_solicitud.priority_normal')}</SelectItem>
+                                        <SelectItem value="high">{t('torre_controle.new_solicitud.priority_high')}</SelectItem>
+                                        <SelectItem value="urgent">{t('torre_controle.new_solicitud.priority_urgent')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -2216,10 +2219,10 @@ export function NewSolicitudPage() {
                                     />
                                     <div className="flex flex-col space-y-0.5">
                                         <label htmlFor="requiresReplacement" className="text-sm font-bold text-blue-900 dark:text-blue-300 cursor-pointer">
-                                            Repor vaga com nova contratação?
+                                            {t('torre_controle.new_solicitud.replace_vacancy_q')}
                                         </label>
                                         <p className="text-[11px] text-blue-700/80 dark:text-blue-400/80">
-                                            Selecione se desejar que o RH abra automaticamente uma nova vaga de contratação para substituir este trabalhador.
+                                            {t('torre_controle.new_solicitud.replace_vacancy_hint')}
                                         </p>
                                     </div>
                                 </div>
@@ -2228,16 +2231,16 @@ export function NewSolicitudPage() {
                             <div className="space-y-1.5">
                                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
                                     {actionType === 'offboarding' ? (
-                                        <span>Data Efetiva da Baixa (Data de Saída) <span className="text-rose-500 font-bold">*</span></span>
-                                    ) : actionType === 'relocation' ? 'Data de Início da Realocação' : 
+                                        <span>{t('torre_controle.new_solicitud.date_offboarding')} <span className="text-rose-500 font-bold">*</span></span>
+                                    ) : actionType === 'relocation' ? t('torre_controle.new_solicitud.date_relocation') : 
                                      actionType === 'order_postponement' ? (
-                                        <span>{postponeOriginType === 'reemplazo' ? 'Nova Data de Início do Reemplazo' : postponeOriginType === 'relocation' ? 'Nova Data de Início da Reubicación' : 'Nova Data de Início da Obra'} <span className="text-amber-500 font-bold">*</span></span>
+                                        <span>{postponeOriginType === 'reemplazo' ? t('torre_controle.new_solicitud.date_postpone_reemplazo') : postponeOriginType === 'relocation' ? t('torre_controle.new_solicitud.date_postpone_relocation') : t('torre_controle.new_solicitud.date_postpone_order')} <span className="text-amber-500 font-bold">*</span></span>
                                      ) : 
-                                     actionType === 'order_pause' ? 'Previsão Estimada de Retomada (Opcional - Deixe vazio se indefinida)' :
-                                     actionType === 'order_extension' ? 'Nova Data de Término (Fim da Obra)' : 
-                                     actionType === 'order_termination' ? 'Data de Encerramento (Término da Obra)' : 
-                                     actionType === 'order_cancellation' ? 'Data Efetiva do Cancelamento' :
-                                     'Data de Início da Nova Contratação'}
+                                     actionType === 'order_pause' ? t('torre_controle.new_solicitud.date_pause') :
+                                     actionType === 'order_extension' ? t('torre_controle.new_solicitud.date_extension') : 
+                                     actionType === 'order_termination' ? t('torre_controle.new_solicitud.date_termination') : 
+                                     actionType === 'order_cancellation' ? t('torre_controle.new_solicitud.date_cancellation') :
+                                     t('torre_controle.new_solicitud.date_new_hire')}
                                 </label>
                                 <Input 
                                     type="date"
@@ -2345,10 +2348,10 @@ export function NewSolicitudPage() {
                                     <div className="bg-indigo-50/40 dark:bg-slate-900/20 p-4 rounded-xl border border-indigo-100 dark:border-slate-850 space-y-3">
                                         <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                                             <HelpCircle className="w-4 h-4 text-indigo-650" />
-                                            Reemplazo: Funções & Perguntas
+                                            {t('torre_controle.new_solicitud.replacement_questions_title')}
                                         </h3>
                                         <p className="text-xs text-slate-600 dark:text-slate-400">
-                                            Você selecionou <strong className="text-indigo-950 dark:text-indigo-300 font-bold">{selectedAssignments.length} trabalhador(es)</strong> para substituição. Responda às perguntas de viabilidade técnica para cada um deles.
+                                            {t('torre_controle.new_solicitud.replacement_questions_desc', { count: selectedAssignments.length })}
                                         </p>
                                         
                                         <Button
@@ -2358,7 +2361,7 @@ export function NewSolicitudPage() {
                                             disabled={selectedAssignments.length === 0}
                                         >
                                             <FileText className="w-4 h-4" />
-                                            Configurar Perguntas Técnicas
+                                            {t('torre_controle.new_solicitud.configure_tech_questions')}
                                         </Button>
                                         
                                         {/* Status indicator */}
@@ -2368,7 +2371,7 @@ export function NewSolicitudPage() {
                                                 <div className="text-[11px] font-semibold text-slate-500 flex items-center justify-between mt-1 pt-1.5 border-t border-slate-200/50 dark:border-slate-800">
                                                     <span>Status:</span>
                                                     <span className={configuredCount === selectedAssignments.length ? "text-emerald-600 dark:text-emerald-400 font-bold" : "text-amber-600 dark:text-amber-400 font-bold"}>
-                                                        {configuredCount} de {selectedAssignments.length} configurados
+                                                        {t('torre_controle.new_solicitud.configured_count', { done: configuredCount, total: selectedAssignments.length })}
                                                     </span>
                                                 </div>
                                             );
@@ -2380,25 +2383,25 @@ export function NewSolicitudPage() {
                             {actionType === 'relocation' && (
                                 <>
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Cliente de Destino</label>
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.target_client')}</label>
                                         <Combobox
                                             options={targetClientOptions}
                                             value={targetClientId === 'all' ? null : targetClientId}
                                             onChange={(val) => setTargetClientId(val || 'all')}
-                                            placeholder="Selecione o Cliente"
-                                            emptyText="Nenhum cliente encontrado."
+                                            placeholder={t('torre_controle.new_solicitud.select_client')}
+                                            emptyText={t('torre_controle.new_solicitud.no_client_found')}
                                             className="h-10 text-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800"
                                         />
                                     </div>
 
                                     <div className="space-y-1.5">
-                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Obra / Local de Destino</label>
+                                        <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.target_site')}</label>
                                         <Select value={targetClientSiteId} onValueChange={setTargetClientSiteId} disabled={targetClientId === 'all'}>
                                             <SelectTrigger>
-                                                <SelectValue placeholder={targetClientId === 'all' ? 'Selecione o cliente de destino primeiro' : 'Selecione a Obra'} />
+                                                <SelectValue placeholder={targetClientId === 'all' ? t('torre_controle.new_solicitud.select_target_client_first') : t('torre_controle.new_solicitud.select_site')} />
                                             </SelectTrigger>
                                             <SelectContent>
-                                                <SelectItem value="all">Selecione a Obra</SelectItem>
+                                                <SelectItem value="all">{t('torre_controle.new_solicitud.select_site')}</SelectItem>
                                                 {targetClientSites.map(s => (
                                                     <SelectItem key={s.id} value={s.id || ''}>{s.name}</SelectItem>
                                                 ))}
@@ -2415,14 +2418,14 @@ export function NewSolicitudPage() {
                                             className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                         />
                                         <label htmlFor="requiresHousing" className="text-sm font-medium text-slate-700 dark:text-slate-300 cursor-pointer">
-                                            Necessita de Alojamento?
+                                            {t('torre_controle.new_solicitud.requires_housing')}
                                         </label>
                                     </div>
 
                                     {requiresHousing && (
                                         <div className="grid grid-cols-2 gap-2 pl-6 border-l-2 border-slate-200 dark:border-slate-800 space-y-0">
                                             <div className="space-y-1.5">
-                                                <label className="text-xs font-medium text-slate-500">Início do Alojamento</label>
+                                                <label className="text-xs font-medium text-slate-500">{t('torre_controle.new_solicitud.housing_start')}</label>
                                                 <Input 
                                                     type="date"
                                                     value={housingStartDate} 
@@ -2431,7 +2434,7 @@ export function NewSolicitudPage() {
                                                 />
                                             </div>
                                             <div className="space-y-1.5">
-                                                <label className="text-xs font-medium text-slate-500">Fim do Alojamento</label>
+                                                <label className="text-xs font-medium text-slate-500">{t('torre_controle.new_solicitud.housing_end')}</label>
                                                 <Input 
                                                     type="date"
                                                     value={housingEndDate} 
@@ -2445,22 +2448,22 @@ export function NewSolicitudPage() {
                             )}
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Motivo (Reason) <span className="text-red-500">*</span></label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.reason_label')} <span className="text-red-500">*</span></label>
                                 <Textarea 
                                     value={reason} 
                                     onChange={e => setReason(e.target.value)}
-                                    placeholder="Explique o motivo desta ação operacional..." 
+                                    placeholder={t('torre_controle.new_solicitud.reason_placeholder')} 
                                     className="resize-none"
                                     rows={3}
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Observações Extras</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('torre_controle.new_solicitud.extra_notes')}</label>
                                 <Textarea 
                                     value={notes} 
                                     onChange={e => setNotes(e.target.value)}
-                                    placeholder="Instruções para o RH ou Operações..." 
+                                    placeholder={t('torre_controle.new_solicitud.extra_notes_placeholder')} 
                                     className="resize-none"
                                     rows={2}
                                 />
@@ -2477,7 +2480,7 @@ export function NewSolicitudPage() {
                                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                     />
                                     <label htmlFor="sendEmailNotification" className="text-sm font-semibold text-slate-700 dark:text-slate-300 cursor-pointer">
-                                        Enviar Notificação por E-mail?
+                                        {t('torre_controle.new_solicitud.send_email_q')}
                                     </label>
                                 </div>
 
@@ -2485,21 +2488,21 @@ export function NewSolicitudPage() {
                                     <div className="space-y-3 pl-6 border-l-2 border-slate-200 dark:border-slate-800 text-xs">
                                         <div className="bg-slate-50/50 dark:bg-slate-900/40 p-4 rounded-xl border border-slate-150/80 dark:border-slate-800 space-y-3 text-left">
                                             <div className="flex justify-between items-center text-[10px] text-slate-450 uppercase font-bold tracking-wider">
-                                                <span>E-mail de Notificação</span>
+                                                <span>{t('torre_controle.new_solicitud.email_card_title')}</span>
                                                 <span className="font-semibold text-blue-600 dark:text-blue-400">
                                                     {emailLanguage === 'pt' ? '🇵🇹 PT' : emailLanguage === 'es' ? '🇪🇸 ES' : '🇬🇧 EN'}
                                                 </span>
                                             </div>
                                             <div className="space-y-1">
-                                                <span className="text-[10px] text-slate-400 font-bold block">ASSUNTO</span>
+                                                <span className="text-[10px] text-slate-400 font-bold block">{t('torre_controle.new_solicitud.email_subject_label')}</span>
                                                 <p className="font-semibold text-slate-700 dark:text-slate-350 truncate">
-                                                    {emailSubject || 'Sem assunto'}
+                                                    {emailSubject || t('torre_controle.new_solicitud.no_subject')}
                                                 </p>
                                             </div>
                                             <div className="space-y-1">
-                                                <span className="text-[10px] text-slate-400 font-bold block">DESTINATÁRIOS</span>
+                                                <span className="text-[10px] text-slate-400 font-bold block">{t('torre_controle.new_solicitud.email_recipients_label')}</span>
                                                 <div className="text-[10px] text-slate-500 font-medium truncate">
-                                                    {[...selectedEmails, ...(additionalEmails ? additionalEmails.split(',').map(e => e.trim()).filter(Boolean) : [])].join(', ') || 'Nenhum destinatário'}
+                                                    {[...selectedEmails, ...(additionalEmails ? additionalEmails.split(',').map(e => e.trim()).filter(Boolean) : [])].join(', ') || t('torre_controle.new_solicitud.no_recipients')}
                                                 </div>
                                             </div>
                                             <Button
@@ -2510,7 +2513,7 @@ export function NewSolicitudPage() {
                                                 className="w-full h-8 text-[11px] gap-1.5 font-bold hover:bg-slate-100 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950"
                                             >
                                                 <FileText size={12} />
-                                                Configurar E-mail & Idioma
+                                                {t('torre_controle.new_solicitud.configure_email_lang')}
                                             </Button>
                                         </div>
                                     </div>
@@ -2550,12 +2553,12 @@ export function NewSolicitudPage() {
                                     <CheckCircle2 className="w-5 h-5 mr-2" />
                                 )}
                                 {createSolicitudWithTargets.isPending || isSubmitting 
-                                    ? 'Processando...' 
+                                    ? t('torre_controle.new_solicitud.processing') 
                                     : actionType === 'order_cancellation'
-                                    ? (cancellationOriginType === 'reemplazo' ? 'Confirmar Cancelamento do Reemplazo' : 'Confirmar Cancelamento do Pedido')
+                                    ? (cancellationOriginType === 'reemplazo' ? t('torre_controle.new_solicitud.confirm_cancel_reemplazo') : t('torre_controle.new_solicitud.confirm_cancel_order'))
                                     : actionType === 'order_pause'
-                                    ? 'Confirmar Pausa do Pedido'
-                                    : 'Iniciar Operação'}
+                                    ? t('torre_controle.new_solicitud.confirm_pause_order')
+                                    : t('torre_controle.new_solicitud.start_operation')}
                             </Button>
                             {(actionType === 'order_postponement'
                                 ? (postponeOriginType === 'reemplazo' 
@@ -2570,25 +2573,25 @@ export function NewSolicitudPage() {
                                 : (selectedAssignments.length === 0)) && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
                                     {(actionType === 'order_postponement' && postponeOriginType === 'reemplazo') || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
-                                        ? 'Selecione um Reemplazo (Substituição) para continuar.'
+                                        ? t('torre_controle.new_solicitud.hint_select_reemplazo')
                                         : (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
-                                        ? 'Selecione um Pedido (Obra) ou pelo menos um trabalhador para continuar.'
-                                        : 'Selecione pelo menos um trabalhador na tabela.'}
+                                        ? t('torre_controle.new_solicitud.hint_select_order_or_worker')
+                                        : t('torre_controle.new_solicitud.hint_select_worker')}
                                 </p>
                             )}
                             {!reason.trim() && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
-                                    Informe um motivo para continuar.
+                                    {t('torre_controle.new_solicitud.hint_enter_reason')}
                                 </p>
                             )}
                             {actionType === 'order_postponement' && !dueDate && (
                                 <p className="text-xs text-center text-amber-600 mt-2">
-                                    Informe a nova data de início.
+                                    {t('torre_controle.new_solicitud.hint_enter_new_start')}
                                 </p>
                             )}
                             {actionType === 'offboarding' && !dueDate && (
                                 <p className="text-xs text-center text-rose-600 dark:text-rose-400 mt-2 font-medium">
-                                    Informe a Data Efetiva da Baixa (Data de Saída).
+                                    {t('torre_controle.new_solicitud.hint_enter_offboarding_date')}
                                 </p>
                             )}
                         </div>
@@ -2603,10 +2606,10 @@ export function NewSolicitudPage() {
                     <DialogHeader>
                         <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-850 dark:text-slate-100">
                             <Mail className="h-5 w-5 text-blue-500" />
-                            Configurar E-mail de Notificação
+                            {t('torre_controle.new_solicitud.configure_email_lang')}
                         </DialogTitle>
                         <DialogDescription className="text-xs text-muted-foreground">
-                            Configure o idioma, destinatários, assunto e corpo do e-mail de notificação operacional de forma espaçosa.
+                            {t('solicitud_detail.resend_modal.desc')}
                         </DialogDescription>
                     </DialogHeader>
 
@@ -2615,18 +2618,18 @@ export function NewSolicitudPage() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                             {/* Idioma */}
                             <div className="space-y-1.5">
-                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">Idioma do E-mail</label>
+                                <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">{t('solicitud_detail.resend_modal.email_lang')}</label>
                                 <Select 
                                     value={emailLanguage} 
                                     onValueChange={(val: 'pt' | 'es' | 'en') => handleLanguageChange(val)}
                                 >
                                     <SelectTrigger className="h-9 text-xs font-semibold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                        <SelectValue placeholder="Selecione o idioma" />
+                                        <SelectValue />
                                     </SelectTrigger>
                                     <SelectContent>
-                                        <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 Português (Padrão)</SelectItem>
-                                        <SelectItem value="es" className="text-xs font-semibold">🇪🇸 Espanhol (Spanish)</SelectItem>
-                                        <SelectItem value="en" className="text-xs font-semibold">🇬🇧 Inglês (English)</SelectItem>
+                                        <SelectItem value="pt" className="text-xs font-semibold">🇵🇹 {t('cockpit_pedidos.resend_modal.lang_pt')}</SelectItem>
+                                        <SelectItem value="es" className="text-xs font-semibold">🇪🇸 {t('cockpit_pedidos.resend_modal.lang_es')}</SelectItem>
+                                        <SelectItem value="en" className="text-xs font-semibold">🇬🇧 {t('cockpit_pedidos.resend_modal.lang_en')}</SelectItem>
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -2634,7 +2637,7 @@ export function NewSolicitudPage() {
                             {/* E-mails Adicionais */}
                             <div className="space-y-1.5">
                                 <label htmlFor="modal_additional_emails" className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                                    E-mails Adicionais (separados por vírgula)
+                                    {t('solicitud_detail.resend_modal.additional_emails')}
                                 </label>
                                 <Input
                                     id="modal_additional_emails"
@@ -2650,23 +2653,23 @@ export function NewSolicitudPage() {
                         {/* Destinatários Configurados */}
                         <div className="space-y-2">
                             <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                                Destinatários de Notificação ({
-                                    actionType === 'replacement' ? 'Reemplazo' : 
-                                    actionType === 'relocation' ? 'Reubicación' : 
-                                    actionType === 'technical_test' ? 'Prueba' : 
-                                    (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination' || actionType === 'order_cancellation') ? 'Pedido' : 
-                                    'Baja'
-                                })
+                                {t('solicitud_detail.resend_modal.configured_recipients', {
+                                    type: actionType === 'replacement' ? 'Reemplazo' : 
+                                          actionType === 'relocation' ? 'Reubicación' : 
+                                          actionType === 'technical_test' ? 'Prueba' : 
+                                          (actionType === 'order_extension' || actionType === 'order_postponement' || actionType === 'order_termination' || actionType === 'order_cancellation') ? 'Pedido' : 
+                                          'Baja'
+                                })}
                             </label>
                             {loadingEmails ? (
                                 <div className="flex items-center space-x-2 text-slate-400">
                                     <Loader2 className="h-4 w-4 animate-spin" />
-                                    <span className="text-xs">Carregando e-mails...</span>
+                                    <span className="text-xs">{t('solicitud_detail.resend_modal.loading_emails')}</span>
                                 </div>
                             ) : notificationEmails.length === 0 ? (
                                 <p className="text-xs text-amber-600 font-medium flex items-start bg-amber-50 dark:bg-amber-950/20 p-2 rounded-lg border border-amber-200">
                                     <AlertCircle className="mr-1.5 h-4 w-4 flex-shrink-0 mt-0.5" />
-                                    Nenhum e-mail configurado para este evento nas Configurações.
+                                    {t('solicitud_detail.resend_modal.no_configured_emails')}
                                 </p>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 border p-3 rounded-lg max-h-[120px] overflow-y-auto bg-slate-50/50 dark:bg-slate-950/20">
@@ -2694,12 +2697,12 @@ export function NewSolicitudPage() {
                         {/* Assunto do E-mail */}
                         <div className="space-y-1.5">
                             <label htmlFor="modal_email_subject" className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                                Assunto do E-mail
+                                {t('solicitud_detail.resend_modal.subject_label')}
                             </label>
                             <Input
                                 id="modal_email_subject"
                                 type="text"
-                                placeholder="Assunto da notificação"
+                                placeholder={t('solicitud_detail.resend_modal.subject_placeholder')}
                                 value={emailSubject}
                                 onChange={e => {
                                     setIsSubjectEdited(true);
@@ -2713,7 +2716,7 @@ export function NewSolicitudPage() {
                         <div className="space-y-1.5 flex flex-col">
                             <div className="flex justify-between items-center mb-1">
                                 <label className="text-xs font-bold text-slate-500 uppercase tracking-wider block">
-                                    Corpo do E-mail
+                                    {t('solicitud_detail.resend_modal.body_label')}
                                 </label>
                                 <Button 
                                     type="button" 
@@ -2721,11 +2724,11 @@ export function NewSolicitudPage() {
                                     onClick={() => {
                                         setIsSubjectEdited(false);
                                         setIsBodyEdited(false);
-                                        toast.success('Modelo restaurado para o idioma selecionado.');
+                                        toast.success(t('solicitud_detail.resend_modal.toast_restored'));
                                     }}
                                     className="h-6 text-[10px] text-blue-600 hover:text-blue-700 hover:bg-blue-50/50"
                                 >
-                                    Restaurar Padrão
+                                    {t('solicitud_detail.resend_modal.restore_default')}
                                 </Button>
                             </div>
                             
@@ -2798,10 +2801,10 @@ export function NewSolicitudPage() {
 
                     <DialogFooter className="pt-2 border-t mt-4 gap-2">
                         <Button type="button" variant="outline" onClick={() => setIsEmailModalOpen(false)}>
-                            Cancelar
+                            {t('solicitud_detail.edit_modal.cancel')}
                         </Button>
                         <Button type="button" onClick={() => setIsEmailModalOpen(false)} className="bg-blue-600 hover:bg-blue-700 text-white font-semibold">
-                            Salvar Configurações
+                            {t('solicitud_detail.edit_modal.save')}
                         </Button>
                     </DialogFooter>
                 </DialogContent>

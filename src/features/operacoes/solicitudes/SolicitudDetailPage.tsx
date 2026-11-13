@@ -89,7 +89,7 @@ export function SolicitudDetailPage() {
           <p className="text-red-500 font-semibold">{t('solicitud_detail.not_found')}</p>
           <Button variant="outline" onClick={() => navigate('/operacoes/solicitudes')}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Voltar
+            {t('solicitud_detail.back')}
           </Button>
         </div>
       </Layout>
@@ -121,7 +121,7 @@ export function SolicitudDetailPage() {
                 className="bg-amber-600 hover:bg-amber-700 text-white shadow-sm flex items-center gap-1.5 font-medium"
               >
                 <CalendarClock className="h-4 w-4" />
-                Alterar Data / Editar
+                {t('solicitud_detail.edit_date_btn')}
               </Button>
               <Button 
                 variant="default" 
@@ -133,12 +133,12 @@ export function SolicitudDetailPage() {
                 className="bg-blue-600 hover:bg-blue-700 text-white shadow-sm flex items-center gap-1.5 font-medium"
               >
                 <Mail className="h-4 w-4" />
-                Reenviar E-mail
+                {t('solicitud_detail.resend_email_btn')}
               </Button>
               {solicitud.tipo === 'replacement' && (
                 <Button variant="default" size="sm" onClick={handlePrintPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5">
                   <Printer className="h-4 w-4" />
-                  Imprimir PDF
+                  {t('solicitud_detail.print_pdf_btn')}
                 </Button>
               )}
               {solicitud.tipo === 'offboarding' && targets.some((t: any) => !t.requires_replacement) && (

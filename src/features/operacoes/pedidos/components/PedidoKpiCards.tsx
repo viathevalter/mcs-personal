@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { Briefcase, DollarSign, Home, Package, Users, ArrowUpRight, ArrowDownRight } from 'lucide-react';
 import { formatCurrency } from '@/shared/utils/currency';
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Props) {
+  const { t } = useTranslation();
   const { hasFinanceAccess } = usePedidoFinanceAccess();
 
   const totalPedidos = pedidos.length;
@@ -55,7 +57,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
         <CardContent className="p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Pedidos Ativos / Total
+              {t('cockpit_pedidos.kpi.active_total')}
             </span>
             <div className="p-1.5 rounded-lg bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
               <Briefcase className="h-3.5 w-3.5" />
@@ -66,11 +68,13 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
             <span className="text-sm text-muted-foreground font-medium">/ {totalPedidos}</span>
             {pausedPedidos > 0 && (
               <span className="ml-auto text-[11px] font-semibold px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300">
-                {pausedPedidos} Pausado{pausedPedidos > 1 ? 's' : ''}
+                {pausedPedidos > 1
+                  ? t('cockpit_pedidos.kpi.paused_plural', { count: pausedPedidos })
+                  : t('cockpit_pedidos.kpi.paused_singular', { count: pausedPedidos })}
               </span>
             )}
           </div>
-          <p className="text-[11px] text-muted-foreground mt-1">Pedidos visíveis no filtro atual</p>
+          <p className="text-[11px] text-muted-foreground mt-1">{t('cockpit_pedidos.kpi.visible_in_filter')}</p>
         </CardContent>
       </Card>
 
@@ -79,7 +83,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
         <CardContent className="p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Status Operacional
+              {t('cockpit_pedidos.kpi.operational_status')}
             </span>
             <div className="p-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 text-amber-600 dark:text-amber-400">
               <Package className="h-3.5 w-3.5" />
@@ -88,15 +92,15 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
           <div className="grid grid-cols-3 gap-2 mt-1.5">
             <div>
               <div className="text-xl font-bold text-amber-600 dark:text-amber-500 leading-tight">{pendingOperations}</div>
-              <p className="text-[11px] text-muted-foreground">Pendentes</p>
+              <p className="text-[11px] text-muted-foreground">{t('cockpit_pedidos.kpi.pending')}</p>
             </div>
             <div className="text-center border-x border-slate-100 dark:border-slate-800 px-1">
               <div className="text-xl font-bold text-blue-600 dark:text-blue-400 leading-tight">{partiallyFulfilled}</div>
-              <p className="text-[11px] text-muted-foreground">Parciais</p>
+              <p className="text-[11px] text-muted-foreground">{t('cockpit_pedidos.kpi.partial')}</p>
             </div>
             <div className="text-right">
               <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 leading-tight">{fulfilled}</div>
-              <p className="text-[11px] text-muted-foreground">Atendidos</p>
+              <p className="text-[11px] text-muted-foreground">{t('cockpit_pedidos.kpi.fulfilled')}</p>
             </div>
           </div>
         </CardContent>
@@ -107,7 +111,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
         <CardContent className="p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Vagas (Preenchidas / Total)
+              {t('cockpit_pedidos.kpi.vacancies_title')}
             </span>
             <div className="p-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-600 dark:text-blue-400">
               <Users className="h-3.5 w-3.5" />
@@ -136,7 +140,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
         <CardContent className="p-3.5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-              Equipe & Alojamentos
+              {t('cockpit_pedidos.kpi.team_housing_title')}
             </span>
             <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400">
               <Home className="h-3.5 w-3.5" />
@@ -144,28 +148,28 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
           </div>
           <div className="flex items-center justify-between gap-2 mt-1.5">
             <div className="flex items-center gap-1.5">
-              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded" title="Trabalhadores ativos ou entrando em obra">
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-300 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded" title={t('cockpit_pedidos.kpi.active_workers_hint')}>
                 <ArrowUpRight className="h-3 w-3" />
-                {totalActiveWorkers + totalEnteringWorkers} ativos
+                {t('cockpit_pedidos.kpi.active_workers', { count: totalActiveWorkers + totalEnteringWorkers })}
               </span>
               {totalExitedWorkers > 0 && (
-                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded" title="Trabalhadores que saíram / substituídos / em baixa">
+                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-rose-700 dark:text-rose-300 bg-rose-50 dark:bg-rose-950/50 px-1.5 py-0.5 rounded" title={t('cockpit_pedidos.kpi.exits_hint')}>
                   <ArrowDownRight className="h-3 w-3" />
-                  {totalExitedWorkers} saídas
+                  {t('cockpit_pedidos.kpi.exits', { count: totalExitedWorkers })}
                 </span>
               )}
             </div>
           </div>
           <div className="flex items-center justify-between text-[11px] text-muted-foreground mt-1.5 pt-1 border-t border-slate-100 dark:border-slate-800/80">
             <span>
-              Alojados: <strong className="text-indigo-600 dark:text-indigo-400">{totalHousedWorkers}</strong>
+              {t('cockpit_pedidos.kpi.housed')} <strong className="text-indigo-600 dark:text-indigo-400">{totalHousedWorkers}</strong>
             </span>
             {totalPendingHousing > 0 ? (
               <span className="text-amber-600 dark:text-amber-400 font-medium">
-                {totalPendingHousing} pend. alojamento
+                {t('cockpit_pedidos.kpi.pending_housing', { count: totalPendingHousing })}
               </span>
             ) : (
-              <span className="text-emerald-600 dark:text-emerald-400 font-medium">Logística em dia</span>
+              <span className="text-emerald-600 dark:text-emerald-400 font-medium">{t('cockpit_pedidos.kpi.logistics_up_to_date')}</span>
             )}
           </div>
         </CardContent>
@@ -177,7 +181,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
           <CardContent className="p-3.5">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
-                Receita Snapshot Total
+                {t('cockpit_pedidos.kpi.revenue_title')}
               </span>
               <div className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400">
                 <DollarSign className="h-3.5 w-3.5" />
@@ -186,7 +190,7 @@ export function PedidoKpiCards({ pedidos, itemsMap = {}, summaryMap = {} }: Prop
             <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1.5 truncate">
               {formatCurrency(totalRevenue)}
             </div>
-            <p className="text-[11px] text-muted-foreground mt-1">Soma do faturamento estimado</p>
+            <p className="text-[11px] text-muted-foreground mt-1">{t('cockpit_pedidos.kpi.revenue_subtitle')}</p>
           </CardContent>
         </Card>
       )}

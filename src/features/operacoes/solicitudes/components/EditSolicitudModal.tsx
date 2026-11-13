@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -27,6 +28,7 @@ function toInputDate(dateStr?: string | null): string {
 }
 
 export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Props) {
+    const { t } = useTranslation();
     const { data: targets = [] } = useSolicitudTargets(solicitud?.id);
     const firstTarget = targets[0];
 
@@ -98,10 +100,10 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
             .filter(c => c.value && c.label);
 
         return [
-            { value: 'all', label: 'Selecione o Cliente' },
+            { value: 'all', label: t('solicitud_detail.edit_modal.select_client') },
             ...list
         ];
-    }, [clients, targetClientId]);
+    }, [clients, targetClientId, t]);
 
     const dateDiffInfo = useMemo(() => {
         if (!originalDueDate || !dueDate) return null;
@@ -133,26 +135,26 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
     const getDateFieldLabel = () => {
         switch (solicitud.tipo) {
             case 'relocation':
-                return 'Data de Início da Reubicación (Realocação)';
+                return t('solicitud_detail.edit_modal.date_relocation');
             case 'replacement':
-                return 'Data de Início do Reemplazo (Substituição)';
+                return t('solicitud_detail.edit_modal.date_replacement');
             case 'offboarding':
             case 'worker_resignation':
-                return 'Data Efetiva da Baixa (Saída)';
+                return t('solicitud_detail.edit_modal.date_offboarding');
             case 'order_extension':
-                return 'Nova Data de Término (Prorrogação da Obra)';
+                return t('solicitud_detail.edit_modal.date_extension');
             case 'order_termination':
-                return 'Data de Encerramento da Obra';
+                return t('solicitud_detail.edit_modal.date_termination');
             case 'order_postponement':
-                return 'Nova Data de Início Programada';
+                return t('solicitud_detail.edit_modal.date_postponement');
             default:
-                return 'Data Prevista / Programada da Operação';
+                return t('solicitud_detail.edit_modal.date_default');
         }
     };
 
     const handleSave = async () => {
         if (!dueDate && solicitud.tipo !== 'order_pause') {
-            toast.error('Informe a data programada da operação.');
+            toast.error(t('solicitud_detail.edit_modal.toast_missing_date'));
             return;
         }
 
@@ -176,19 +178,18 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                 payload.housing_end_date = requiresHousing && housingEndDate ? housingEndDate : null;
             }
 
-            let { data, error } = await supabase.rpc('atualizar_solicitud_operativa', { payload });
+            let { error } = await supabase.rpc('atualizar_solicitud_operativa', { payload });
             if (error) {
                 const retry = await supabase.schema('core_operacoes').rpc('atualizar_solicitud_operativa', { payload });
-                data = retry.data;
                 error = retry.error;
             }
 
             if (error) throw error;
 
-            toast.success('Operação atualizada com sucesso!', {
+            toast.success(t('solicitud_detail.edit_modal.toast_saved'), {
                 description: dateDiffInfo?.changed
-                    ? `Data alterada de ${dateDiffInfo.originalFormatted} para ${dateDiffInfo.newFormatted}.`
-                    : 'Os dados operacionais foram salvos e sincronizados.'
+                    ? t('solicitud_detail.edit_modal.toast_saved_date_changed', { from: dateDiffInfo.originalFormatted, to: dateDiffInfo.newFormatted })
+                    : t('solicitud_detail.edit_modal.toast_saved_sync')
             });
 
             onClose();
@@ -201,7 +202,7 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
             }
         } catch (err: any) {
             console.error('Erro ao atualizar solicitação:', err);
-            toast.error('Erro ao salvar alterações', { description: err.message });
+            toast.error(t('solicitud_detail.edit_modal.toast_error'), { description: err.message });
         } finally {
             setSaving(false);
         }
@@ -213,10 +214,10 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-lg font-bold text-slate-850 dark:text-slate-100">
                         <Calendar className="h-5 w-5 text-amber-500" />
-                        Editar Operação / Alterar Data ({solicitud.codigo})
+                        {t('solicitud_detail.edit_modal.title', { code: solicitud.codigo })}
                     </DialogTitle>
                     <DialogDescription className="text-xs text-muted-foreground">
-                        Altere ou prorrogue a data programada, ajuste detalhes operacionais e notifique os setores sem interromper o fluxo do Playbook.
+                        {t('solicitud_detail.edit_modal.desc')}
                     </DialogDescription>
                 </DialogHeader>
 
@@ -235,24 +236,24 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                             />
                             {originalDueDate && (
                                 <span className="text-[11px] text-slate-500 dark:text-slate-400 block">
-                                    Data atual registrada: <strong>{formatDateClean(originalDueDate)}</strong>
+                                    {t('solicitud_detail.edit_modal.current_registered_date')} <strong>{formatDateClean(originalDueDate)}</strong>
                                 </span>
                             )}
                         </div>
 
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
-                                Prioridade
+                                {t('solicitud_detail.edit_modal.priority')}
                             </label>
                             <Select value={priority} onValueChange={(v: any) => setPriority(v)}>
                                 <SelectTrigger className="h-10 text-xs font-semibold bg-white dark:bg-slate-900">
-                                    <SelectValue placeholder="Prioridade" />
+                                    <SelectValue placeholder={t('solicitud_detail.edit_modal.priority')} />
                                 </SelectTrigger>
                                 <SelectContent>
-                                    <SelectItem value="low">Baixa (Low)</SelectItem>
-                                    <SelectItem value="normal">Normal</SelectItem>
-                                    <SelectItem value="high">Alta (High)</SelectItem>
-                                    <SelectItem value="urgent">Urgente</SelectItem>
+                                    <SelectItem value="low">{t('solicitud_detail.edit_modal.priority_low')}</SelectItem>
+                                    <SelectItem value="normal">{t('solicitud_detail.edit_modal.priority_normal')}</SelectItem>
+                                    <SelectItem value="high">{t('solicitud_detail.edit_modal.priority_high')}</SelectItem>
+                                    <SelectItem value="urgent">{t('solicitud_detail.edit_modal.priority_urgent')}</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -267,8 +268,8 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                                     <AlertCircle className="h-4 w-4 shrink-0" />
                                     <span>
                                         {dateDiffInfo.diffDays > 0
-                                            ? `Prorrogação / Adiamento de +${dateDiffInfo.diffDays} dia(s): de ${dateDiffInfo.originalFormatted} para ${dateDiffInfo.newFormatted}.`
-                                            : `Antecipação de ${Math.abs(dateDiffInfo.diffDays)} dia(s): de ${dateDiffInfo.originalFormatted} para ${dateDiffInfo.newFormatted}.`}
+                                            ? t('solicitud_detail.edit_modal.diff_postponed', { days: dateDiffInfo.diffDays, from: dateDiffInfo.originalFormatted, to: dateDiffInfo.newFormatted })
+                                            : t('solicitud_detail.edit_modal.diff_advanced', { days: Math.abs(dateDiffInfo.diffDays), from: dateDiffInfo.originalFormatted, to: dateDiffInfo.newFormatted })}
                                     </span>
                                 </div>
                             </div>
@@ -280,12 +281,12 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                         <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 space-y-3">
                             <div className="flex items-center gap-1.5 text-xs font-bold text-blue-700 dark:text-blue-400 uppercase tracking-wider">
                                 <Building2 className="h-4 w-4" />
-                                Destino e Logística da Reubicación
+                                {t('solicitud_detail.edit_modal.relocation_section')}
                             </div>
 
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Cliente de Destino</label>
+                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('solicitud_detail.edit_modal.target_client')}</label>
                                     <Combobox
                                         options={clientOptions}
                                         value={targetClientId === 'all' ? null : targetClientId}
@@ -293,24 +294,24 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                                             setTargetClientId(val || 'all');
                                             setTargetClientSiteId('all');
                                         }}
-                                        placeholder="Selecione o Cliente"
-                                        emptyText="Nenhum cliente encontrado."
+                                        placeholder={t('solicitud_detail.edit_modal.select_client')}
+                                        emptyText={t('solicitud_detail.edit_modal.no_client_found')}
                                         className="h-9 text-xs bg-white dark:bg-slate-900"
                                     />
                                 </div>
 
                                 <div className="space-y-1">
-                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">Obra / Local de Destino</label>
+                                    <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">{t('solicitud_detail.edit_modal.target_site')}</label>
                                     <Select
                                         value={targetClientSiteId}
                                         onValueChange={setTargetClientSiteId}
                                         disabled={targetClientId === 'all'}
                                     >
                                         <SelectTrigger className="h-9 text-xs bg-white dark:bg-slate-900">
-                                            <SelectValue placeholder="Selecione a Obra" />
+                                            <SelectValue placeholder={t('solicitud_detail.edit_modal.select_site')} />
                                         </SelectTrigger>
                                         <SelectContent>
-                                            <SelectItem value="all">Local não definido</SelectItem>
+                                            <SelectItem value="all">{t('solicitud_detail.edit_modal.undefined_site')}</SelectItem>
                                             {targetClientSites.map(s => (
                                                 <SelectItem key={s.id} value={s.id || ''}>{s.name}</SelectItem>
                                             ))}
@@ -328,13 +329,13 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                                         className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                     />
                                     <Home className="h-3.5 w-3.5 text-slate-500" />
-                                    Necessita de Alojamento no Destino?
+                                    {t('solicitud_detail.edit_modal.requires_housing')}
                                 </label>
 
                                 {requiresHousing && (
                                     <div className="grid grid-cols-2 gap-3 pl-6 pt-1">
                                         <div className="space-y-1">
-                                            <label className="text-[11px] font-medium text-slate-500">Início do Alojamento</label>
+                                            <label className="text-[11px] font-medium text-slate-500">{t('solicitud_detail.edit_modal.housing_start')}</label>
                                             <Input
                                                 type="date"
                                                 value={housingStartDate}
@@ -343,7 +344,7 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                                             />
                                         </div>
                                         <div className="space-y-1">
-                                            <label className="text-[11px] font-medium text-slate-500">Fim do Alojamento (Opcional)</label>
+                                            <label className="text-[11px] font-medium text-slate-500">{t('solicitud_detail.edit_modal.housing_end')}</label>
                                             <Input
                                                 type="date"
                                                 value={housingEndDate}
@@ -360,7 +361,7 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                     {/* Título */}
                     <div className="space-y-1.5">
                         <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
-                            Título da Operação
+                            {t('solicitud_detail.edit_modal.operation_title')}
                         </label>
                         <Input
                             value={title}
@@ -373,24 +374,24 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
-                                Motivo da Solicitação / Alteração
+                                {t('solicitud_detail.edit_modal.reason_label')}
                             </label>
                             <Textarea
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder="Ex: Cliente solicitou prorrogação do início de 23/10 para 30/10..."
+                                placeholder={t('solicitud_detail.edit_modal.reason_placeholder')}
                                 rows={3}
                                 className="text-xs resize-none"
                             />
                         </div>
                         <div className="space-y-1.5">
                             <label className="text-xs font-bold text-slate-600 dark:text-slate-300 uppercase tracking-wider block">
-                                Observações Extras / Descrição
+                                {t('solicitud_detail.edit_modal.notes_label')}
                             </label>
                             <Textarea
                                 value={notes}
                                 onChange={(e) => setNotes(e.target.value)}
-                                placeholder="Observações adicionais para RH, Logística e Documentação..."
+                                placeholder={t('solicitud_detail.edit_modal.notes_placeholder')}
                                 rows={3}
                                 className="text-xs resize-none"
                             />
@@ -402,7 +403,7 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                         <div className="flex items-start gap-2 text-xs text-emerald-700 dark:text-emerald-400 font-medium pb-1.5 border-b border-slate-200/70 dark:border-slate-800">
                             <CheckCircle2 className="h-4 w-4 shrink-0 mt-0.5" />
                             <span>
-                                <strong>Playbook Protegido:</strong> As tarefas pendentes ou em andamento continuarão ativas normalmente e terão a nova data sincronizada automaticamente nas alocações e na Linha do Tempo.
+                                <strong>{t('solicitud_detail.edit_modal.playbook_protected_bold')}</strong> {t('solicitud_detail.edit_modal.playbook_protected_desc')}
                             </span>
                         </div>
 
@@ -416,10 +417,10 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                             <div className="text-xs">
                                 <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
                                     <RotateCcw className="h-3.5 w-3.5 text-amber-600" />
-                                    Reabrir tarefas já concluídas do Playbook para revisão dos setores
+                                    {t('solicitud_detail.edit_modal.reopen_tasks_title')}
                                 </span>
                                 <span className="text-[11px] text-muted-foreground block">
-                                    Marque se algum setor (ex: Logística/Alojamento ou Seguridade) já concluiu sua tarefa na data antiga e precisa reajustar para a nova data.
+                                    {t('solicitud_detail.edit_modal.reopen_tasks_desc')}
                                 </span>
                             </div>
                         </label>
@@ -434,10 +435,10 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                             <div className="text-xs">
                                 <span className="font-semibold text-blue-700 dark:text-blue-400 flex items-center gap-1.5">
                                     <Mail className="h-3.5 w-3.5" />
-                                    Abrir envio de e-mail de atualização após salvar
+                                    {t('solicitud_detail.edit_modal.open_email_title')}
                                 </span>
                                 <span className="text-[11px] text-muted-foreground block">
-                                    Abre automaticamente o e-mail preenchido com o aviso de alteração/prorrogação de data para notificar toda a equipe.
+                                    {t('solicitud_detail.edit_modal.open_email_desc')}
                                 </span>
                             </div>
                         </label>
@@ -446,7 +447,7 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
 
                 <DialogFooter className="pt-2 border-t gap-2">
                     <Button type="button" variant="outline" onClick={onClose} disabled={saving}>
-                        Cancelar
+                        {t('solicitud_detail.edit_modal.cancel')}
                     </Button>
                     <Button
                         type="button"
@@ -455,7 +456,7 @@ export function EditSolicitudModal({ isOpen, onClose, solicitud, onSuccess }: Pr
                         className="bg-amber-600 hover:bg-amber-700 text-white font-semibold flex items-center gap-1.5"
                     >
                         {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                        {saving ? 'Salvando...' : 'Salvar Alterações'}
+                        {saving ? t('solicitud_detail.edit_modal.saving') : t('solicitud_detail.edit_modal.save')}
                     </Button>
                 </DialogFooter>
             </DialogContent>

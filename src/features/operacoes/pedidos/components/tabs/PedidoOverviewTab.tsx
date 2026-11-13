@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PedidoStatusBadge } from '../PedidoStatusBadge';
 import { formatCurrency } from '@/shared/utils/currency';
@@ -28,6 +29,7 @@ interface Props {
 
 export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
   const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
   const { hasFinanceAccess } = usePedidoFinanceAccess();
 
   const getDayOfWeekName = (dateStr: string) => {
@@ -36,7 +38,8 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
       const clean = String(dateStr).split('T')[0];
       const date = new Date(clean + 'T00:00:00');
       if (isNaN(date.getTime())) return '';
-      const dayName = date.toLocaleDateString('pt-BR', { weekday: 'long' });
+      const locale = i18n.language?.startsWith('es') ? 'es-ES' : 'pt-BR';
+      const dayName = date.toLocaleDateString(locale, { weekday: 'long' });
       return dayName.charAt(0).toUpperCase() + dayName.slice(1);
     } catch {
       return '';
@@ -54,7 +57,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
   };
 
   const getDurationString = () => {
-    if (!pedido.expected_start_date || !pedido.expected_end_date) return 'Não especificado';
+    if (!pedido.expected_start_date || !pedido.expected_end_date) return t('cockpit_pedidos.overview.not_specified');
     try {
       const start = new Date(String(pedido.expected_start_date).split('T')[0] + 'T00:00:00');
       const end = new Date(String(pedido.expected_end_date).split('T')[0] + 'T00:00:00');
@@ -65,11 +68,12 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
       const remainingDays = diffDays % 30;
 
       if (months > 0) {
-        return `${months} ${months === 1 ? 'mês' : 'meses'}${remainingDays > 0 ? ` e ${remainingDays} dias` : ''}`;
+        const monthWord = months === 1 ? t('cockpit_pedidos.overview.month_singular') : t('cockpit_pedidos.overview.month_plural');
+        return `${months} ${monthWord}${remainingDays > 0 ? t('cockpit_pedidos.overview.and_days', { days: remainingDays }) : ''}`;
       }
-      return `${diffDays} dias`;
+      return t('cockpit_pedidos.overview.days_count', { days: diffDays });
     } catch {
-      return 'Não especificado';
+      return t('cockpit_pedidos.overview.not_specified');
     }
   };
 
@@ -79,13 +83,13 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
     pedido.commercial_owner?.display_name ||
     pedido.commercial_owner?.email ||
     (!isUuid(pedido.commercial_owner_id) && pedido.commercial_owner_id) ||
-    'Equipe Comercial';
+    t('cockpit_pedidos.overview.commercial_team');
 
   const operationalName =
     pedido.responsible_user?.display_name ||
     pedido.responsible_user?.email ||
     (!isUuid(pedido.responsible_id) && pedido.responsible_id) ||
-    'Coordenação de Operações';
+    t('cockpit_pedidos.overview.ops_coordination');
 
   const defaultSummary: PedidoSummaryMetrics = summary || {
     requested: 0,
@@ -114,36 +118,36 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
           <CardHeader className="border-b py-3 px-4">
             <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <Info className="h-4 w-4 text-blue-500" />
-              Informações Gerais & Vagas
+              {t('cockpit_pedidos.overview.general_info_title')}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-3.5 text-xs">
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Código</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.code')}</p>
                 <p className="font-bold text-sm text-slate-900 dark:text-slate-100">{pedido.codigo}</p>
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Empresa</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.company')}</p>
                 <p className="font-bold text-sm text-slate-900 dark:text-slate-100 flex items-center gap-1">
                   <Building2 className="h-3.5 w-3.5 text-slate-400" />
                   {pedido.empresa?.trade_name || pedido.empresa?.nome || '-'}
                 </p>
               </div>
               <div className="col-span-2">
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Cliente</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.client')}</p>
                 <p className="font-bold text-sm text-indigo-600 dark:text-indigo-400">
-                  {pedido.client?.trade_name || pedido.client?.legal_name || 'Desconhecido'}
+                  {pedido.client?.trade_name || pedido.client?.legal_name || t('cockpit_pedidos.overview.unknown')}
                 </p>
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Status Comercial</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.commercial_status')}</p>
                 <div className="mt-1">
                   <PedidoStatusBadge type="commercial" status={pedido.commercial_status} />
                 </div>
               </div>
               <div>
-                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Status Operacional</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.operational_status')}</p>
                 <div className="mt-1">
                   <PedidoStatusBadge type="operational" status={pedido.operational_status} />
                 </div>
@@ -154,7 +158,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
             {items.length > 0 && (
               <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-1.5">
                 <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider flex items-center gap-1">
-                  <Briefcase className="h-3 w-3" /> Perfis Solicitados ({defaultSummary.fulfilled}/{defaultSummary.requested} preenchidos)
+                  <Briefcase className="h-3 w-3" /> {t('cockpit_pedidos.overview.requested_profiles', { fulfilled: defaultSummary.fulfilled, requested: defaultSummary.requested })}
                 </p>
                 <div className="space-y-1">
                   {items.map(it => (
@@ -163,7 +167,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
                       className="flex items-center justify-between bg-slate-50 dark:bg-slate-900/60 px-2.5 py-1.5 rounded-lg border border-slate-100 dark:border-slate-800"
                     >
                       <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
-                        {it.job_function?.name || it.job_function_name_snapshot || 'Perfil'}
+                        {it.job_function?.name || it.job_function_name_snapshot || t('cockpit_pedidos.overview.profile_fallback')}
                       </span>
                       <span
                         className={`font-bold px-1.5 py-0.5 rounded text-[11px] ${
@@ -182,7 +186,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
 
             {/* Origem da Estimación */}
             <div className="pt-3 border-t border-slate-100 dark:border-slate-800">
-              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">Origem Comercial (Estimación)</p>
+              <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider mb-1">{t('cockpit_pedidos.overview.commercial_origin')}</p>
               {pedido.source_estimacion_id ? (
                 <button
                   type="button"
@@ -191,12 +195,12 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
                 >
                   <FileText className="h-3.5 w-3.5" />
                   {pedido.source_estimacion?.codigo
-                    ? `Presupuesto ${pedido.source_estimacion.codigo}`
-                    : `Ver Estimación (${pedido.source_estimacion_id.slice(0, 8)}...)`}
+                    ? t('cockpit_pedidos.overview.budget_prefix', { code: pedido.source_estimacion.codigo })
+                    : t('cockpit_pedidos.overview.view_estimate', { id: pedido.source_estimacion_id.slice(0, 8) })}
                   <ExternalLink className="h-3 w-3" />
                 </button>
               ) : (
-                <p className="text-xs text-muted-foreground">Criação Direta</p>
+                <p className="text-xs text-muted-foreground">{t('cockpit_pedidos.overview.direct_creation')}</p>
               )}
             </div>
           </CardContent>
@@ -207,7 +211,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
           <CardHeader className="border-b py-3 px-4">
             <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
               <MapPin className="h-4 w-4 text-indigo-500" />
-              Obra / Localização e Contato Local
+              {t('cockpit_pedidos.overview.site_contact_title')}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 space-y-3.5 text-xs">
@@ -215,22 +219,22 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
               <>
                 <div className="space-y-2">
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Identificação da Obra</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.site_id')}</span>
                     <p className="font-bold text-sm text-slate-900 dark:text-white">{pedido.client_site.name}</p>
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Endereço</span>
+                    <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.address')}</span>
                     <p className="font-medium text-slate-700 dark:text-slate-300">
-                      {pedido.client_site.address_line || 'Endereço não cadastrado'}
+                      {pedido.client_site.address_line || t('cockpit_pedidos.overview.address_not_registered')}
                     </p>
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Cidade</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.city')}</span>
                       <p className="font-semibold text-slate-800 dark:text-slate-200">{pedido.client_site.city || '-'}</p>
                     </div>
                     <div>
-                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Código Postal</span>
+                      <span className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.postal_code')}</span>
                       <p className="font-semibold text-slate-800 dark:text-slate-200">{pedido.client_site.postal_code || '-'}</p>
                     </div>
                   </div>
@@ -238,18 +242,18 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
 
                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800 space-y-2">
                   <span className="text-[10px] text-indigo-600 dark:text-indigo-400 uppercase font-bold tracking-wider block">
-                    Pessoa de Contato na Obra
+                    {t('cockpit_pedidos.overview.site_contact_person')}
                   </span>
                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
                     <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {pedido.client_site.contact_name || 'Não especificado'}
+                      {pedido.client_site.contact_name || t('cockpit_pedidos.overview.not_specified')}
                     </span>
                   </div>
                   <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-900/50 p-2 rounded-lg border border-slate-100 dark:border-slate-800">
                     <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span className="font-semibold text-slate-800 dark:text-slate-200">
-                      {pedido.client_site.contact_phone || pedido.client?.phone || 'Não especificado'}
+                      {pedido.client_site.contact_phone || pedido.client?.phone || t('cockpit_pedidos.overview.not_specified')}
                     </span>
                   </div>
                   {(pedido.client_site.contact_email || pedido.client?.email) && (
@@ -264,7 +268,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
               </>
             ) : (
               <div className="py-8 text-center text-muted-foreground">
-                Nenhuma obra específica vinculada a este pedido.
+                {t('cockpit_pedidos.overview.no_site_linked')}
               </div>
             )}
           </CardContent>
@@ -277,13 +281,13 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
             <CardHeader className="border-b py-3 px-4">
               <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-emerald-500" />
-                Cronograma & Responsáveis
+                {t('cockpit_pedidos.overview.schedule_owners_title')}
               </CardTitle>
             </CardHeader>
             <CardContent className="p-4 space-y-3 text-xs">
               <div className="grid grid-cols-2 gap-3 bg-gradient-to-r from-blue-50/60 to-emerald-50/40 dark:from-slate-900 dark:to-slate-900 p-3 rounded-lg border border-slate-200/70 dark:border-slate-800">
                 <div>
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Início Previsto</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">{t('cockpit_pedidos.overview.expected_start')}</p>
                   <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
                     {formatSafeDate(pedido.expected_start_date)}
                   </p>
@@ -292,23 +296,23 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
                   </p>
                 </div>
                 <div className="text-right">
-                  <p className="text-[10px] font-bold text-muted-foreground uppercase">Fim Previsto</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase">{t('cockpit_pedidos.overview.expected_end')}</p>
                   <p className="text-base font-bold text-slate-900 dark:text-white mt-0.5">
                     {formatSafeDate(pedido.expected_end_date)}
                   </p>
-                  <p className="text-[10px] text-muted-foreground">Duração: {getDurationString()}</p>
+                  <p className="text-[10px] text-muted-foreground">{t('cockpit_pedidos.overview.duration_label', { duration: getDurationString() })}</p>
                 </div>
               </div>
 
               <div className="grid grid-cols-2 gap-3 pt-1">
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Responsável Comercial</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.commercial_owner')}</p>
                   <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 truncate" title={commercialName}>
                     {commercialName}
                   </p>
                 </div>
                 <div>
-                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">Coord. Operacional</p>
+                  <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-wider">{t('cockpit_pedidos.overview.ops_coordinator')}</p>
                   <p className="font-semibold text-slate-800 dark:text-slate-200 mt-0.5 truncate" title={operationalName}>
                     {operationalName}
                   </p>
@@ -323,24 +327,24 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
               <CardHeader className="border-b py-3 px-4">
                 <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
                   <DollarSign className="h-4 w-4 text-emerald-500" />
-                  Snapshot Financeiro
+                  {t('cockpit_pedidos.overview.finance_snapshot_title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-4 space-y-2.5 text-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Receita Total Prevista:</span>
+                  <span className="text-muted-foreground font-medium">{t('cockpit_pedidos.overview.total_expected_revenue')}</span>
                   <span className="font-bold text-sm text-emerald-600 dark:text-emerald-400">
                     {formatCurrency(pedido.total_revenue_snapshot || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground font-medium">Custo Base Estimado:</span>
+                  <span className="text-muted-foreground font-medium">{t('cockpit_pedidos.overview.estimated_base_cost')}</span>
                   <span className="font-bold text-sm text-rose-600 dark:text-rose-400">
                     {formatCurrency(pedido.total_cost_snapshot || 0)}
                   </span>
                 </div>
                 <div className="flex justify-between items-center pt-2 border-t border-slate-100 dark:border-slate-800">
-                  <span className="font-bold text-slate-800 dark:text-slate-200">Margem Bruta (%):</span>
+                  <span className="font-bold text-slate-800 dark:text-slate-200">{t('cockpit_pedidos.overview.gross_margin')}</span>
                   <span
                     className={`font-bold text-sm px-2 py-0.5 rounded-full ${
                       (pedido.margin_percent_snapshot || 0) >= 20
@@ -362,7 +366,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
         <CardHeader className="border-b py-3 px-4">
           <CardTitle className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-2">
             <FileText className="h-4 w-4 text-blue-500" />
-            Observações e Histórico de Anotações do Pedido
+            {t('cockpit_pedidos.overview.notes_history_title')}
           </CardTitle>
         </CardHeader>
         <CardContent className="p-4">
@@ -372,7 +376,7 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
             </p>
           ) : (
             <p className="text-xs text-muted-foreground italic">
-              Nenhuma observação cadastrada para este pedido. Clique em "Editar Pedido" no cabeçalho para adicionar instruções.
+              {t('cockpit_pedidos.overview.no_notes')}
             </p>
           )}
         </CardContent>

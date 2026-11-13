@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Dialog,
   DialogContent,
@@ -20,7 +21,7 @@ import {
 import { useJobFunctions } from '@/features/master-data/job-functions/hooks/useJobFunctions';
 import { supabase } from '@/shared/supabase/client';
 import { toast } from 'sonner';
-import { UserPlus, Loader2, AlertCircle } from 'lucide-react';
+import { UserPlus, Loader2 } from 'lucide-react';
 
 interface Props {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export function RequestReplacementFromBajaModal({
   target,
   onSuccess
 }: Props) {
+  const { t } = useTranslation();
   const empresaId = solicitud?.empresa_id;
   const { data: jobFunctions = [], isLoading: loadingFunctions } = useJobFunctions(empresaId);
 
@@ -128,12 +130,12 @@ export function RequestReplacementFromBajaModal({
           created_at: new Date().toISOString()
         });
 
-      toast.success('Vaga de Reemplazo aberta com sucesso no Painel de Contratação!');
+      toast.success(t('solicitud_detail.replacement_modal.toast_success'));
       onSuccess();
       onClose();
     } catch (err: any) {
       console.error('Error requesting replacement:', err);
-      toast.error(`Erro ao solicitar reemplazo: ${err.message || 'Erro desconhecido'}`);
+      toast.error(`${t('solicitud_detail.replacement_modal.toast_error')}: ${err.message || ''}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -148,10 +150,10 @@ export function RequestReplacementFromBajaModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg font-bold">
             <UserPlus className="h-5 w-5 text-emerald-600" />
-            Solicitar Reemplazo (Repor Vaga)
+            {t('solicitud_detail.replacement_modal.title')}
           </DialogTitle>
           <DialogDescription className="text-xs text-muted-foreground">
-            O cliente solicitou a contratação de um substituto para este trabalhador desligado. Uma nova vaga será aberta no Painel de Contratações.
+            {t('solicitud_detail.replacement_modal.desc')}
           </DialogDescription>
         </DialogHeader>
 
@@ -160,22 +162,22 @@ export function RequestReplacementFromBajaModal({
           <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-lg text-xs space-y-1">
             <div className="flex justify-between items-center">
               <span className="font-bold text-slate-900 dark:text-slate-100">
-                {worker?.nome || 'Trabalhador Desligado'}
+                {worker?.nome || t('solicitud_detail.replacement_modal.offboarded_worker')}
               </span>
               <span className="font-mono text-slate-500">ID: {worker?.cod_colab || 'N/A'}</span>
             </div>
             <div className="text-slate-500">
-              Cliente: <strong className="text-slate-700 dark:text-slate-300">{clientName}</strong>
+              {t('solicitud_detail.replacement_modal.client_label')} <strong className="text-slate-700 dark:text-slate-300">{clientName}</strong>
             </div>
             <div className="text-slate-500">
-              Função Original: <strong className="text-slate-700 dark:text-slate-300">{worker?.funcion || 'N/A'}</strong>
+              {t('solicitud_detail.replacement_modal.original_role')} <strong className="text-slate-700 dark:text-slate-300">{worker?.funcion || 'N/A'}</strong>
             </div>
           </div>
 
           {/* Target job function */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-              Função Alvo Substituta <span className="text-red-500">*</span>
+              {t('solicitud_detail.replacement_modal.target_role')} <span className="text-red-500">*</span>
             </label>
             <Select
               value={selectedFunctionId || ''}
@@ -183,7 +185,7 @@ export function RequestReplacementFromBajaModal({
               disabled={loadingFunctions}
             >
               <SelectTrigger className="h-9 text-xs">
-                <SelectValue placeholder={loadingFunctions ? 'Carregando funções...' : 'Selecione a função desejada'} />
+                <SelectValue placeholder={loadingFunctions ? t('solicitud_detail.replacement_modal.loading_roles') : t('solicitud_detail.replacement_modal.select_role')} />
               </SelectTrigger>
               <SelectContent>
                 {jobFunctions.map((jf: any) => (
@@ -194,14 +196,14 @@ export function RequestReplacementFromBajaModal({
               </SelectContent>
             </Select>
             <p className="text-[11px] text-muted-foreground">
-              Você pode manter a mesma função ou selecionar uma diferente caso o cliente tenha alterado o perfil da vaga.
+              {t('solicitud_detail.replacement_modal.role_hint')}
             </p>
           </div>
 
           {/* Expected start date */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-              Data Prevista de Início do Substituto
+              {t('solicitud_detail.replacement_modal.expected_start')}
             </label>
             <Input
               type="date"
@@ -214,10 +216,10 @@ export function RequestReplacementFromBajaModal({
           {/* Notes */}
           <div className="space-y-1.5">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
-              Observações / Instruções para o RH
+              {t('solicitud_detail.replacement_modal.notes_label')}
             </label>
             <Textarea
-              placeholder="Ex: Cliente solicitou reposição urgente devido à demanda da fábrica..."
+              placeholder={t('solicitud_detail.replacement_modal.notes_placeholder')}
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               className="text-xs resize-none min-h-[60px]"
@@ -228,7 +230,7 @@ export function RequestReplacementFromBajaModal({
 
         <DialogFooter className="gap-2 sm:justify-end">
           <Button type="button" variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('solicitud_detail.replacement_modal.cancel')}
           </Button>
           <Button
             type="button"
@@ -239,10 +241,10 @@ export function RequestReplacementFromBajaModal({
             {isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 mr-1.5 animate-spin" />
-                Processando...
+                {t('solicitud_detail.replacement_modal.processing')}
               </>
             ) : (
-              'Confirmar Abertura de Reemplazo'
+              t('solicitud_detail.replacement_modal.confirm_btn')
             )}
           </Button>
         </DialogFooter>

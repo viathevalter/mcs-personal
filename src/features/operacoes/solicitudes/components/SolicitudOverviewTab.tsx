@@ -29,7 +29,7 @@ export function SolicitudOverviewTab({ solicitud, onEditClick }: Props) {
               className="h-8 text-xs font-semibold border-amber-300 text-amber-700 hover:bg-amber-50 dark:border-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/30 flex items-center gap-1.5"
             >
               <Pencil className="h-3.5 w-3.5" />
-              Editar / Prorrogar Data
+              {t('solicitud_detail.overview.edit_extend_date')}
             </Button>
           )}
         </CardHeader>
@@ -61,7 +61,7 @@ export function SolicitudOverviewTab({ solicitud, onEditClick }: Props) {
               </p>
               <div className="flex items-center gap-2 mt-0.5">
                 <p className="text-base font-bold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                  📅 {solicitud.due_date ? formatDateClean(solicitud.due_date) : 'Não definida'}
+                  📅 {solicitud.due_date ? formatDateClean(solicitud.due_date) : t('solicitud_detail.overview.not_defined')}
                 </p>
                 {onEditClick && (
                   <button
@@ -70,7 +70,7 @@ export function SolicitudOverviewTab({ solicitud, onEditClick }: Props) {
                     className="text-xs font-semibold text-amber-600 hover:text-amber-700 dark:text-amber-400 underline flex items-center gap-1"
                   >
                     <Pencil className="h-3 w-3" />
-                    Alterar
+                    {t('solicitud_detail.overview.change')}
                   </button>
                 )}
               </div>

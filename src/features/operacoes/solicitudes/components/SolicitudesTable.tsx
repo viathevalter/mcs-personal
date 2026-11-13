@@ -172,7 +172,7 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                   <div className="flex flex-col">
                     {solicitud.tipo === 'relocation' ? (
                       <>
-                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">Destino:</span>
+                        <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">{t('torre_controle.table.destination_label')}</span>
                         <span className="text-sm font-semibold truncate max-w-[200px]" title={solicitud.client?.legal_name}>
                           {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
                         </span>
@@ -215,9 +215,9 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                 </TableCell>
                 <TableCell>
                   {solicitud.tipo === 'offboarding' ? (
-                    <div className="flex flex-col space-y-0.5 max-w-[220px]" title={solicitud.reason || 'Desligamento solicitado'}>
+                    <div className="flex flex-col space-y-0.5 max-w-[220px]" title={solicitud.reason || t('torre_controle.table.offboarding_requested_default')}>
                       <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
-                        {solicitud.reason || 'Desligamento solicitado'}
+                        {solicitud.reason || t('torre_controle.table.offboarding_requested_default')}
                       </span>
                       <span className="text-[9px] text-muted-foreground uppercase tracking-wider font-semibold">{t('torre_controle.table.reason_label')}</span>
                     </div>
@@ -258,7 +258,7 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                     solicitud.priority === 'normal' ? 'bg-blue-500/10 text-blue-500' :
                     'bg-slate-500/10 text-slate-500'
                   }`}>
-                    {solicitud.priority.toUpperCase()}
+                    {t(`torre_controle.priorities.${solicitud.priority}`, solicitud.priority.toUpperCase())}
                   </span>
                 </TableCell>
                 <TableCell className="text-right">
@@ -266,7 +266,7 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Alterar Data / Editar Operação"
+                      title={t('torre_controle.table.edit_date_tooltip')}
                       className="text-amber-600 hover:text-amber-700 hover:bg-amber-50 dark:text-amber-400 dark:hover:bg-amber-950/30"
                       onClick={(e) => {
                         e.stopPropagation();
@@ -278,7 +278,7 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                     <Button
                       variant="ghost"
                       size="icon"
-                      title="Ver Detalhes"
+                      title={t('torre_controle.table.view_details_tooltip')}
                       onClick={(e) => {
                         e.stopPropagation();
                         navigate(`/operacoes/solicitudes/${solicitud.id}`);

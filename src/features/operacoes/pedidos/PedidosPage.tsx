@@ -124,7 +124,7 @@ export function PedidosPage() {
             {t('cockpit_pedidos.title')}
           </h1>
           <p className="text-xs md:text-sm text-muted-foreground">
-            {t('cockpit_pedidos.subtitle')} • Visualize vagas, entradas/saídas de trabalhadores e alojamentos em tempo real.
+            {t('cockpit_pedidos.subtitle')} • {t('cockpit_pedidos.subtitle_extra')}
           </p>
         </div>
         {hasActiveFilters && (
@@ -141,7 +141,7 @@ export function PedidosPage() {
             }
             className="self-start sm:self-auto inline-flex items-center gap-1.5 text-xs font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 px-3 py-1.5 rounded-lg border border-rose-200 dark:border-rose-800 transition-colors"
           >
-            <X className="h-3.5 w-3.5" /> Limpar Filtros ({filteredPedidos.length})
+            <X className="h-3.5 w-3.5" /> {t('cockpit_pedidos.clear_filters', { count: filteredPedidos.length })}
           </button>
         )}
       </div>
@@ -155,12 +155,12 @@ export function PedidosPage() {
       <div className="shrink-0 bg-white dark:bg-slate-900 p-3 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2.5 items-end">
         <div className="space-y-1 sm:col-span-2 lg:col-span-2">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <Search className="h-3 w-3" /> Buscar (Pedido, Cliente, Obra, Trabalhador ou Alojamento)
+            <Search className="h-3 w-3" /> {t('cockpit_pedidos.search_label')}
           </label>
           <div className="relative">
             <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
             <Input
-              placeholder="Ex: PED-2026, nome do trabalhador, cliente, obra ou alojamento..."
+              placeholder={t('cockpit_pedidos.search_placeholder')}
               className="pl-8 h-9 text-xs md:text-sm"
               value={filters.search}
               onChange={e => setFilters(f => ({ ...f, search: e.target.value }))}
@@ -203,7 +203,7 @@ export function PedidosPage() {
             value={filters.client_id === 'all' ? null : filters.client_id}
             onChange={val => setFilters(f => ({ ...f, client_id: val || 'all' }))}
             placeholder={t('cockpit_pedidos.all_clients')}
-            emptyText="Nenhum cliente encontrado."
+            emptyText={t('cockpit_pedidos.no_client_found')}
           />
         </div>
 
@@ -220,31 +220,31 @@ export function PedidosPage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">{t('cockpit_pedidos.all_statuses')}</SelectItem>
-              <SelectItem value="pending_operations">Pendente</SelectItem>
-              <SelectItem value="partially_fulfilled">Parcialmente Atendido</SelectItem>
-              <SelectItem value="fulfilled">Atendido</SelectItem>
-              <SelectItem value="completed">Finalizado</SelectItem>
-              <SelectItem value="paused">Pausado</SelectItem>
-              <SelectItem value="cancelled">Cancelado</SelectItem>
+              <SelectItem value="pending_operations">{t('cockpit_pedidos.status.operational.pending_operations')}</SelectItem>
+              <SelectItem value="partially_fulfilled">{t('cockpit_pedidos.status.operational.partially_fulfilled_long')}</SelectItem>
+              <SelectItem value="fulfilled">{t('cockpit_pedidos.status.operational.fulfilled')}</SelectItem>
+              <SelectItem value="completed">{t('cockpit_pedidos.status.operational.completed')}</SelectItem>
+              <SelectItem value="paused">{t('cockpit_pedidos.status.operational.paused')}</SelectItem>
+              <SelectItem value="cancelled">{t('cockpit_pedidos.status.operational.cancelled')}</SelectItem>
             </SelectContent>
           </Select>
         </div>
 
         <div className="space-y-1">
           <label className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
-            <Filter className="h-3 w-3" /> Equipe & Logística
+            <Filter className="h-3 w-3" /> {t('cockpit_pedidos.team_logistics_label')}
           </label>
           <Select value={filters.team_filter} onValueChange={val => setFilters(f => ({ ...f, team_filter: val }))}>
             <SelectTrigger className="h-9 text-xs">
-              <SelectValue placeholder="Todos os pedidos" />
+              <SelectValue placeholder={t('cockpit_pedidos.team_filter_all')} />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">Todos os Pedidos</SelectItem>
-              <SelectItem value="with_active_workers">Com Trabalhadores em Obra</SelectItem>
-              <SelectItem value="with_movements">Com Entradas / Saídas / Bajas</SelectItem>
-              <SelectItem value="open_vacancies">Com Vagas em Aberto</SelectItem>
-              <SelectItem value="housed">Com Equipe Alojada</SelectItem>
-              <SelectItem value="pending_housing">Com Alojamento Pendente</SelectItem>
+              <SelectItem value="all">{t('cockpit_pedidos.team_filter_all')}</SelectItem>
+              <SelectItem value="with_active_workers">{t('cockpit_pedidos.team_filter_active')}</SelectItem>
+              <SelectItem value="with_movements">{t('cockpit_pedidos.team_filter_movements')}</SelectItem>
+              <SelectItem value="open_vacancies">{t('cockpit_pedidos.team_filter_open')}</SelectItem>
+              <SelectItem value="housed">{t('cockpit_pedidos.team_filter_housed')}</SelectItem>
+              <SelectItem value="pending_housing">{t('cockpit_pedidos.team_filter_pending_housing')}</SelectItem>
             </SelectContent>
           </Select>
         </div>

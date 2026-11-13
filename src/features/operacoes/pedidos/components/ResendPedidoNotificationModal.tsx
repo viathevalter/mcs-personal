@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,6 +17,7 @@ interface Props {
 }
 
 export function ResendPedidoNotificationModal({ isOpen, onClose, pedido, onSuccess }: Props) {
+  const { t, i18n } = useTranslation();
   const { selectedEmpresaId } = useEmpresa();
   const [notificationEmails, setNotificationEmails] = useState<any[]>([]);
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
@@ -26,16 +28,22 @@ export function ResendPedidoNotificationModal({ isOpen, onClose, pedido, onSucce
   const [sending, setSending] = useState(false);
   const [isSubjectEdited, setIsSubjectEdited] = useState(false);
   const [isBodyEdited, setIsBodyEdited] = useState(false);
-  const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en' | 'it' | 'fr'>('pt');
+  const [emailLanguage, setEmailLanguage] = useState<'pt' | 'es' | 'en' | 'it' | 'fr'>(
+    i18n.language?.startsWith('es') ? 'es' : 'pt'
+  );
   const [pedidoItems, setPedidoItems] = useState<any[]>([]);
   const editorRef = useRef<HTMLDivElement>(null);
 
-  // Sync default language from pedido
+  // Sync default language from pedido or UI language
   useEffect(() => {
     if (pedido?.document_language) {
       setEmailLanguage(pedido.document_language.toLowerCase() as any);
+    } else if (i18n.language?.startsWith('es')) {
+      setEmailLanguage('es');
+    } else {
+      setEmailLanguage('pt');
     }
-  }, [pedido?.document_language]);
+  }, [pedido?.document_language, i18n.language]);
 
   // Fetch configured notification emails & pedido items
   useEffect(() => {
@@ -206,7 +214,7 @@ ${notesSection}
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       for (const extra of extraList) {
         if (!emailRegex.test(extra)) {
-          toast.error(`O e-mail adicional "${extra}" é inválido.`);
+          toast.error(t('cockpit_pedidos.resend_modal.toast_invalid_email', { email: extra }));
           return;
         }
         if (!toEmails.includes(extra)) {
@@ -216,7 +224,7 @@ ${notesSection}
     }
 
     if (toEmails.length === 0) {
-      toast.error('Selecione pelo menos um destinatário para o envio.');
+      toast.error(t('cockpit_pedidos.resend_modal.toast_select_recipient'));
       return;
     }
 
@@ -235,15 +243,15 @@ ${notesSection}
         throw invokeErr;
       }
 
-      toast.success('Notificação de pedido reenviada com sucesso!', {
-        description: `E-mail disparado para ${toEmails.length} destinatário(s).`
+      toast.success(t('cockpit_pedidos.resend_modal.toast_sent'), {
+        description: t('cockpit_pedidos.resend_modal.toast_sent_desc', { count: toEmails.length })
       });
 
       if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
       console.error('Erro ao reenviar notificação do pedido:', err);
-      toast.error('Falha ao reenviar notificação', { description: err.message });
+      toast.error(t('cockpit_pedidos.resend_modal.toast_error'), { description: err.message });
     } finally {
       setSending(false);
     }
@@ -255,17 +263,17 @@ ${notesSection}
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-lg">
             <Mail className="h-5 w-5 text-indigo-600" />
-            Reenviar Notificação de Pedido ({pedido?.codigo})
+            {t('cockpit_pedidos.resend_modal.title', { code: pedido?.codigo })}
           </DialogTitle>
           <DialogDescription className="text-xs">
-            Dispare novamente o e-mail oficial com o Pedido Operacional em PDF para a equipe operacional e administrativa.
+            {t('cockpit_pedidos.resend_modal.desc')}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto space-y-4 py-2 pr-1">
           {/* Idioma */}
           <div className="flex items-center justify-between bg-slate-50 dark:bg-slate-900 p-2.5 rounded-lg border text-xs">
-            <span className="font-semibold text-slate-700 dark:text-slate-300">Idioma do Conteúdo:</span>
+            <span className="font-semibold text-slate-700 dark:text-slate-300">{t('cockpit_pedidos.resend_modal.content_lang')}</span>
             <Select
               value={emailLanguage}
               onValueChange={(val: any) => {
@@ -278,9 +286,9 @@ ${notesSection}
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="pt">Português (PT)</SelectItem>
-                <SelectItem value="es">Espanhol (ES)</SelectItem>
-                <SelectItem value="en">Inglês (EN)</SelectItem>
+                <SelectItem value="pt">{t('cockpit_pedidos.resend_modal.lang_pt')}</SelectItem>
+                <SelectItem value="es">{t('cockpit_pedidos.resend_modal.lang_es')}</SelectItem>
+                <SelectItem value="en">{t('cockpit_pedidos.resend_modal.lang_en')}</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -289,15 +297,15 @@ ${notesSection}
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Destinatários Cadastrados ({selectedEmails.length}/{notificationEmails.length} selecionados)
+                {t('cockpit_pedidos.resend_modal.registered_recipients', { selected: selectedEmails.length, total: notificationEmails.length })}
               </label>
               <div className="flex gap-2 text-xs">
                 <button type="button" onClick={handleSelectAll} className="text-indigo-600 hover:underline">
-                  Selecionar Todos
+                  {t('cockpit_pedidos.resend_modal.select_all')}
                 </button>
                 <span>•</span>
                 <button type="button" onClick={handleDeselectAll} className="text-slate-500 hover:underline">
-                  Limpar
+                  {t('cockpit_pedidos.resend_modal.clear')}
                 </button>
               </div>
             </div>
@@ -305,11 +313,11 @@ ${notesSection}
             {loadingEmails ? (
               <div className="flex items-center justify-center p-4 border rounded-lg bg-slate-50 dark:bg-slate-900">
                 <Loader2 className="h-4 w-4 animate-spin text-slate-400 mr-2" />
-                <span className="text-xs text-slate-500">Carregando lista de e-mails...</span>
+                <span className="text-xs text-slate-500">{t('cockpit_pedidos.resend_modal.loading_emails')}</span>
               </div>
             ) : notificationEmails.length === 0 ? (
               <p className="text-xs text-amber-600 bg-amber-50 p-2.5 rounded border border-amber-200">
-                Nenhum e-mail padrão configurado para o evento "pedido" nesta empresa.
+                {t('cockpit_pedidos.resend_modal.no_default_emails')}
               </p>
             ) : (
               <div className="max-h-36 overflow-y-auto border rounded-lg p-2.5 bg-slate-50/50 dark:bg-slate-900/50 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
@@ -329,7 +337,7 @@ ${notesSection}
 
             <div>
               <label className="text-[11px] text-muted-foreground block mb-1">
-                E-mails adicionais (separados por vírgula ou ponto-e-vírgula):
+                {t('cockpit_pedidos.resend_modal.additional_emails')}
               </label>
               <Input
                 placeholder="exemplo@gestaologinpro.com, outro@empresa.com"
@@ -343,7 +351,7 @@ ${notesSection}
           {/* Assunto */}
           <div className="space-y-1">
             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-              Assunto do E-mail
+              {t('cockpit_pedidos.resend_modal.subject_label')}
             </label>
             <Input
               value={emailSubject}
@@ -359,7 +367,7 @@ ${notesSection}
           <div className="space-y-1.5">
             <div className="flex items-center justify-between">
               <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Mensagem do E-mail (HTML)
+                {t('cockpit_pedidos.resend_modal.message_html_label')}
               </label>
               <div className="flex items-center gap-1 border rounded p-0.5 bg-slate-50 dark:bg-slate-900">
                 <Button type="button" variant="ghost" size="icon" className="h-6 w-6" onClick={() => handleFormat('bold')} title="Negrito">
@@ -394,7 +402,7 @@ ${notesSection}
 
         <DialogFooter className="pt-2 border-t flex justify-between sm:justify-between items-center">
           <Button variant="outline" size="sm" onClick={onClose} disabled={sending} className="text-xs">
-            Cancelar
+            {t('cockpit_pedidos.resend_modal.cancel')}
           </Button>
           <Button
             size="sm"
@@ -405,12 +413,12 @@ ${notesSection}
             {sending ? (
               <>
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                Enviando E-mail...
+                {t('cockpit_pedidos.resend_modal.sending')}
               </>
             ) : (
               <>
                 <Send className="h-3.5 w-3.5" />
-                Reenviar Notificação Agora
+                {t('cockpit_pedidos.resend_modal.send_now')}
               </>
             )}
           </Button>

@@ -27,6 +27,7 @@ export interface PedidoWorkerEntry {
   pedido_item_id?: string | null;
   status: string;
   movement_type: 'active' | 'entering' | 'exiting' | 'exited';
+  movement_key?: string;
   movement_label: string;
   planned_start_date?: string | null;
   start_date?: string | null;

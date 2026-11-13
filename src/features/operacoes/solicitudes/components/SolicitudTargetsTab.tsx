@@ -36,8 +36,8 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
             source_worker: a.worker,
             source_pedido: a.pedido,
             source_site: a.client_site,
-            action_type: 'alocação',
-            status: a.status === 'planned' ? 'planejado' : 'ativo'
+            action_type: 'allocation',
+            status: a.status === 'planned' ? 'planned' : 'active'
         }));
 
     if (displayItems.length === 0) {
@@ -142,15 +142,16 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                                 {target.action_type === 'relocate' ? t('solicitud_detail.targets.actions.relocate') : 
                                                  target.action_type === 'replace' ? t('solicitud_detail.targets.actions.replace') : 
                                                  target.action_type === 'offboard' ? t('solicitud_detail.targets.actions.offboard') : 
-                                                 target.action_type === 'test' ? t('solicitud_detail.targets.actions.test') : target.action_type}
+                                                 target.action_type === 'test' ? t('solicitud_detail.targets.actions.test') :
+                                                 target.action_type === 'allocation' || target.action_type === 'alocação' ? t('solicitud_detail.targets.actions.allocation') : target.action_type}
                                             </Badge>
                                         </TableCell>
                                         <TableCell>
                                             <Badge 
-                                                variant={target.status === 'completed' || target.status === 'ativo' ? 'default' : 'secondary'}
-                                                className={target.status === 'completed' || target.status === 'ativo' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
+                                                variant={target.status === 'completed' || target.status === 'active' || target.status === 'ativo' ? 'default' : 'secondary'}
+                                                className={target.status === 'completed' || target.status === 'active' || target.status === 'ativo' ? 'bg-green-600 hover:bg-green-700 text-white' : ''}
                                             >
-                                                {target.status}
+                                                {t(`solicitud_detail.targets.statuses.${target.status}`, target.status)}
                                             </Badge>
                                         </TableCell>
                                     </TableRow>

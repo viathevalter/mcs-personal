@@ -44,30 +44,35 @@ function formatSafeDate(dateStr?: string | null): string {
 }
 
 function WorkerMovementBadge({ worker }: { worker: PedidoWorkerEntry }) {
+  const { t } = useTranslation();
+  const label = worker.movement_key
+    ? t(`cockpit_pedidos.movement.${worker.movement_key}`, worker.movement_label)
+    : worker.movement_label;
+
   if (worker.movement_type === 'entering') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-        <ArrowUpRight className="h-3 w-3" /> {worker.movement_label}
+        <ArrowUpRight className="h-3 w-3" /> {label}
       </span>
     );
   }
   if (worker.movement_type === 'exiting') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
-        <ArrowDownRight className="h-3 w-3" /> {worker.movement_label}
+        <ArrowDownRight className="h-3 w-3" /> {label}
       </span>
     );
   }
   if (worker.movement_type === 'exited') {
     return (
       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
-        <UserMinus className="h-3 w-3" /> {worker.movement_label}
+        <UserMinus className="h-3 w-3" /> {label}
       </span>
     );
   }
   return (
     <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
-      <UserCheck className="h-3 w-3" /> {worker.movement_label}
+      <UserCheck className="h-3 w-3" /> {label}
     </span>
   );
 }
@@ -113,13 +118,13 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
         <table className="w-full text-xs md:text-sm text-left border-collapse">
           <thead className="sticky top-0 z-20 bg-slate-50/95 dark:bg-slate-900/95 backdrop-blur-xs text-slate-600 dark:text-slate-300 border-b border-slate-200 dark:border-slate-800 shadow-2xs">
             <tr>
-              <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('cockpit_pedidos.table.code')} / Perfis</th>
+              <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('cockpit_pedidos.table.code_profiles')}</th>
               <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('cockpit_pedidos.table.company')}</th>
               <th className="px-3 py-3 font-semibold">{t('cockpit_pedidos.table.client_site')}</th>
-              <th className="px-3 py-3 font-semibold text-center whitespace-nowrap">Vagas / Lotação</th>
-              <th className="px-3 py-3 font-semibold">Trabalhadores (Entrando / Saindo)</th>
-              <th className="px-3 py-3 font-semibold">Alojamento (Logística)</th>
-              <th className="px-3 py-3 font-semibold whitespace-nowrap">Status</th>
+              <th className="px-3 py-3 font-semibold text-center whitespace-nowrap">{t('cockpit_pedidos.table.vacancies_capacity')}</th>
+              <th className="px-3 py-3 font-semibold">{t('cockpit_pedidos.table.workers_movement')}</th>
+              <th className="px-3 py-3 font-semibold">{t('cockpit_pedidos.table.housing_logistics')}</th>
+              <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('cockpit_pedidos.table.status')}</th>
               <th className="px-3 py-3 font-semibold whitespace-nowrap">{t('cockpit_pedidos.table.expected_start')}</th>
               {hasFinanceAccess && (
                 <th className="px-3 py-3 font-semibold text-right whitespace-nowrap">
@@ -171,8 +176,8 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                           }`}
                           title={
                             isExpanded
-                              ? 'Recolher trabalhadores e alojamento'
-                              : `Expandir equipe (${sum.workers.length} trabalhadores)`
+                              ? t('cockpit_pedidos.table.collapse_tooltip')
+                              : t('cockpit_pedidos.table.expand_tooltip', { count: sum.workers.length })
                           }
                         >
                           {isExpanded ? <ChevronDown className="h-4 w-4 text-indigo-600" /> : <ChevronRight className="h-4 w-4" />}
@@ -249,31 +254,37 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                             style={{ width: `${pct}%` }}
                           />
                         </div>
-                        <span className="text-[10px] text-muted-foreground mt-0.5">{pct}% preenchido</span>
+                        <span className="text-[10px] text-muted-foreground mt-0.5">{t('cockpit_pedidos.table.filled_pct', { pct })}</span>
                       </div>
                     </td>
 
                     {/* 5. Trabalhadores (Entrando / Ativos / Saindo) */}
                     <td className="px-3 py-2.5 align-top min-w-[230px]" onClick={e => sum.workers.length > 0 && toggleExpand(pedido.id, e)}>
                       {sum.workers.length === 0 ? (
-                        <span className="text-xs text-muted-foreground italic">Nenhum trabalhador alocado</span>
+                        <span className="text-xs text-muted-foreground italic">{t('cockpit_pedidos.table.no_workers')}</span>
                       ) : (
                         <div className="space-y-1">
                           {/* Counters Row */}
                           <div className="flex flex-wrap items-center gap-1">
                             {sum.activeWorkersCount > 0 && (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-300 border border-emerald-200/60 dark:border-emerald-800">
-                                <UserCheck className="h-2.5 w-2.5" /> {sum.activeWorkersCount} ativo{sum.activeWorkersCount > 1 ? 's' : ''}
+                                <UserCheck className="h-2.5 w-2.5" />{' '}
+                                {sum.activeWorkersCount > 1
+                                  ? t('cockpit_pedidos.table.active_plural', { count: sum.activeWorkersCount })
+                                  : t('cockpit_pedidos.table.active_singular', { count: sum.activeWorkersCount })}
                               </span>
                             )}
                             {sum.enteringWorkersCount > 0 && (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-950/50 dark:text-blue-300 border border-blue-200/60 dark:border-blue-800">
-                                <ArrowUpRight className="h-2.5 w-2.5" /> {sum.enteringWorkersCount} entrando
+                                <ArrowUpRight className="h-2.5 w-2.5" /> {t('cockpit_pedidos.table.entering_count', { count: sum.enteringWorkersCount })}
                               </span>
                             )}
                             {(sum.exitingWorkersCount > 0 || sum.exitedWorkersCount > 0) && (
                               <span className="inline-flex items-center gap-0.5 text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-300 border border-rose-200/60 dark:border-rose-800">
-                                <ArrowDownRight className="h-2.5 w-2.5" /> {sum.exitingWorkersCount + sum.exitedWorkersCount} saída{sum.exitingWorkersCount + sum.exitedWorkersCount > 1 ? 's' : ''}
+                                <ArrowDownRight className="h-2.5 w-2.5" />{' '}
+                                {sum.exitingWorkersCount + sum.exitedWorkersCount > 1
+                                  ? t('cockpit_pedidos.table.exit_plural', { count: sum.exitingWorkersCount + sum.exitedWorkersCount })
+                                  : t('cockpit_pedidos.table.exit_singular', { count: sum.exitingWorkersCount + sum.exitedWorkersCount })}
                               </span>
                             )}
                           </div>
@@ -291,7 +302,7 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                             {currentWorkers.length === 0 && exitedWorkers.slice(0, 1).map(w => (
                               <div key={w.assignment_id} className="text-[11px] flex items-center gap-1 text-rose-600/80 dark:text-rose-400 line-through truncate max-w-[240px]">
                                 <span className="font-mono text-[10px] shrink-0">{w.cod_colab}</span>
-                                <span className="truncate">{w.nome} (Saiu)</span>
+                                <span className="truncate">{w.nome} {t('cockpit_pedidos.table.exited_tag')}</span>
                               </div>
                             ))}
                           </div>
@@ -303,10 +314,10 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                               className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-0.5"
                             >
                               {isExpanded
-                                ? 'Ocultar lista da equipe'
+                                ? t('cockpit_pedidos.table.hide_team')
                                 : sum.workers.length > 2
-                                ? `Ver todos (${sum.workers.length} trabalhadores)`
-                                : 'Ver detalhes da equipe'}
+                                ? t('cockpit_pedidos.table.view_all_workers', { count: sum.workers.length })
+                                : t('cockpit_pedidos.table.view_team_details')}
                             </button>
                           )}
                         </div>
@@ -335,26 +346,26 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                           ))}
                           {sum.alojamentos.length > 2 && (
                             <div className="text-[10px] text-muted-foreground">
-                              +{sum.alojamentos.length - 2} outro(s) alojamento(s)
+                              {t('cockpit_pedidos.table.more_housings', { count: sum.alojamentos.length - 2 })}
                             </div>
                           )}
                           {sum.pendingHousingCount > 0 && (
                             <div className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                              <AlertCircle className="h-3 w-3" /> {sum.pendingHousingCount} s/ alojamento
+                              <AlertCircle className="h-3 w-3" /> {t('cockpit_pedidos.table.without_housing_short', { count: sum.pendingHousingCount })}
                             </div>
                           )}
                         </div>
                       ) : sum.pendingHousingCount > 0 ? (
                         <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/40 text-amber-700 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
                           <AlertCircle className="h-3 w-3 shrink-0" />
-                          {sum.pendingHousingCount} Pend. Alojamento
+                          {t('cockpit_pedidos.table.pending_housing_badge', { count: sum.pendingHousingCount })}
                         </span>
                       ) : sum.includesHousing ? (
                         <span className="inline-flex items-center gap-1 text-[11px] text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                          <Home className="h-3 w-3 text-slate-400" /> Alojamento Incluso
+                          <Home className="h-3 w-3 text-slate-400" /> {t('cockpit_pedidos.table.housing_included')}
                         </span>
                       ) : (
-                        <span className="text-[11px] text-muted-foreground">Sem alojamento</span>
+                        <span className="text-[11px] text-muted-foreground">{t('cockpit_pedidos.table.no_housing')}</span>
                       )}
                     </td>
 
@@ -373,7 +384,7 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                       </div>
                       {pedido.expected_end_date && (
                         <div className="text-[11px] text-muted-foreground">
-                          até {formatSafeDate(pedido.expected_end_date)}
+                          {t('cockpit_pedidos.table.until_date', { date: formatSafeDate(pedido.expected_end_date) })}
                         </div>
                       )}
                     </td>
@@ -394,7 +405,7 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                         <button
                           onClick={e => toggleExpand(pedido.id, e)}
                           className="p-1.5 text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded-lg transition-colors"
-                          title="Expandir Equipe e Alojamento na Galeria"
+                          title={t('cockpit_pedidos.table.expand_action_tooltip')}
                         >
                           <Users size={16} />
                         </button>
@@ -421,10 +432,10 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                             <div className="flex items-center gap-2">
                               <Users className="h-4 w-4 text-indigo-600" />
                               <span className="font-bold text-sm text-slate-900 dark:text-white">
-                                Controle de Equipe & Alojamento — {pedido.codigo} ({pedido.client?.trade_name || pedido.client?.legal_name})
+                                {t('cockpit_pedidos.table.team_housing_control')} — {pedido.codigo} ({pedido.client?.trade_name || pedido.client?.legal_name})
                               </span>
                               <span className="text-xs px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-semibold">
-                                {sum.fulfilled}/{sum.requested} vagas preenchidas
+                                {t('cockpit_pedidos.table.vacancies_filled_badge', { fulfilled: sum.fulfilled, requested: sum.requested })}
                               </span>
                             </div>
                             <div className="flex items-center gap-2">
@@ -433,26 +444,26 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                                 onClick={() => navigate(`/operacoes/pedidos/${pedido.id}`)}
                                 className="inline-flex items-center gap-1 text-xs font-semibold text-white bg-indigo-600 hover:bg-indigo-700 px-3 py-1.5 rounded-lg transition-colors"
                               >
-                                Abrir Cockpit 360 Completo <ExternalLink className="h-3.5 w-3.5" />
+                                {t('cockpit_pedidos.table.open_cockpit_360')} <ExternalLink className="h-3.5 w-3.5" />
                               </button>
                             </div>
                           </div>
 
                           {sum.workers.length === 0 ? (
                             <div className="text-center py-6 text-xs text-muted-foreground">
-                              Nenhum trabalhador vinculado a este pedido até o momento.
+                              {t('cockpit_pedidos.table.no_workers_linked')}
                             </div>
                           ) : (
                             <div className="overflow-x-auto max-h-72 overflow-y-auto rounded-lg border border-slate-100 dark:border-slate-800">
                               <table className="w-full text-xs text-left">
                                 <thead className="sticky top-0 bg-slate-100/90 dark:bg-slate-900 text-slate-600 dark:text-slate-400">
                                   <tr>
-                                    <th className="px-3 py-2 font-semibold">Colaborador</th>
-                                    <th className="px-3 py-2 font-semibold">Função / Perfil</th>
-                                    <th className="px-3 py-2 font-semibold">Movimentação (Entrada / Saída)</th>
-                                    <th className="px-3 py-2 font-semibold">Datas (Início / Saída)</th>
-                                    <th className="px-3 py-2 font-semibold">Alojamento & Cama</th>
-                                    <th className="px-3 py-2 font-semibold">Contato</th>
+                                    <th className="px-3 py-2 font-semibold">{t('cockpit_pedidos.table.col_worker')}</th>
+                                    <th className="px-3 py-2 font-semibold">{t('cockpit_pedidos.table.col_role')}</th>
+                                    <th className="px-3 py-2 font-semibold">{t('cockpit_pedidos.table.col_movement')}</th>
+                                    <th className="px-3 py-2 font-semibold">{t('cockpit_pedidos.table.col_dates')}</th>
+                                    <th className="px-3 py-2 font-semibold">{t('cockpit_pedidos.table.col_housing')}</th>
+                                    <th className="px-3 py-2 font-semibold">{t('cockpit_pedidos.table.col_contact')}</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -478,7 +489,7 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                                         {w.funcao}
                                         {w.tarifa_acordada ? (
                                           <div className="text-[10px] text-emerald-600 font-semibold">
-                                            Tarifa: {w.tarifa_acordada.toFixed(2)} €/h
+                                            {t('cockpit_pedidos.table.rate_label')} {w.tarifa_acordada.toFixed(2)} €/h
                                           </div>
                                         ) : null}
                                       </td>
@@ -486,28 +497,28 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                                         <WorkerMovementBadge worker={w} />
                                         {w.replaced_worker_name && (
                                           <div className="text-[10px] text-blue-600 dark:text-blue-400 mt-0.5">
-                                            ↳ Substituiu: <strong>{w.replaced_worker_name}</strong>
+                                            ↳ {t('cockpit_pedidos.table.replaced_label')} <strong>{w.replaced_worker_name}</strong>
                                           </div>
                                         )}
                                         {w.replaced_by_worker_name && (
                                           <div className="text-[10px] text-amber-600 dark:text-amber-400 mt-0.5">
-                                            ↳ Substituído por: <strong>{w.replaced_by_worker_name}</strong>
+                                            ↳ {t('cockpit_pedidos.table.replaced_by_label')} <strong>{w.replaced_by_worker_name}</strong>
                                           </div>
                                         )}
                                         {w.solicitud_codigo && (
                                           <div className="text-[10px] text-muted-foreground mt-0.5">
-                                            Solicitude: <strong>{w.solicitud_codigo}</strong>
+                                            {t('cockpit_pedidos.table.solicitud_label')} <strong>{w.solicitud_codigo}</strong>
                                           </div>
                                         )}
                                       </td>
                                       <td className="px-3 py-2 whitespace-nowrap">
                                         <div className="text-slate-800 dark:text-slate-200">
-                                          <span className="text-muted-foreground">Início:</span>{' '}
+                                          <span className="text-muted-foreground">{t('cockpit_pedidos.table.start_short')}</span>{' '}
                                           <strong>{formatSafeDate(w.planned_start_date || w.start_date)}</strong>
                                         </div>
                                         {w.end_date && (
                                           <div className="text-rose-600 dark:text-rose-400 text-[11px]">
-                                            Saída: <strong>{formatSafeDate(w.end_date)}</strong>
+                                            {t('cockpit_pedidos.table.exit_short')} <strong>{formatSafeDate(w.end_date)}</strong>
                                           </div>
                                         )}
                                       </td>
@@ -531,14 +542,14 @@ export function PedidosTable({ pedidos, summaryMap = {}, isLoading }: Props) {
                                             </div>
                                           </div>
                                         ) : w.movement_type === 'exited' ? (
-                                          <span className="text-[11px] text-muted-foreground">Fora da obra</span>
+                                          <span className="text-[11px] text-muted-foreground">{t('cockpit_pedidos.table.off_site')}</span>
                                         ) : w.requires_housing ? (
                                           <span className="inline-flex items-center gap-1 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                                            <AlertCircle className="h-3.5 w-3.5" /> Pendente Alojamento
+                                            <AlertCircle className="h-3.5 w-3.5" /> {t('cockpit_pedidos.table.pending_housing')}
                                           </span>
                                         ) : (
                                           <span className="inline-flex items-center gap-1 text-[11px] text-emerald-600">
-                                            <CheckCircle2 className="h-3.5 w-3.5" /> Sem demanda aloj.
+                                            <CheckCircle2 className="h-3.5 w-3.5" /> {t('cockpit_pedidos.table.no_housing_demand')}
                                           </span>
                                         )}
                                       </td>

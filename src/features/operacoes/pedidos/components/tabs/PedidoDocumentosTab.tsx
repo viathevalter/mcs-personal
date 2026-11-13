@@ -1,7 +1,10 @@
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent } from '@/components/ui/card';
 import { FileText } from 'lucide-react';
 
 export function PedidoDocumentosTab() {
+  const { t } = useTranslation();
+
   return (
     <Card className="mt-6 border-dashed border-2">
       <CardContent className="py-20 flex flex-col items-center justify-center text-center">
@@ -9,11 +12,10 @@ export function PedidoDocumentosTab() {
           <FileText size={32} />
         </div>
         <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100 mb-2">
-          Central de Documentos
+          {t('cockpit_pedidos.docs_tab.title')}
         </h3>
         <p className="text-muted-foreground max-w-md">
-          Documentos do pedido e contratos serão integrados ao bloco <strong>core_documents</strong> em uma sprint futura. 
-          Você poderá gerenciar assinaturas, anexos e versionamento por aqui.
+          {t('cockpit_pedidos.docs_tab.desc')}
         </p>
       </CardContent>
     </Card>

@@ -175,33 +175,50 @@ export function resolvePedidoSummaryMap(params: {
       const replacedByWorkerObj = replacedByAss ? (Array.isArray(replacedByAss.worker) ? replacedByAss.worker[0] : replacedByAss.worker) : null;
 
       let movement_type: 'active' | 'entering' | 'exiting' | 'exited' = 'active';
+      let movement_key = 'active';
       let movement_label = 'Em Obra / Ativo';
 
       const startStr = String(ass.planned_start_date || ass.start_date || '').split('T')[0];
 
       if (['replaced', 'relocated', 'terminated', 'completed', 'cancelled'].includes(st)) {
         movement_type = 'exited';
-        if (st === 'replaced') movement_label = 'Substituído (Reemplazo)';
-        else if (st === 'relocated') movement_label = 'Realocado (Reubicación)';
-        else if (st === 'cancelled') movement_label = 'Desistência / Cancelado';
-        else if (st === 'terminated') movement_label = 'Baixa / Desligado';
-        else movement_label = 'Finalizado';
+        if (st === 'replaced') {
+          movement_key = 'exited_replaced';
+          movement_label = 'Substituído (Reemplazo)';
+        } else if (st === 'relocated') {
+          movement_key = 'exited_relocated';
+          movement_label = 'Realocado (Reubicación)';
+        } else if (st === 'cancelled') {
+          movement_key = 'exited_cancelled';
+          movement_label = 'Desistência / Cancelado';
+        } else if (st === 'terminated') {
+          movement_key = 'exited_terminated';
+          movement_label = 'Baixa / Desligado';
+        } else {
+          movement_key = 'exited_finished';
+          movement_label = 'Finalizado';
+        }
       } else if (rhCheck.isInativo) {
         movement_type = 'exited';
+        movement_key = 'exited_rh_inactive';
         movement_label = 'Baixa RH / Inativo';
       } else if (linkedTarget && ['replace', 'offboard', 'relocate', 'withdrawal'].includes(linkedTarget.action_type)) {
         if (linkedTarget.status === 'completed' || replacedByAss) {
           movement_type = 'exited';
+          movement_key = linkedTarget.action_type === 'replace' ? 'exited_replaced' : 'exited_completed';
           movement_label = linkedTarget.action_type === 'replace' ? 'Substituído' : 'Saída Concluída';
         } else {
           movement_type = 'exiting';
+          movement_key = linkedTarget.action_type === 'replace' ? 'exiting_replacement' : 'exiting_offboard';
           movement_label = linkedTarget.action_type === 'replace' ? 'Saindo (Em Reemplazo)' : 'Saindo (Aviso Baixa)';
         }
       } else if (st === 'planned' || (startStr && startStr > todayIso) || String(rawW.status_trabajador || '').toUpperCase().includes('PEND')) {
         movement_type = 'entering';
+        movement_key = replacedWorkerObj ? 'entering_replacement' : 'entering';
         movement_label = replacedWorkerObj ? 'Entrando (Substituto)' : 'Entrando / Mobilização';
       } else if (replacedWorkerObj) {
         movement_type = 'active';
+        movement_key = 'active_replacement';
         movement_label = 'Ativo (Entrou em Reemplazo)';
       }
 
@@ -225,6 +242,7 @@ export function resolvePedidoSummaryMap(params: {
         pedido_item_id: ass.pedido_item_id,
         status: st,
         movement_type,
+        movement_key,
         movement_label,
         planned_start_date: ass.planned_start_date,
         start_date: ass.start_date,
@@ -259,6 +277,18 @@ export function resolvePedidoSummaryMap(params: {
         const nome = w.nome || 'Trabalhador';
         const isCompleted = t.status === 'completed';
         const movement_type: 'exiting' | 'exited' = isCompleted ? 'exited' : 'exiting';
+        const movement_key =
+          t.action_type === 'replace'
+            ? isCompleted
+              ? 'exited_replaced'
+              : 'exiting_replacement_pending'
+            : t.action_type === 'relocate'
+            ? 'exited_relocated'
+            : t.action_type === 'withdrawal'
+            ? 'exited_withdrawal'
+            : isCompleted
+            ? 'exited_terminated'
+            : 'exiting_offboard_in_progress';
         const movement_label =
           t.action_type === 'replace'
             ? isCompleted
@@ -285,6 +315,7 @@ export function resolvePedidoSummaryMap(params: {
           pedido_item_id: t.source_pedido_item_id,
           status: isCompleted ? 'terminated' : 'active',
           movement_type,
+          movement_key,
           movement_label,
           start_date: null,
           end_date: w.data_baixa || t.solicitud?.due_date || null,

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -22,6 +23,7 @@ interface Props {
 }
 
 export function PedidoItemsTab({ items, pedido, summary }: Props) {
+  const { t } = useTranslation();
   const { hasFinanceAccess } = usePedidoFinanceAccess();
   const queryClient = useQueryClient();
 
@@ -84,7 +86,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
   const handleSaveEdit = async () => {
     if (!selectedItem || !pedido) return;
     if (editQuantity < 0) {
-      toast.error('A quantidade solicitada não pode ser negativa.');
+      toast.error(t('cockpit_pedidos.items_tab.toast_negative_qty'));
       return;
     }
 
@@ -99,7 +101,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
         baseCost: hasFinanceAccess ? editBaseCost : undefined,
       });
 
-      toast.success('Quantidade e informações do item atualizadas com sucesso!');
+      toast.success(t('cockpit_pedidos.items_tab.toast_item_updated'));
       queryClient.invalidateQueries({ queryKey: ['pedido', pedido.id] });
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['open_positions'] });
@@ -107,7 +109,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
       setIsEditOpen(false);
     } catch (err: any) {
       console.error('Erro ao atualizar item do pedido:', err);
-      toast.error('Erro ao atualizar item: ' + (err.message || 'Erro inesperado'));
+      toast.error(t('cockpit_pedidos.items_tab.toast_item_update_err') + (err.message || ''));
     } finally {
       setIsSaving(false);
     }
@@ -136,11 +138,11 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
   const handleSaveAdd = async () => {
     if (!pedido) return;
     if (!addJobFunctionId) {
-      toast.error('Selecione uma função/perfil para adicionar.');
+      toast.error(t('cockpit_pedidos.items_tab.toast_select_role'));
       return;
     }
     if (addQuantity <= 0) {
-      toast.error('A quantidade deve ser maior que zero.');
+      toast.error(t('cockpit_pedidos.items_tab.toast_qty_gt_zero'));
       return;
     }
 
@@ -165,7 +167,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
         ssRegime: addSsRegime,
       });
 
-      toast.success('Novo perfil adicionado ao pedido com sucesso!');
+      toast.success(t('cockpit_pedidos.items_tab.toast_profile_added'));
       queryClient.invalidateQueries({ queryKey: ['pedido', pedido.id] });
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['open_positions'] });
@@ -173,7 +175,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
       setIsAddOpen(false);
     } catch (err: any) {
       console.error('Erro ao adicionar perfil ao pedido:', err);
-      toast.error('Erro ao adicionar perfil: ' + (err.message || 'Erro inesperado'));
+      toast.error(t('cockpit_pedidos.items_tab.toast_profile_add_err') + (err.message || ''));
     } finally {
       setIsSaving(false);
     }
@@ -182,24 +184,25 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
   const handleDeleteItem = async (item: PedidoItem) => {
     if (!pedido) return;
     if (item.quantity_fulfilled > 0) {
-      toast.error(`Não é possível excluir este perfil pois já existem ${item.quantity_fulfilled} trabalhadores contratados/alocados.`);
+      toast.error(t('cockpit_pedidos.items_tab.toast_cannot_delete', { count: item.quantity_fulfilled }));
       return;
     }
 
-    if (!confirm(`Tem certeza que deseja excluir o perfil "${item.job_function?.name || item.job_function_name_snapshot}" deste pedido?`)) {
+    const profileName = item.job_function?.name || item.job_function_name_snapshot || '';
+    if (!confirm(t('cockpit_pedidos.items_tab.confirm_delete', { name: profileName }))) {
       return;
     }
 
     try {
       await deletePedidoItem(item.id, pedido.id);
-      toast.success('Perfil removido do pedido com sucesso!');
+      toast.success(t('cockpit_pedidos.items_tab.toast_profile_deleted'));
       queryClient.invalidateQueries({ queryKey: ['pedido', pedido.id] });
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['open_positions'] });
       queryClient.invalidateQueries({ queryKey: ['logistica-data'] });
     } catch (err: any) {
       console.error('Erro ao remover item:', err);
-      toast.error('Erro ao remover perfil: ' + err.message);
+      toast.error(t('cockpit_pedidos.items_tab.toast_profile_delete_err') + err.message);
     }
   };
 
@@ -209,10 +212,10 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
         <div>
           <CardTitle className="text-lg font-bold flex items-center gap-2">
             <Users className="h-5 w-5 text-blue-600" />
-            Vagas e Perfis Solicitados
+            {t('cockpit_pedidos.items_tab.title')}
           </CardTitle>
           <CardDescription className="mt-1">
-            Gerencie e ajuste as vagas contratadas, adicione novos perfis ou edite as quantidades do pedido.
+            {t('cockpit_pedidos.items_tab.desc')}
           </CardDescription>
         </div>
         {pedido && pedido.commercial_status !== 'cancelled' && (
@@ -220,32 +223,32 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
             onClick={handleOpenAdd}
             className="bg-blue-600 hover:bg-blue-700 text-white font-medium flex items-center gap-1.5 shadow-sm"
           >
-            <Plus size={16} /> Adicionar Perfil / Vaga
+            <Plus size={16} /> {t('cockpit_pedidos.items_tab.add_profile_btn')}
           </Button>
         )}
       </CardHeader>
       <CardContent>
         {(!items || items.length === 0) ? (
           <div className="py-10 text-center text-muted-foreground">
-            Nenhum item ou perfil cadastrado neste pedido.
+            {t('cockpit_pedidos.items_tab.empty')}
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Função (Snapshot)</th>
-                  <th className="px-4 py-3 text-center font-medium">Status</th>
-                  <th className="px-4 py-3 text-center font-medium">Qtd (Preenchida/Solicitada)</th>
-                  <th className="px-4 py-3 text-right font-medium">Horas Previstas</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('cockpit_pedidos.items_tab.col_function')}</th>
+                  <th className="px-4 py-3 text-center font-medium">{t('cockpit_pedidos.items_tab.col_status')}</th>
+                  <th className="px-4 py-3 text-center font-medium">{t('cockpit_pedidos.items_tab.col_qty')}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.items_tab.col_hours')}</th>
                   {hasFinanceAccess && (
                     <>
-                      <th className="px-4 py-3 text-right font-medium">Tarifa Base</th>
-                      <th className="px-4 py-3 text-right font-medium">Tarifa Venda</th>
-                      <th className="px-4 py-3 text-right font-medium">Margem</th>
+                      <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.items_tab.col_base_rate')}</th>
+                      <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.items_tab.col_sell_rate')}</th>
+                      <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.items_tab.col_margin')}</th>
                     </>
                   )}
-                  <th className="px-4 py-3 text-center font-medium">Ações</th>
+                  <th className="px-4 py-3 text-center font-medium">{t('cockpit_pedidos.items_tab.col_actions')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -253,27 +256,32 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                   <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-900 dark:text-slate-100">
-                        {item.job_function?.name || item.job_function_name_snapshot || 'Sem Função'}
+                        {item.job_function?.name || item.job_function_name_snapshot || t('cockpit_pedidos.items_tab.no_function')}
                       </div>
                       <div className="text-xs text-muted-foreground flex flex-wrap items-center gap-x-2 gap-y-1 mt-1">
                         {item.includes_accommodation_snapshot && (
                           <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">
-                            Alojamento{hasFinanceAccess && item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null ? `: €${Number(item.custom_lodging_rate).toFixed(2)}/dia` : ''}
+                            {t('cockpit_pedidos.items_tab.housing_badge')}
+                            {hasFinanceAccess && item.custom_lodging_rate !== undefined && item.custom_lodging_rate !== null
+                              ? `: €${Number(item.custom_lodging_rate).toFixed(2)}${t('cockpit_pedidos.items_tab.per_day')}`
+                              : ''}
                           </span>
                         )}
                         {item.includes_transport_snapshot && (
                           <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">
-                            Transporte
+                            {t('cockpit_pedidos.items_tab.transport_badge')}
                           </span>
                         )}
                         {item.includes_ppe_snapshot && (
                           <span className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-350 px-1.5 py-0.5 rounded">
-                            EPI
+                            {t('cockpit_pedidos.items_tab.ppe_badge')}
                           </span>
                         )}
                         {item.ss_regime && item.ss_regime !== 'none' && (
                           <span className="bg-blue-50 dark:bg-blue-950/20 text-blue-700 dark:text-blue-400 px-1.5 py-0.5 rounded font-medium">
-                            Seg. Social: {item.ss_regime === 'destacado' ? 'Destacado' : 'Local'}
+                            {t('cockpit_pedidos.items_tab.ss_badge', {
+                              regime: item.ss_regime === 'destacado' ? t('cockpit_pedidos.items_tab.ss_destacado') : t('cockpit_pedidos.items_tab.ss_local')
+                            })}
                           </span>
                         )}
                       </div>
@@ -329,7 +337,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right text-muted-foreground">
-                      {item.planned_total_hours ? `${item.planned_total_hours}h totais` : '-'}
+                      {item.planned_total_hours ? t('cockpit_pedidos.items_tab.total_hours_suffix', { hours: item.planned_total_hours }) : '-'}
                     </td>
                     {hasFinanceAccess && (
                       <>
@@ -357,10 +365,10 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                           size="sm"
                           onClick={() => handleOpenEdit(item)}
                           className="h-8 px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50 dark:hover:bg-blue-950/20"
-                          title="Alterar quantidade / vagas"
+                          title={t('cockpit_pedidos.items_tab.edit_tooltip')}
                         >
                           <Pencil size={15} className="mr-1" />
-                          <span className="text-xs">Editar</span>
+                          <span className="text-xs">{t('cockpit_pedidos.items_tab.edit_btn')}</span>
                         </Button>
                         {item.quantity_fulfilled === 0 && (
                           <Button
@@ -368,7 +376,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                             size="sm"
                             onClick={() => handleDeleteItem(item)}
                             className="h-8 px-2 text-rose-600 hover:text-rose-700 hover:bg-rose-50 dark:hover:bg-rose-950/20"
-                            title="Remover perfil"
+                            title={t('cockpit_pedidos.items_tab.delete_tooltip')}
                           >
                             <Trash2 size={15} />
                           </Button>
@@ -387,20 +395,20 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
       <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Alterar Quantidade de Vagas</DialogTitle>
+            <DialogTitle>{t('cockpit_pedidos.items_tab.edit_modal_title')}</DialogTitle>
             <DialogDescription>
-              Perfil: <strong className="text-slate-800 dark:text-slate-100">{selectedItem?.job_function?.name || selectedItem?.job_function_name_snapshot}</strong>
+              {t('cockpit_pedidos.items_tab.profile_label')} <strong className="text-slate-800 dark:text-slate-100">{selectedItem?.job_function?.name || selectedItem?.job_function_name_snapshot}</strong>
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-4">
             <div className="bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border text-sm flex items-center justify-between">
-              <span className="text-muted-foreground">Trabalhadores já contratados:</span>
+              <span className="text-muted-foreground">{t('cockpit_pedidos.items_tab.already_hired')}</span>
               <span className="font-bold text-emerald-600 text-base">{selectedItem?.quantity_fulfilled || 0}</span>
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="edit-quantity">Quantidade Solicitada de Vagas</Label>
+              <Label htmlFor="edit-quantity">{t('cockpit_pedidos.items_tab.requested_qty_label')}</Label>
               <Input
                 id="edit-quantity"
                 type="number"
@@ -410,13 +418,13 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
               />
               {selectedItem && editQuantity < selectedItem.quantity_fulfilled && (
                 <p className="text-xs text-amber-600">
-                  Atenção: A nova quantidade ({editQuantity}) é menor que os trabalhadores já contratados ({selectedItem.quantity_fulfilled}).
+                  {t('cockpit_pedidos.items_tab.qty_warning', { newQty: editQuantity, hired: selectedItem.quantity_fulfilled })}
                 </p>
               )}
             </div>
 
             <div className="grid gap-2">
-              <Label htmlFor="edit-hours">Horas Previstas Totais</Label>
+              <Label htmlFor="edit-hours">{t('cockpit_pedidos.items_tab.total_expected_hours')}</Label>
               <Input
                 id="edit-hours"
                 type="number"
@@ -425,14 +433,14 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                 onChange={(e) => setEditTotalHours(parseFloat(e.target.value) || 0)}
               />
               <p className="text-[11px] text-muted-foreground">
-                Recalculado proporcionalmente à quantidade de vagas.
+                {t('cockpit_pedidos.items_tab.recalculated_hint')}
               </p>
             </div>
 
             {hasFinanceAccess && (
               <div className="grid grid-cols-2 gap-3 pt-2 border-t">
                 <div className="grid gap-1.5">
-                  <Label htmlFor="edit-base-cost" className="text-xs">Tarifa Base (€/h)</Label>
+                  <Label htmlFor="edit-base-cost" className="text-xs">{t('cockpit_pedidos.items_tab.base_rate_label')}</Label>
                   <Input
                     id="edit-base-cost"
                     type="number"
@@ -442,7 +450,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                   />
                 </div>
                 <div className="grid gap-1.5">
-                  <Label htmlFor="edit-sell-rate" className="text-xs">Tarifa Venda (€/h)</Label>
+                  <Label htmlFor="edit-sell-rate" className="text-xs">{t('cockpit_pedidos.items_tab.sell_rate_label')}</Label>
                   <Input
                     id="edit-sell-rate"
                     type="number"
@@ -457,11 +465,11 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditOpen(false)} disabled={isSaving}>
-              Cancelar
+              {t('cockpit_pedidos.items_tab.cancel')}
             </Button>
             <Button onClick={handleSaveEdit} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Salvar Alterações
+              {t('cockpit_pedidos.items_tab.save_changes')}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -471,18 +479,18 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
       <Dialog open={isAddOpen} onOpenChange={setIsAddOpen}>
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
-            <DialogTitle>Adicionar Novo Perfil ao Pedido</DialogTitle>
+            <DialogTitle>{t('cockpit_pedidos.items_tab.add_modal_title')}</DialogTitle>
             <DialogDescription>
-              Inclua uma nova função ou especialidade com quantidade de vagas e condições contratuais.
+              {t('cockpit_pedidos.items_tab.add_modal_desc')}
             </DialogDescription>
           </DialogHeader>
 
           <div className="grid gap-4 py-3">
             <div className="grid gap-2">
-              <Label htmlFor="add-job-function">Função / Cargo</Label>
+              <Label htmlFor="add-job-function">{t('cockpit_pedidos.items_tab.role_label')}</Label>
               <Select value={addJobFunctionId} onValueChange={setAddJobFunctionId}>
                 <SelectTrigger id="add-job-function">
-                  <SelectValue placeholder="Selecione o perfil profissional..." />
+                  <SelectValue placeholder={t('cockpit_pedidos.items_tab.select_role_placeholder')} />
                 </SelectTrigger>
                 <SelectContent className="max-h-60">
                   {jobFunctions.map((jf) => (
@@ -496,7 +504,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="add-quantity">Quantidade de Vagas</Label>
+                <Label htmlFor="add-quantity">{t('cockpit_pedidos.items_tab.vacancies_qty')}</Label>
                 <Input
                   id="add-quantity"
                   type="number"
@@ -506,7 +514,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="add-total-hours">Horas Totais Previstas</Label>
+                <Label htmlFor="add-total-hours">{t('cockpit_pedidos.items_tab.total_expected_hours')}</Label>
                 <Input
                   id="add-total-hours"
                   type="number"
@@ -519,7 +527,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="add-hours-day" className="text-xs">Horas / Dia</Label>
+                <Label htmlFor="add-hours-day" className="text-xs">{t('cockpit_pedidos.items_tab.hours_per_day')}</Label>
                 <Input
                   id="add-hours-day"
                   type="number"
@@ -529,7 +537,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="add-days-week" className="text-xs">Dias / Semana</Label>
+                <Label htmlFor="add-days-week" className="text-xs">{t('cockpit_pedidos.items_tab.days_per_week')}</Label>
                 <Input
                   id="add-days-week"
                   type="number"
@@ -541,7 +549,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
 
             <div className="grid grid-cols-2 gap-3">
               <div className="grid gap-1.5">
-                <Label htmlFor="add-base-cost" className="text-xs">Tarifa Base (€/h)</Label>
+                <Label htmlFor="add-base-cost" className="text-xs">{t('cockpit_pedidos.items_tab.base_rate_label')}</Label>
                 <Input
                   id="add-base-cost"
                   type="number"
@@ -551,7 +559,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                 />
               </div>
               <div className="grid gap-1.5">
-                <Label htmlFor="add-sell-rate" className="text-xs">Tarifa Venda (€/h)</Label>
+                <Label htmlFor="add-sell-rate" className="text-xs">{t('cockpit_pedidos.items_tab.sell_rate_label')}</Label>
                 <Input
                   id="add-sell-rate"
                   type="number"
@@ -563,21 +571,21 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
             </div>
 
             <div className="grid gap-2">
-              <Label className="text-xs">Regime de Seguridade Social</Label>
+              <Label className="text-xs">{t('cockpit_pedidos.items_tab.ss_regime_label')}</Label>
               <Select value={addSsRegime} onValueChange={(val: any) => setAddSsRegime(val)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="local">Local</SelectItem>
-                  <SelectItem value="destacado">Destacado</SelectItem>
-                  <SelectItem value="none">Nenhum</SelectItem>
+                  <SelectItem value="local">{t('cockpit_pedidos.items_tab.ss_local')}</SelectItem>
+                  <SelectItem value="destacado">{t('cockpit_pedidos.items_tab.ss_destacado')}</SelectItem>
+                  <SelectItem value="none">{t('cockpit_pedidos.items_tab.ss_none')}</SelectItem>
                 </SelectContent>
               </Select>
             </div>
 
             <div className="pt-2 border-t">
-              <Label className="text-xs mb-2 block">Benefícios e Itens Inclusos</Label>
+              <Label className="text-xs mb-2 block">{t('cockpit_pedidos.items_tab.benefits_label')}</Label>
               <div className="flex flex-wrap gap-4 text-sm">
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -586,7 +594,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                     onChange={(e) => setAddHousing(e.target.checked)}
                     className="rounded text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Alojamento</span>
+                  <span>{t('cockpit_pedidos.items_tab.housing_badge')}</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -595,7 +603,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                     onChange={(e) => setAddEpi(e.target.checked)}
                     className="rounded text-blue-600 focus:ring-blue-500"
                   />
-                  <span>EPI</span>
+                  <span>{t('cockpit_pedidos.items_tab.ppe_badge')}</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer">
                   <input
@@ -604,7 +612,7 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
                     onChange={(e) => setAddTransport(e.target.checked)}
                     className="rounded text-blue-600 focus:ring-blue-500"
                   />
-                  <span>Transporte</span>
+                  <span>{t('cockpit_pedidos.items_tab.transport_badge')}</span>
                 </label>
               </div>
             </div>
@@ -612,11 +620,11 @@ export function PedidoItemsTab({ items, pedido, summary }: Props) {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsAddOpen(false)} disabled={isSaving}>
-              Cancelar
+              {t('cockpit_pedidos.items_tab.cancel')}
             </Button>
             <Button onClick={handleSaveAdd} disabled={isSaving} className="bg-blue-600 hover:bg-blue-700 text-white">
               {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
-              Adicionar ao Pedido
+              {t('cockpit_pedidos.items_tab.add_to_order_btn')}
             </Button>
           </DialogFooter>
         </DialogContent>

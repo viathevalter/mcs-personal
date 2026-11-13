@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Table,
   TableBody,
@@ -30,21 +31,23 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
   showEnableRecentBajasHint = false,
   onEnableRecentBajas
 }) => {
+  const { t } = useTranslation();
+
   if (!assignments || assignments.length === 0) {
     return (
       <div className="p-8 text-center text-muted-foreground border rounded-md bg-slate-50 dark:bg-slate-900/50 space-y-3">
-        <div>Nenhum trabalhador ativo encontrado para os filtros selecionados.</div>
+        <div>{t('torre_controle.new_solicitud.table_empty')}</div>
         {showEnableRecentBajasHint && onEnableRecentBajas && (
           <div className="max-w-md mx-auto p-3 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-900 dark:text-amber-200 text-xs space-y-2">
             <p>
-              Os trabalhadores deste pedido já saíram da obra ou tiveram baixa recente (ex: pedido pausado ou saída encerrada)?
+              {t('torre_controle.new_solicitud.recent_bajas_question')}
             </p>
             <button
               type="button"
               onClick={onEnableRecentBajas}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer"
             >
-              Mostrar saídas / baixas recentes (últimos 60 dias)
+              {t('torre_controle.new_solicitud.show_recent_bajas_btn')}
             </button>
           </div>
         )}
@@ -64,18 +67,18 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
               <Checkbox 
                 checked={allSelected ? true : someSelected ? "indeterminate" : false}
                 onCheckedChange={onToggleAll}
-                aria-label="Selecionar todos"
+                aria-label="Select all"
               />
             </TableHead>
-            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Trabalhador</TableHead>
-            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Empresa</TableHead>
-            {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">Função</TableHead>}
-            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Pedido</TableHead>
-            <TableHead className="px-1.5 py-2 text-xs md:text-sm">{isCompact ? 'Cliente / Obra' : 'Cliente'}</TableHead>
-            {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">Obra Atual (Local)</TableHead>}
-            {!isCompact && <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Início</TableHead>}
-            {!isCompact && <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">Tipo</TableHead>}
-            {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">Cadeia</TableHead>}
+            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_worker')}</TableHead>
+            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_company')}</TableHead>
+            {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_role')}</TableHead>}
+            <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_order')}</TableHead>
+            <TableHead className="px-1.5 py-2 text-xs md:text-sm">{isCompact ? t('torre_controle.new_solicitud.col_client_site') : t('torre_controle.new_solicitud.col_client')}</TableHead>
+            {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_current_site')}</TableHead>}
+            {!isCompact && <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_start')}</TableHead>}
+            {!isCompact && <TableHead className="whitespace-nowrap px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_type')}</TableHead>}
+            {!isCompact && <TableHead className="px-1.5 py-2 text-xs md:text-sm">{t('torre_controle.new_solicitud.col_chain')}</TableHead>}
           </TableRow>
         </TableHeader>
         <TableBody>
@@ -106,7 +109,7 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
                     <span className="font-semibold text-slate-900 dark:text-slate-100 leading-tight">{workerName}</span>
                     {assignment.is_baja_recente && (
                       <span className="text-[10px] bg-rose-50 text-rose-700 dark:bg-rose-950/40 dark:text-rose-400 border border-rose-200 dark:border-rose-900/50 px-1.5 py-0.2 rounded font-medium">
-                        Saída: {assignment.data_baixa ? format(new Date(assignment.data_baixa), 'dd/MM/yy') : 'Recente'}
+                        {t('torre_controle.new_solicitud.exit_badge')}: {assignment.data_baixa ? format(new Date(assignment.data_baixa), 'dd/MM/yy') : t('torre_controle.new_solicitud.recent_badge')}
                       </span>
                     )}
                   </div>
@@ -149,15 +152,15 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
                   <TableCell className="whitespace-nowrap px-1.5 py-1.5">
                     {assignment.is_baja_recente ? (
                       <Badge variant="secondary" className="bg-rose-100 text-rose-800 dark:bg-rose-900/40 dark:text-rose-300 border border-rose-200 dark:border-rose-800 px-1.5 py-0 text-[10px] font-bold">
-                        Baixa Recente
+                        {t('torre_controle.new_solicitud.recent_baja_badge')}
                       </Badge>
                     ) : isReplacement ? (
                       <Badge variant="secondary" className="bg-orange-100 text-orange-800 dark:bg-orange-900/30 dark:text-orange-300 px-1.5 py-0 text-[10px]">
-                        Substituto
+                        {t('torre_controle.new_solicitud.substitute_badge')}
                       </Badge>
                     ) : (
                       <Badge variant="outline" className="text-slate-500 px-1.5 py-0 text-[10px]">
-                        Original
+                        {t('torre_controle.new_solicitud.original_badge')}
                       </Badge>
                     )}
                   </TableCell>
@@ -165,8 +168,8 @@ export const AssignmentsSelectionTable: React.FC<AssignmentsSelectionTableProps>
                 {!isCompact && (
                   <TableCell className="px-1.5 py-1.5 text-xs text-muted-foreground leading-tight">
                     {assignment.replacement_of_assignment_id ? (
-                      <div title={`ID da Alocação: ${assignment.replacement_of_assignment_id}`}>
-                        {replacedWorkerName ? `Substituiu ${replacedWorkerName}` : `Substituiu ID final ...${assignment.replacement_of_assignment_id.slice(-6)}`}
+                      <div title={`ID: ${assignment.replacement_of_assignment_id}`}>
+                        {replacedWorkerName ? `${t('torre_controle.new_solicitud.replaced_prefix')} ${replacedWorkerName}` : `${t('torre_controle.new_solicitud.replaced_prefix')} ...${assignment.replacement_of_assignment_id.slice(-6)}`}
                       </div>
                     ) : (
                       <span className="text-slate-450">-</span>

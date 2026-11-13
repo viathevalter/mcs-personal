@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { formatCurrency } from '@/shared/utils/currency';
 import type { Pedido, PedidoItem } from '../../types';
@@ -8,27 +9,29 @@ interface Props {
 }
 
 export function PedidoFinanceiroTab({ pedido, items }: Props) {
+  const { t } = useTranslation();
+
   return (
     <div className="space-y-6 mt-6">
       <Card>
         <CardHeader>
-          <CardTitle>Snapshot Financeiro Geral</CardTitle>
+          <CardTitle>{t('cockpit_pedidos.finance_tab.title')}</CardTitle>
           <CardDescription>
-            Resumo consolidado do pedido no momento da sua criação (estimación aprovada). O faturamento real será gerido no módulo financeiro.
+            {t('cockpit_pedidos.finance_tab.desc')}
           </CardDescription>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-xs text-muted-foreground uppercase block mb-1">Receita Estimada (Total)</span>
+              <span className="text-xs text-muted-foreground uppercase block mb-1">{t('cockpit_pedidos.finance_tab.estimated_revenue')}</span>
               <span className="text-2xl font-bold text-emerald-600">{formatCurrency(pedido.total_revenue_snapshot || 0)}</span>
             </div>
             <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-xs text-muted-foreground uppercase block mb-1">Custo Base (Total)</span>
+              <span className="text-xs text-muted-foreground uppercase block mb-1">{t('cockpit_pedidos.finance_tab.base_cost')}</span>
               <span className="text-2xl font-bold text-red-600">{formatCurrency(pedido.total_cost_snapshot || 0)}</span>
             </div>
             <div className="p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
-              <span className="text-xs text-muted-foreground uppercase block mb-1">Margem Projetada</span>
+              <span className="text-xs text-muted-foreground uppercase block mb-1">{t('cockpit_pedidos.finance_tab.projected_margin')}</span>
               <span className={`text-2xl font-bold ${pedido.margin_percent_snapshot && pedido.margin_percent_snapshot >= 20 ? 'text-emerald-600' : 'text-amber-600'}`}>
                 {pedido.margin_percent_snapshot || 0}%
               </span>
@@ -39,18 +42,18 @@ export function PedidoFinanceiroTab({ pedido, items }: Props) {
 
       <Card>
         <CardHeader>
-          <CardTitle>Composição de Receita/Custo por Item</CardTitle>
+          <CardTitle>{t('cockpit_pedidos.finance_tab.breakdown_title')}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 border-b">
                 <tr>
-                  <th className="px-4 py-3 text-left font-medium">Função</th>
-                  <th className="px-4 py-3 text-center font-medium">Horas Previstas</th>
-                  <th className="px-4 py-3 text-right font-medium">Custo (Hora)</th>
-                  <th className="px-4 py-3 text-right font-medium">Receita (Hora)</th>
-                  <th className="px-4 py-3 text-right font-medium">Subtotal Receita Estimada</th>
+                  <th className="px-4 py-3 text-left font-medium">{t('cockpit_pedidos.finance_tab.col_role')}</th>
+                  <th className="px-4 py-3 text-center font-medium">{t('cockpit_pedidos.finance_tab.col_hours')}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.finance_tab.col_cost_hour')}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.finance_tab.col_rev_hour')}</th>
+                  <th className="px-4 py-3 text-right font-medium">{t('cockpit_pedidos.finance_tab.col_subtotal')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
@@ -62,11 +65,11 @@ export function PedidoFinanceiroTab({ pedido, items }: Props) {
                   return (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800/50">
                       <td className="px-4 py-3 font-medium text-slate-900 dark:text-slate-100">
-                        {item.job_function?.name || item.job_function_name_snapshot || 'Sem Função'}
-                        <div className="text-xs text-muted-foreground font-normal">Qtd: {item.quantity_requested}</div>
+                        {item.job_function?.name || item.job_function_name_snapshot || t('cockpit_pedidos.items_tab.no_function')}
+                        <div className="text-xs text-muted-foreground font-normal">{t('cockpit_pedidos.finance_tab.qty_short', { qty: item.quantity_requested })}</div>
                       </td>
                       <td className="px-4 py-3 text-center text-muted-foreground">
-                        {hours}h / pessoa
+                        {t('cockpit_pedidos.finance_tab.hours_per_person', { hours })}
                       </td>
                       <td className="px-4 py-3 text-right text-muted-foreground">
                         {formatCurrency(item.base_cost_hour_snapshot || 0)}

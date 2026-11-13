@@ -1,3 +1,4 @@
+import { useTranslation } from 'react-i18next';
 import type { SolicitudTimeline } from '../types';
 import { format } from 'date-fns';
 import { CheckCircle2, PlayCircle, AlertCircle, FileText, Info } from 'lucide-react';
@@ -8,12 +9,14 @@ interface Props {
 }
 
 export function SolicitudTimelineTab({ timeline, isLoading }: Props) {
+  const { t } = useTranslation();
+
   if (isLoading) {
-    return <div className="p-8 text-center text-muted-foreground">Carregando histórico...</div>;
+    return <div className="p-8 text-center text-muted-foreground">{t('solicitud_detail.timeline_tab.loading')}</div>;
   }
 
   if (timeline.length === 0) {
-    return <div className="p-8 text-center text-muted-foreground">Nenhum evento registrado.</div>;
+    return <div className="p-8 text-center text-muted-foreground">{t('solicitud_detail.timeline_tab.empty')}</div>;
   }
 
   const getIcon = (type: string) => {
@@ -54,7 +57,7 @@ export function SolicitudTimelineTab({ timeline, isLoading }: Props) {
               )}
               {event.created_by_user && (
                 <p className="text-xs text-muted-foreground mt-1">
-                  Por: {event.created_by_user.email}
+                  {t('solicitud_detail.timeline_tab.by_user')} {event.created_by_user.email}
                 </p>
               )}
             </div>

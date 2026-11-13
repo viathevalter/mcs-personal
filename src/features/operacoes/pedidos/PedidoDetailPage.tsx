@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { usePedidoDetail } from './hooks/usePedidoDetail';
 import { usePedidoSolicitudes } from './hooks/usePedidoSolicitudes';
 import { usePedidoTasks } from './hooks/usePedidoTasks';
@@ -66,6 +67,7 @@ function formatSafeDate(dateStr?: string | null): string {
 export function PedidoDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState('overview');
   const { hasFinanceAccess } = usePedidoFinanceAccess();
   const queryClient = useQueryClient();
@@ -119,12 +121,12 @@ export function PedidoDetailPage() {
 
       if (updateError) throw updateError;
 
-      toast.success('Pedido atualizado com sucesso!');
+      toast.success(t('cockpit_pedidos.detail.edit_modal.toast_success'));
       queryClient.invalidateQueries({ queryKey: ['pedido', id] });
       setIsEditDialogOpen(false);
     } catch (err: any) {
       console.error('Erro ao atualizar pedido:', err);
-      toast.error('Erro ao atualizar pedido: ' + err.message);
+      toast.error(t('cockpit_pedidos.detail.edit_modal.toast_error') + err.message);
     } finally {
       setIsUpdating(false);
     }
@@ -145,20 +147,20 @@ export function PedidoDetailPage() {
   const { data: events = [], isLoading: isLoadingTimeline } = usePedidoTimeline(id, solicitudIds);
 
   if (isLoadingPedido) {
-    return <div className="flex items-center justify-center h-full">Carregando detalhes do pedido...</div>;
+    return <div className="flex items-center justify-center h-full">{t('cockpit_pedidos.detail.loading')}</div>;
   }
 
   if (error || !pedido) {
     return (
       <div className="flex flex-col items-center justify-center h-full space-y-4 p-8">
-        <div className="text-xl text-muted-foreground">Pedido não encontrado.</div>
+        <div className="text-xl text-muted-foreground">{t('cockpit_pedidos.detail.not_found')}</div>
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 p-4 rounded-md max-w-2xl text-sm break-all">
-            <strong>Erro:</strong> {error instanceof Error ? error.message : JSON.stringify(error)}
+            <strong>{t('cockpit_pedidos.detail.error_label')}</strong> {error instanceof Error ? error.message : JSON.stringify(error)}
           </div>
         )}
         <Button variant="outline" onClick={() => navigate('/operacoes/pedidos')}>
-          <ArrowLeft className="mr-2 h-4 w-4" /> Voltar
+          <ArrowLeft className="mr-2 h-4 w-4" /> {t('cockpit_pedidos.detail.back')}
         </Button>
       </div>
     );
@@ -176,7 +178,7 @@ export function PedidoDetailPage() {
             <button
               onClick={() => navigate('/operacoes/pedidos')}
               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-800 transition-colors shrink-0"
-              title="Voltar para a Galeria de Pedidos"
+              title={t('cockpit_pedidos.detail.back_to_gallery')}
             >
               <ArrowLeft size={18} />
             </button>
@@ -195,7 +197,7 @@ export function PedidoDetailPage() {
               </div>
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground mt-1">
                 <span className="font-semibold text-indigo-600 dark:text-indigo-400">
-                  {pedido.client?.trade_name || pedido.client?.legal_name || 'Cliente'}
+                  {pedido.client?.trade_name || pedido.client?.legal_name || t('cockpit_pedidos.detail.client_fallback')}
                 </span>
                 {pedido.client_site?.name && (
                   <span className="flex items-center gap-1">
@@ -216,7 +218,7 @@ export function PedidoDetailPage() {
                 onClick={() => setIsReanudarModalOpen(true)}
                 className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-xs h-8 text-xs"
               >
-                <PlayCircle className="mr-1.5 h-3.5 w-3.5" /> Reanudar Pedido / Nova Data
+                <PlayCircle className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_resume')}
               </Button>
             ) : (
               pedido.commercial_status !== 'cancelled' && (
@@ -226,7 +228,7 @@ export function PedidoDetailPage() {
                   onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_pause&pedido_id=${pedido.id}`)}
                   className="border-amber-300 dark:border-amber-800 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-amber-600 dark:text-amber-400 font-semibold h-8 text-xs"
                 >
-                  <PauseCircle className="mr-1.5 h-3.5 w-3.5" /> Pausar
+                  <PauseCircle className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_pause')}
                 </Button>
               )
             )}
@@ -237,7 +239,7 @@ export function PedidoDetailPage() {
                 onClick={() => navigate(`/operacoes/solicitudes/nova?tipo=order_cancellation&pedido_id=${pedido.id}`)}
                 className="border-red-300 dark:border-red-800 hover:bg-red-50 dark:hover:bg-red-950/20 text-red-600 dark:text-red-400 font-semibold h-8 text-xs"
               >
-                <XCircle className="mr-1.5 h-3.5 w-3.5" /> Cancelar
+                <XCircle className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_cancel')}
               </Button>
             )}
             <Button
@@ -246,7 +248,7 @@ export function PedidoDetailPage() {
               onClick={handleOpenEdit}
               className="border-blue-300 dark:border-blue-700 hover:bg-blue-50/50 dark:hover:bg-blue-950/20 text-blue-600 dark:text-blue-400 font-semibold h-8 text-xs"
             >
-              <Pencil className="mr-1.5 h-3.5 w-3.5" /> Editar
+              <Pencil className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_edit')}
             </Button>
             <Button
               size="sm"
@@ -254,7 +256,7 @@ export function PedidoDetailPage() {
               onClick={() => setIsResendModalOpen(true)}
               className="border-indigo-300 dark:border-indigo-700 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 font-semibold h-8 text-xs"
             >
-              <Mail className="mr-1.5 h-3.5 w-3.5" /> Notificar
+              <Mail className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_notify')}
             </Button>
             <Button
               size="sm"
@@ -264,7 +266,7 @@ export function PedidoDetailPage() {
                 navigate(`/operacoes/solicitudes/nova?tipo=replacement&client_id=${pedido.client_id}&site_id=${pedido.client_site_id}`)
               }
             >
-              <UserPlus className="mr-1.5 h-3.5 w-3.5" /> Reemplazo
+              <UserPlus className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_replacement')}
             </Button>
             <Button
               size="sm"
@@ -274,7 +276,7 @@ export function PedidoDetailPage() {
                 navigate(`/operacoes/solicitudes/nova?tipo=relocation&client_id=${pedido.client_id}&site_id=${pedido.client_site_id}`)
               }
             >
-              <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" /> Reubicación
+              <ArrowRightLeft className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_relocation')}
             </Button>
             <Button
               size="sm"
@@ -284,7 +286,7 @@ export function PedidoDetailPage() {
                 navigate(`/operacoes/solicitudes/nova?tipo=technical_test&client_id=${pedido.client_id}&site_id=${pedido.client_site_id}`)
               }
             >
-              <FileCheck className="mr-1.5 h-3.5 w-3.5" /> Prueba
+              <FileCheck className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_test')}
             </Button>
             <Button
               size="sm"
@@ -294,7 +296,7 @@ export function PedidoDetailPage() {
                 navigate(`/operacoes/solicitudes/nova?tipo=offboarding&client_id=${pedido.client_id}&site_id=${pedido.client_site_id}`)
               }
             >
-              <UserMinus className="mr-1.5 h-3.5 w-3.5" /> Baja
+              <UserMinus className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.btn_offboarding')}
             </Button>
           </div>
         </div>
@@ -308,7 +310,7 @@ export function PedidoDetailPage() {
           >
             <div className="min-w-0 flex-1 pr-2">
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Briefcase className="h-3 w-3 text-blue-500" /> Vagas Preenchidas
+                <Briefcase className="h-3 w-3 text-blue-500" /> {t('cockpit_pedidos.detail.kpi_filled_vacancies')}
               </div>
               <div className="flex items-baseline gap-1.5 mt-0.5">
                 <span className="text-lg font-bold text-slate-900 dark:text-white">
@@ -332,16 +334,18 @@ export function PedidoDetailPage() {
           >
             <div>
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Users className="h-3 w-3 text-emerald-500" /> Equipe (Entrando / Saindo)
+                <Users className="h-3 w-3 text-emerald-500" /> {t('cockpit_pedidos.detail.kpi_team_movement')}
               </div>
               <div className="flex flex-wrap items-center gap-1.5 mt-1">
                 <span className="inline-flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300">
-                  <ArrowUpRight className="h-3 w-3" /> {summary.activeWorkersCount + summary.enteringWorkersCount} em obra
+                  <ArrowUpRight className="h-3 w-3" /> {t('cockpit_pedidos.detail.on_site_count', { count: summary.activeWorkersCount + summary.enteringWorkersCount })}
                 </span>
                 {(summary.exitingWorkersCount > 0 || summary.exitedWorkersCount > 0) && (
                   <span className="inline-flex items-center gap-0.5 text-xs font-bold px-2 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/70 dark:text-rose-300">
-                    <ArrowDownRight className="h-3 w-3" /> {summary.exitingWorkersCount + summary.exitedWorkersCount} saída
-                    {summary.exitingWorkersCount + summary.exitedWorkersCount > 1 ? 's' : ''}
+                    <ArrowDownRight className="h-3 w-3" />{' '}
+                    {summary.exitingWorkersCount + summary.exitedWorkersCount > 1
+                      ? t('cockpit_pedidos.detail.exit_plural', { count: summary.exitingWorkersCount + summary.exitedWorkersCount })
+                      : t('cockpit_pedidos.detail.exit_singular', { count: summary.exitingWorkersCount + summary.exitedWorkersCount })}
                   </span>
                 )}
               </div>
@@ -355,15 +359,20 @@ export function PedidoDetailPage() {
           >
             <div className="min-w-0">
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Home className="h-3 w-3 text-indigo-500" /> Alojamento da Equipe
+                <Home className="h-3 w-3 text-indigo-500" /> {t('cockpit_pedidos.detail.kpi_team_housing')}
               </div>
               <div className="flex items-center gap-2 mt-1">
                 <span className="text-sm font-bold text-indigo-600 dark:text-indigo-400">
-                  {summary.housedWorkersCount} alojado{summary.housedWorkersCount !== 1 ? 's' : ''}
+                  {summary.housedWorkersCount === 1
+                    ? t('cockpit_pedidos.detail.housed_singular', { count: summary.housedWorkersCount })
+                    : t('cockpit_pedidos.detail.housed_plural', { count: summary.housedWorkersCount })}
                 </span>
                 {summary.pendingHousingCount > 0 && (
                   <span className="inline-flex items-center gap-0.5 text-[11px] font-semibold text-amber-600 dark:text-amber-400">
-                    <AlertCircle className="h-3 w-3" /> {summary.pendingHousingCount} pendente{summary.pendingHousingCount > 1 ? 's' : ''}
+                    <AlertCircle className="h-3 w-3" />{' '}
+                    {summary.pendingHousingCount > 1
+                      ? t('cockpit_pedidos.detail.pending_plural', { count: summary.pendingHousingCount })
+                      : t('cockpit_pedidos.detail.pending_singular', { count: summary.pendingHousingCount })}
                   </span>
                 )}
               </div>
@@ -379,7 +388,8 @@ export function PedidoDetailPage() {
           <div className="flex items-center justify-between p-2.5 rounded-lg bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/70 dark:border-slate-800">
             <div className="min-w-0 flex-1">
               <div className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1">
-                <Calendar className="h-3 w-3 text-blue-500" /> Período {hasFinanceAccess && '& Receita'}
+                <Calendar className="h-3 w-3 text-blue-500" />{' '}
+                {hasFinanceAccess ? t('cockpit_pedidos.detail.kpi_period_revenue') : t('cockpit_pedidos.detail.kpi_period')}
               </div>
               <div className="text-xs font-bold text-slate-900 dark:text-white mt-0.5">
                 {formatSafeDate(pedido.expected_start_date)} → {formatSafeDate(pedido.expected_end_date)}
@@ -388,7 +398,7 @@ export function PedidoDetailPage() {
                 <div className="text-xs font-bold text-emerald-600 dark:text-emerald-400 mt-0.5">
                   {formatCurrency(pedido.total_revenue_snapshot || 0)}{' '}
                   <span className="text-[10px] font-normal text-muted-foreground">
-                    ({pedido.margin_percent_snapshot || 0}% margem)
+                    ({pedido.margin_percent_snapshot || 0}% {t('cockpit_pedidos.detail.margin_suffix')})
                   </span>
                 </div>
               )}
@@ -403,9 +413,9 @@ export function PedidoDetailPage() {
           <div className="flex items-start gap-2.5">
             <PauseCircle className="h-5 w-5 text-amber-600 shrink-0 mt-0.5" />
             <div>
-              <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300">Este pedido está temporariamente PAUSADO</h3>
+              <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300">{t('cockpit_pedidos.detail.paused_banner_title')}</h3>
               <p className="text-[11px] text-amber-800/80 dark:text-amber-400/80">
-                Novas contratações e altas na Seguridade Social estão suspensas aguardando definição da nova data de início pelo cliente.
+                {t('cockpit_pedidos.detail.paused_banner_desc')}
               </p>
             </div>
           </div>
@@ -414,7 +424,7 @@ export function PedidoDetailPage() {
             onClick={() => setIsReanudarModalOpen(true)}
             className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold shrink-0 shadow-xs h-8 text-xs"
           >
-            <PlayCircle className="mr-1.5 h-3.5 w-3.5" /> Reanudar Pedido Agora
+            <PlayCircle className="mr-1.5 h-3.5 w-3.5" /> {t('cockpit_pedidos.detail.paused_banner_btn')}
           </Button>
         </div>
       )}
@@ -426,13 +436,13 @@ export function PedidoDetailPage() {
             value="overview"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold"
           >
-            Visão Geral 360
+            {t('cockpit_pedidos.detail.tabs.overview')}
           </TabsTrigger>
           <TabsTrigger
             value="workers"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold flex items-center gap-1.5"
           >
-            Equipe & Alojamento
+            {t('cockpit_pedidos.detail.tabs.workers')}
             <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[11px] py-0.2 px-1.5 rounded-full font-bold">
               {summary.workers.length}
             </span>
@@ -441,7 +451,7 @@ export function PedidoDetailPage() {
             value="items"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold flex items-center gap-1.5"
           >
-            Itens / Vagas
+            {t('cockpit_pedidos.detail.tabs.items')}
             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] py-0.2 px-1.5 rounded-full">
               {items.length}
             </span>
@@ -450,7 +460,7 @@ export function PedidoDetailPage() {
             value="solicitudes"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold flex items-center gap-1.5"
           >
-            Solicitudes GSO
+            {t('cockpit_pedidos.detail.tabs.solicitudes')}
             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] py-0.2 px-1.5 rounded-full">
               {solicitudes.length}
             </span>
@@ -459,7 +469,7 @@ export function PedidoDetailPage() {
             value="tasks"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold flex items-center gap-1.5"
           >
-            Tarefas
+            {t('cockpit_pedidos.detail.tabs.tasks')}
             <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[11px] py-0.2 px-1.5 rounded-full">
               {tasks.length}
             </span>
@@ -468,21 +478,21 @@ export function PedidoDetailPage() {
             value="timeline"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold"
           >
-            Timeline
+            {t('cockpit_pedidos.detail.tabs.timeline')}
           </TabsTrigger>
           {hasFinanceAccess && (
             <TabsTrigger
               value="finance"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold"
             >
-              Financeiro
+              {t('cockpit_pedidos.detail.tabs.finance')}
             </TabsTrigger>
           )}
           <TabsTrigger
             value="docs"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-emerald-600 data-[state=active]:bg-transparent px-2 py-2.5 text-xs md:text-sm font-semibold"
           >
-            Documentos
+            {t('cockpit_pedidos.detail.tabs.docs')}
           </TabsTrigger>
         </TabsList>
 
@@ -535,13 +545,13 @@ export function PedidoDetailPage() {
       <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
         <DialogContent className="sm:max-w-[500px]">
           <DialogHeader>
-            <DialogTitle>Editar Informações do Pedido</DialogTitle>
-            <DialogDescription>Ajuste as datas previstas e observações gerais do pedido.</DialogDescription>
+            <DialogTitle>{t('cockpit_pedidos.detail.edit_modal.title')}</DialogTitle>
+            <DialogDescription>{t('cockpit_pedidos.detail.edit_modal.desc')}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="edit-start-date">Início Previsto</Label>
+                <Label htmlFor="edit-start-date">{t('cockpit_pedidos.detail.edit_modal.expected_start')}</Label>
                 <Input
                   id="edit-start-date"
                   type="date"
@@ -550,7 +560,7 @@ export function PedidoDetailPage() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="edit-end-date">Fim Previsto</Label>
+                <Label htmlFor="edit-end-date">{t('cockpit_pedidos.detail.edit_modal.expected_end')}</Label>
                 <Input
                   id="edit-end-date"
                   type="date"
@@ -560,10 +570,10 @@ export function PedidoDetailPage() {
               </div>
             </div>
             <div className="space-y-2">
-              <Label htmlFor="edit-notes">Observações do Pedido</Label>
+              <Label htmlFor="edit-notes">{t('cockpit_pedidos.detail.edit_modal.notes_label')}</Label>
               <Textarea
                 id="edit-notes"
-                placeholder="Insira observações relevantes sobre o pedido..."
+                placeholder={t('cockpit_pedidos.detail.edit_modal.notes_placeholder')}
                 value={editNotes}
                 onChange={e => setEditNotes(e.target.value)}
                 className="min-h-[120px]"
@@ -572,16 +582,16 @@ export function PedidoDetailPage() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={isUpdating}>
-              Cancelar
+              {t('cockpit_pedidos.detail.edit_modal.cancel')}
             </Button>
             <Button onClick={handleSaveEdit} disabled={isUpdating} className="bg-indigo-600 hover:bg-indigo-700 text-white">
               {isUpdating ? (
                 <>
                   <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Salvando...
+                  {t('cockpit_pedidos.detail.edit_modal.saving')}
                 </>
               ) : (
-                'Salvar Alterações'
+                t('cockpit_pedidos.detail.edit_modal.save')
               )}
             </Button>
           </DialogFooter>

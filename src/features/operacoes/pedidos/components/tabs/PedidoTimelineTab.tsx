@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { format } from 'date-fns';
 import { ArrowDownAZ, ArrowUpAZ, Activity, MessageSquare, History } from 'lucide-react';
@@ -11,17 +12,18 @@ interface Props {
 }
 
 export function PedidoTimelineTab({ events, isLoading }: Props) {
+  const { t } = useTranslation();
   const [sortOrder, setSortOrder] = useState<'desc' | 'asc'>('desc');
 
   if (isLoading) {
-    return <div className="text-center py-10 text-muted-foreground mt-6">Carregando timeline...</div>;
+    return <div className="text-center py-10 text-muted-foreground mt-6">{t('cockpit_pedidos.timeline_tab.loading')}</div>;
   }
 
   if (!events || events.length === 0) {
     return (
       <Card className="mt-6">
         <CardContent className="py-10 text-center text-muted-foreground">
-          Nenhum evento registrado no histórico deste pedido.
+          {t('cockpit_pedidos.timeline_tab.empty')}
         </CardContent>
       </Card>
     );
@@ -36,13 +38,13 @@ export function PedidoTimelineTab({ events, isLoading }: Props) {
   return (
     <Card className="mt-6">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
-        <CardTitle>Linha do Tempo (Timeline 360)</CardTitle>
+        <CardTitle>{t('cockpit_pedidos.timeline_tab.title')}</CardTitle>
         <Button 
           variant="outline" 
           size="sm"
           onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
         >
-          {sortOrder === 'desc' ? <><ArrowDownAZ size={16} className="mr-2" /> Mais Recentes </> : <><ArrowUpAZ size={16} className="mr-2" /> Mais Antigos</>}
+          {sortOrder === 'desc' ? <><ArrowDownAZ size={16} className="mr-2" /> {t('cockpit_pedidos.timeline_tab.newest')} </> : <><ArrowUpAZ size={16} className="mr-2" /> {t('cockpit_pedidos.timeline_tab.oldest')}</>}
         </Button>
       </CardHeader>
       <CardContent className="pt-6">
@@ -64,7 +66,7 @@ export function PedidoTimelineTab({ events, isLoading }: Props) {
                   {event.title}
                 </h3>
                 <time className="text-xs text-muted-foreground whitespace-nowrap">
-                  {format(new Date(event.created_at), "dd/MM/yyyy 'às' HH:mm")}
+                  {format(new Date(event.created_at), 'dd/MM/yyyy')} {t('cockpit_pedidos.timeline_tab.at_time')} {format(new Date(event.created_at), 'HH:mm')}
                 </time>
               </div>
               
@@ -73,7 +75,7 @@ export function PedidoTimelineTab({ events, isLoading }: Props) {
               </p>
               
               <div className="text-xs font-medium text-slate-500 bg-slate-100 dark:bg-slate-800 inline-block px-2 py-1 rounded">
-                Por: {event.actor_name}
+                {t('cockpit_pedidos.timeline_tab.by_actor', { actor: event.actor_name })}
               </div>
             </div>
           ))}

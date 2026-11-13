@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,6 +34,8 @@ interface ReanudarPedidoModalProps {
 }
 
 export function ReanudarPedidoModal({ isOpen, onClose, pedido, onSuccess }: ReanudarPedidoModalProps) {
+  const { t, i18n } = useTranslation();
+  const isEs = i18n.language?.startsWith('es');
   const queryClient = useQueryClient();
   const { user } = useAuth();
 
@@ -98,13 +101,36 @@ export function ReanudarPedidoModal({ isOpen, onClose, pedido, onSuccess }: Rean
     loadNotificationEmails();
   }, [isOpen, pedido.empresa_id]);
 
-  // Atualizar assunto e corpo padrão quando mudar a data
+  // Atualizar assunto e corpo padrão quando mudar a data ou idioma
   useEffect(() => {
-    const formattedDate = novaDataInicio ? formatDateClean(novaDataInicio) : '[Nova Data]';
-    const subj = `[RETOMADA DE OBRA] Pedido ${pedido.codigo} - ${clientName} - Início confirmado para ${formattedDate}`;
-    setEmailSubject(subj);
+    if (isEs) {
+      const formattedDate = novaDataInicio ? formatDateClean(novaDataInicio) : '[Nueva Fecha]';
+      const subj = `[REANUDACIÓN DE OBRA] Pedido ${pedido.codigo} - ${clientName} - Inicio confirmado para ${formattedDate}`;
+      setEmailSubject(subj);
 
-    const body = `Prezada Equipe,
+      const body = `Estimado Equipo,
+
+Informamos que el pedido ${pedido.codigo} (${clientName} - ${siteName}), que se encontraba temporalmente pausado, ha sido REANUDADO con nueva fecha oficial de inicio:
+
+📅 Nueva Fecha de Inicio: ${formattedDate}
+📍 Cliente / Lugar: ${clientName} - ${siteName}
+${observacoes ? `📝 Observaciones: ${observacoes}\n` : ''}
+PRÓXIMAS ACCIONES DEL EQUIPO:
+1. [RRHH / Atención]: Reconfirmar agenda con los trabajadores asignados y gestionar firmas.
+2. [DP / Seguridad Social]: Programar el envío de Alta en la Seguridad Social para la nueva fecha.
+3. [Reclutamiento]: Retomar selección para las vacantes pendientes, si las hubiera.
+4. [Logística]: Reactivar y confirmar cronograma de alojamiento, transporte y envío de EPIs.
+
+Atentamente,
+Coordinación de Operaciones`;
+
+      setEmailBody(body);
+    } else {
+      const formattedDate = novaDataInicio ? formatDateClean(novaDataInicio) : '[Nova Data]';
+      const subj = `[RETOMADA DE OBRA] Pedido ${pedido.codigo} - ${clientName} - Início confirmado para ${formattedDate}`;
+      setEmailSubject(subj);
+
+      const body = `Prezada Equipe,
 
 Informamos que o pedido ${pedido.codigo} (${clientName} - ${siteName}), que se encontrava temporariamente pausado, foi REANUDADO com nova data oficial de início:
 
@@ -120,8 +146,9 @@ PRÓXIMAS AÇÕES DA EQUIPE:
 Atenciosamente,
 Coordenação de Operações`;
 
-    setEmailBody(body);
-  }, [pedido.codigo, clientName, siteName, novaDataInicio, observacoes]);
+      setEmailBody(body);
+    }
+  }, [pedido.codigo, clientName, siteName, novaDataInicio, observacoes, isEs]);
 
   const toggleEmail = (email: string) => {
     setSelectedEmails(prev =>
@@ -131,14 +158,14 @@ Coordenação de Operações`;
 
   const handleReanudar = async () => {
     if (!novaDataInicio) {
-      toast.error('Informe a nova data de início para reanudar o pedido.');
+      toast.error(t('cockpit_pedidos.reanudar_modal.toast_missing_date'));
       return;
     }
 
     setIsSubmitting(true);
     try {
       // 1. Chamar a RPC para reanudar o pedido
-      const { data: rpcRes, error: rpcErr } = await supabase.rpc('processar_retomada_pedido', {
+      const { error: rpcErr } = await supabase.rpc('processar_retomada_pedido', {
         payload: {
           pedido_id: pedido.id,
           nova_data_inicio: novaDataInicio,
@@ -148,7 +175,7 @@ Coordenação de Operações`;
 
       if (rpcErr) {
         console.warn('Tentando schema core_operacoes...', rpcErr);
-        const { data: retryRes, error: retryErr } = await supabase
+        const { error: retryErr } = await supabase
           .schema('core_operacoes')
           .rpc('processar_retomada_pedido', {
             payload: {
@@ -182,15 +209,15 @@ Coordenação de Operações`;
                 sender_email: user?.email
               }
             });
-            toast.success('Notificação de retomada enviada por e-mail para a equipe!');
+            toast.success(t('cockpit_pedidos.reanudar_modal.toast_email_sent'));
           } catch (mailErr: any) {
             console.error('Falha ao enviar e-mail de notificação:', mailErr);
-            toast.warning('Pedido retomado, mas houve falha no envio do e-mail: ' + mailErr.message);
+            toast.warning(mailErr.message);
           }
         }
       }
 
-      toast.success(`Pedido ${pedido.codigo} retomado com sucesso!`);
+      toast.success(t('cockpit_pedidos.reanudar_modal.toast_resumed', { code: pedido.codigo }));
       queryClient.invalidateQueries({ queryKey: ['pedido', pedido.id] });
       queryClient.invalidateQueries({ queryKey: ['pedidos'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes'] });
@@ -200,7 +227,7 @@ Coordenação de Operações`;
       onClose();
     } catch (err: any) {
       console.error('Erro ao reanudar pedido:', err);
-      toast.error('Erro ao reanudar pedido: ' + (err.message || 'Erro inesperado'));
+      toast.error(t('cockpit_pedidos.reanudar_modal.toast_error') + (err.message || ''));
     } finally {
       setIsSubmitting(false);
     }
@@ -212,10 +239,10 @@ Coordenação de Operações`;
         <DialogHeader>
           <div className="flex items-center gap-2 text-emerald-600">
             <PlayCircle className="h-6 w-6" />
-            <DialogTitle className="text-xl">Reanudar Pedido / Definir Nova Data</DialogTitle>
+            <DialogTitle className="text-xl">{t('cockpit_pedidos.reanudar_modal.title')}</DialogTitle>
           </div>
           <DialogDescription>
-            Reative o pedido <strong>{pedido.codigo}</strong> informando a nova data oficial de início e notifique a equipe responsável.
+            {t('cockpit_pedidos.reanudar_modal.desc', { code: pedido.codigo })}
           </DialogDescription>
         </DialogHeader>
 
@@ -223,20 +250,20 @@ Coordenação de Operações`;
           {/* Info Card */}
           <div className="bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 rounded-lg p-3.5 text-sm text-emerald-900 dark:text-emerald-300 space-y-1">
             <p className="font-semibold flex items-center gap-1.5">
-              <Calendar className="h-4 w-4" /> Dados do Pedido
+              <Calendar className="h-4 w-4" /> {t('cockpit_pedidos.reanudar_modal.order_data')}
             </p>
             <div className="grid grid-cols-2 gap-2 text-xs pt-1 text-slate-700 dark:text-slate-300">
-              <div><strong>Cliente:</strong> {clientName}</div>
-              <div><strong>Local/Obra:</strong> {siteName}</div>
-              <div><strong>Início Anterior:</strong> {formatDateClean(pedido.expected_start_date)}</div>
-              <div><strong>Status Atual:</strong> Pausado</div>
+              <div><strong>{t('cockpit_pedidos.reanudar_modal.client')}</strong> {clientName}</div>
+              <div><strong>{t('cockpit_pedidos.reanudar_modal.site')}</strong> {siteName}</div>
+              <div><strong>{t('cockpit_pedidos.reanudar_modal.previous_start')}</strong> {formatDateClean(pedido.expected_start_date)}</div>
+              <div><strong>{t('cockpit_pedidos.reanudar_modal.current_status')}</strong> {t('cockpit_pedidos.reanudar_modal.paused')}</div>
             </div>
           </div>
 
           {/* Nova Data de Início */}
           <div className="space-y-1.5">
             <Label htmlFor="novaDataInicio" className="font-semibold text-sm flex items-center gap-1 text-slate-800 dark:text-slate-200">
-              Nova Data de Início da Obra <span className="text-red-500">*</span>
+              {t('cockpit_pedidos.reanudar_modal.new_start_label')} <span className="text-red-500">*</span>
             </Label>
             <Input
               id="novaDataInicio"
@@ -247,18 +274,18 @@ Coordenação de Operações`;
               required
             />
             <p className="text-xs text-muted-foreground">
-              Essa data atualizará o pedido e todas as alocações vinculadas aos trabalhadores deste pedido.
+              {t('cockpit_pedidos.reanudar_modal.new_start_hint')}
             </p>
           </div>
 
           {/* Observações da Retomada */}
           <div className="space-y-1.5">
             <Label htmlFor="observacoesRetomada" className="font-semibold text-sm text-slate-800 dark:text-slate-200">
-              Observações / Instruções da Retomada (Opcional)
+              {t('cockpit_pedidos.reanudar_modal.notes_label')}
             </Label>
             <Textarea
               id="observacoesRetomada"
-              placeholder="Ex: Cliente concluiu adequação da infraestrutura elétrica no canteiro. Obra liberada para entrada da equipe."
+              placeholder={t('cockpit_pedidos.reanudar_modal.notes_placeholder')}
               value={observacoes}
               onChange={e => setObservacoes(e.target.value)}
               rows={2}
@@ -272,10 +299,10 @@ Coordenação de Operações`;
                 <Mail className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 <div>
                   <Label htmlFor="sendEmailSwitch" className="font-semibold cursor-pointer text-sm">
-                    Enviar e-mail de notificação para a equipe
+                    {t('cockpit_pedidos.reanudar_modal.send_email_label')}
                   </Label>
                   <p className="text-xs text-muted-foreground">
-                    Avisa os responsáveis pelo RH, DP, Logística e Operações sobre a retomada imediata.
+                    {t('cockpit_pedidos.reanudar_modal.send_email_hint')}
                   </p>
                 </div>
               </div>
@@ -290,11 +317,11 @@ Coordenação de Operações`;
               <div className="space-y-3 pt-2 border-t border-slate-200 dark:border-slate-800 animate-fade-in">
                 <div>
                   <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 mb-1.5 block">
-                    Destinatários da Equipe:
+                    {t('cockpit_pedidos.reanudar_modal.team_recipients')}
                   </Label>
                   {isLoadingEmails ? (
                     <div className="flex items-center text-xs text-muted-foreground py-1">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> Carregando e-mails configurados...
+                      <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> {t('cockpit_pedidos.reanudar_modal.loading_emails')}
                     </div>
                   ) : notificationEmails.length > 0 ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-36 overflow-y-auto p-1 bg-white dark:bg-slate-950 rounded border border-slate-200 dark:border-slate-800">
@@ -315,13 +342,13 @@ Coordenação de Operações`;
                     </div>
                   ) : (
                     <p className="text-xs text-amber-600 flex items-center gap-1">
-                      <AlertCircle className="h-3.5 w-3.5" /> Nenhum e-mail de notificação pré-configurado. Adicione abaixo:
+                      <AlertCircle className="h-3.5 w-3.5" /> {t('cockpit_pedidos.reanudar_modal.no_emails')}
                     </p>
                   )}
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">E-mails adicionais (separados por vírgula):</Label>
+                  <Label className="text-xs text-muted-foreground">{t('cockpit_pedidos.reanudar_modal.additional_emails')}</Label>
                   <Input
                     placeholder="gerente@empresa.com, rh@empresa.com"
                     value={additionalEmails}
@@ -331,7 +358,7 @@ Coordenação de Operações`;
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Assunto:</Label>
+                  <Label className="text-xs text-muted-foreground">{t('cockpit_pedidos.reanudar_modal.subject_label')}</Label>
                   <Input
                     value={emailSubject}
                     onChange={e => setEmailSubject(e.target.value)}
@@ -340,7 +367,7 @@ Coordenação de Operações`;
                 </div>
 
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Mensagem para a Equipe:</Label>
+                  <Label className="text-xs text-muted-foreground">{t('cockpit_pedidos.reanudar_modal.message_label')}</Label>
                   <Textarea
                     value={emailBody}
                     onChange={e => setEmailBody(e.target.value)}
@@ -355,7 +382,7 @@ Coordenação de Operações`;
 
         <DialogFooter className="gap-2 sm:gap-0">
           <Button variant="outline" onClick={onClose} disabled={isSubmitting}>
-            Cancelar
+            {t('cockpit_pedidos.reanudar_modal.cancel')}
           </Button>
           <Button
             onClick={handleReanudar}
@@ -364,11 +391,14 @@ Coordenação de Operações`;
           >
             {isSubmitting ? (
               <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Reanudando...
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> {t('cockpit_pedidos.reanudar_modal.resuming')}
               </>
             ) : (
               <>
-                <PlayCircle className="mr-2 h-4 w-4" /> Confirmar Retomada {sendEmailNotification && '& Enviar E-mail'}
+                <PlayCircle className="mr-2 h-4 w-4" />{' '}
+                {sendEmailNotification
+                  ? t('cockpit_pedidos.reanudar_modal.confirm_and_email_btn')
+                  : t('cockpit_pedidos.reanudar_modal.confirm_btn')}
               </>
             )}
           </Button>

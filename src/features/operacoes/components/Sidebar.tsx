@@ -67,7 +67,7 @@ export const Sidebar: React.FC = () => {
           className="w-full flex items-center gap-2 justify-center py-2 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors text-sm font-medium border border-slate-700"
         >
           <ArrowLeft size={16} />
-          {isSidebarOpen && "Voltar para o Hub"}
+          {isSidebarOpen && t('menu.back_to_hub')}
         </button>
       </div>
 
@@ -77,15 +77,15 @@ export const Sidebar: React.FC = () => {
           <NavItem to="/operacoes/dashboard" icon={LayoutDashboard} label={t('menu.dashboard')} />
           {(isSystemAdmin || isRH) && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
           {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
-          {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/solicitudes" icon={Activity} label="Torre de Controle" />}
+          {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/solicitudes" icon={Activity} label={t('menu.torre_controle')} />}
           {(isSystemAdmin || isRH) && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
         </div>
 
         {(isSystemAdmin || isRH || isOps) && (
           <>
-            <SectionLabel label="Personal / RH & Documentos" />
+            <SectionLabel label={t('menu.rh_docs_section')} />
             <div className="space-y-1">
-              <NavItem to="/operacoes/documentos" icon={FileText} label="Gerador de Documentos (.docx)" />
+              <NavItem to="/operacoes/documentos" icon={FileText} label={t('menu.doc_generator')} />
             </div>
           </>
         )}
@@ -94,7 +94,7 @@ export const Sidebar: React.FC = () => {
           <>
             <SectionLabel label={t('menu.daily_mgmt')} />
             <div className="space-y-1">
-              <NavItem to="/operacoes/reunioes" icon={CalendarCheck} label="Reuniões & Alinhamento" />
+              <NavItem to="/operacoes/reunioes" icon={CalendarCheck} label={t('menu.reunioes')} />
               <NavItem to="/operacoes/operacao/tarefas" icon={ListTodo} label={t('menu.minhas_tarefas')} />
               <NavItem to="/operacoes/incidencias" icon={AlertCircle} label={t('menu.incidencias')} />
             </div>
