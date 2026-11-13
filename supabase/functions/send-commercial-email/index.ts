@@ -13,6 +13,89 @@ interface EmailAttachment {
   contentBytes: string; // Base64
 }
 
+async function sendMailViaResend(
+  senderEmail: string,
+  senderName: string,
+  targetEmail: string,
+  subject: string,
+  htmlContent: string,
+  attachments: EmailAttachment[] = [],
+  empresa?: any
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      return { success: false, error: "RESEND_API_KEY não configurada." };
+    }
+
+    const cleanSender = (senderEmail || "notificacoes@mail.gestaologinpro.com").trim().toLowerCase();
+    const localPart = (cleanSender.split("@")[0] || "comercial").replace(/[^a-zA-Z0-9._-]/g, "") || "comercial";
+    const companyStr = `${empresa?.trade_name || ""} ${empresa?.nome || ""} ${empresa?.legal_name || ""} ${senderName || ""}`.toUpperCase();
+
+    const verifiedDomains = [
+      "es.wiseowe.com",
+      "fr.wiseowe.com",
+      "it.wiseowe.com",
+      "es.triangulolda.com",
+      "it.triangulolda.com",
+      "mail.luminousalley.com",
+      "mail.universatv.com",
+      "mail.gestaologinpro.com",
+    ];
+
+    let verifiedFromEmail = `${localPart}@mail.gestaologinpro.com`;
+    const senderDomain = cleanSender.split("@")[1] || "";
+
+    if (verifiedDomains.includes(senderDomain)) {
+      verifiedFromEmail = cleanSender;
+    } else if (cleanSender.includes("wiseowe.com") || companyStr.includes("WISEOWE")) {
+      verifiedFromEmail = `${localPart}@es.wiseowe.com`;
+    } else if (cleanSender.includes("triangulolda.com") || companyStr.includes("TRIANGULO") || companyStr.includes("TRIÂNGULO")) {
+      verifiedFromEmail = `${localPart}@es.triangulolda.com`;
+    } else if (cleanSender.includes("luminousalley.com") || companyStr.includes("LUMINOUS")) {
+      verifiedFromEmail = `${localPart}@mail.luminousalley.com`;
+    }
+
+    const displayName = (senderName || empresa?.trade_name || empresa?.nome || "Comercial MCS").replace(/[<>"]/g, "").trim();
+
+    const resendPayload: any = {
+      from: `${displayName} <${verifiedFromEmail}>`,
+      to: targetEmail.split(/[;,]/).map((e) => e.trim()).filter(Boolean),
+      subject,
+      html: htmlContent,
+    };
+
+    if (senderEmail && senderEmail.includes("@")) {
+      resendPayload.reply_to = senderEmail.trim();
+    }
+
+    if (attachments && attachments.length > 0) {
+      resendPayload.attachments = attachments.map((att) => ({
+        filename: att.name,
+        content: att.contentBytes,
+      }));
+    }
+
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(resendPayload),
+    });
+
+    if (res.ok) {
+      return { success: true };
+    } else {
+      const errText = await res.text();
+      return { success: false, error: `Resend API Error (${res.status}): ${errText}` };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 async function sendMailViaGraph(
   senderEmail: string,
   senderName: string,
@@ -44,6 +127,7 @@ async function sendMailViaGraph(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
+      signal: AbortSignal.timeout(3500),
     });
 
     if (!tokenRes.ok) {
@@ -91,6 +175,7 @@ async function sendMailViaGraph(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(mailPayload),
+      signal: AbortSignal.timeout(3500),
     });
 
     if (graphRes.ok) {
@@ -142,17 +227,19 @@ serve(async (req) => {
     // 1. Obter credenciais da empresa caso existam
     let msCredentials: { tenantId?: string; clientId?: string; clientSecret?: string } | undefined = undefined;
     let fromEmail = senderEmail;
+    let resolvedEmpresa: any = null;
 
     if (empresaId) {
       const { data: empresa } = await supabase
         .schema('core_common')
         .from('empresas')
-        .select('email, microsoft_tenant_id, microsoft_client_id, microsoft_client_secret')
+        .select('nome, trade_name, legal_name, email, microsoft_tenant_id, microsoft_client_id, microsoft_client_secret')
         .eq('id', empresaId)
         .maybeSingle();
 
       if (empresa) {
-        if (empresa.microsoft_tenant_id && empresa.microsoft_client_id && empresa.microsoft_client_secret) {
+        resolvedEmpresa = empresa;
+        if (empresa.microsoft_tenant_id && empresa.microsoft_client_id && !empresa.microsoft_client_id.includes('@') && empresa.microsoft_client_secret) {
           msCredentials = {
             tenantId: empresa.microsoft_tenant_id,
             clientId: empresa.microsoft_client_id,
@@ -169,16 +256,52 @@ serve(async (req) => {
       fromEmail = "valter@gestaologinpro.com";
     }
 
-    // 2. Disparar via Microsoft Graph
-    const mailResult = await sendMailViaGraph(
-      fromEmail,
-      senderName || "Comercial MCS",
-      recipientEmail,
-      subject,
-      htmlContent,
-      attachments,
-      msCredentials
-    );
+    // 2. Disparar e-mail (Microsoft Graph quando houver credencial da empresa, com fallback automático para Resend)
+    let mailResult: { success: boolean; error?: string };
+    if (msCredentials) {
+      mailResult = await sendMailViaGraph(
+        fromEmail,
+        senderName || "Comercial MCS",
+        recipientEmail,
+        subject,
+        htmlContent,
+        attachments,
+        msCredentials
+      );
+      if (!mailResult.success) {
+        const resendRes = await sendMailViaResend(
+          fromEmail,
+          senderName || "Comercial MCS",
+          recipientEmail,
+          subject,
+          htmlContent,
+          attachments,
+          resolvedEmpresa
+        );
+        if (resendRes.success) mailResult = resendRes;
+      }
+    } else {
+      mailResult = await sendMailViaResend(
+        fromEmail,
+        senderName || "Comercial MCS",
+        recipientEmail,
+        subject,
+        htmlContent,
+        attachments,
+        resolvedEmpresa
+      );
+      if (!mailResult.success) {
+        mailResult = await sendMailViaGraph(
+          fromEmail,
+          senderName || "Comercial MCS",
+          recipientEmail,
+          subject,
+          htmlContent,
+          attachments,
+          msCredentials
+        );
+      }
+    }
 
     if (!mailResult.success) {
       return new Response(

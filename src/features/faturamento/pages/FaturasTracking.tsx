@@ -2014,13 +2014,6 @@ export function FaturasTracking() {
     document.body.appendChild(container);
 
     try {
-      const canvas = await html2canvas(container, {
-        scale: 1.5,
-        useCORS: true
-      });
-      
-      const imgData = canvas.toDataURL('image/jpeg', 0.82);
-      
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -2355,9 +2348,9 @@ export function FaturasTracking() {
       const data = await getFaturasTracking(selectedEmpresaId);
       setFaturas(data);
 
-      // Se a aba estiver em "Em Andamento" (0 pendentes de horas), mas houver faturas aprovadas/emitidas
-      // (como faturas diretas da Hexagon), alterna automaticamente para exibir todas as faturas visíveis.
-      if (!isSilent && data.length > 0) {
+      // Para a Hexagon (faturas diretas sem horas), se a aba estiver em "Em Andamento" (0 pendentes de horas),
+      // alterna automaticamente para exibir todas as faturas visíveis.
+      if (!isSilent && data.length > 0 && selectedEmpresaId === HEXAGON_EMPRESA_ID) {
         const hasPending = data.some(
           (f: any) => f.status === 'pending_client_approval' || f.status === 'disputed'
         );
@@ -2368,7 +2361,7 @@ export function FaturasTracking() {
           setTrackingTab('all');
         }
 
-        // Se o mês filtrado atual não tiver nenhuma fatura desta empresa, abre Todos os Meses automaticamente
+        // Se o mês filtrado atual não tiver nenhuma fatura da Hexagon, abre Todos os Meses automaticamente
         if (selectedMonth !== 'all') {
           const anyInCurrentMonth = data.some((fat: any) => {
             const pYear = fat.period_year ? Number(fat.period_year) : null;
@@ -2634,6 +2627,8 @@ MCS - Gestão Comercial`;
           }
         });
       };
+      addEmails(fatura.client?.billingEmail || fatura.client?.billing_email);
+      addEmails(fatura.client?.clientEmail || fatura.client?.email);
 
       const activeEdits = deepMergeDisputedHours(
         normalizeDisputedHoursMap(fatura.ajustes_json?.disputed_hours || {}),
@@ -2693,7 +2688,10 @@ MCS - Gestão Comercial`;
 
       const cached = emailCache[fatura.id];
       if (cached) {
-        setSelectedEmails(cached.selectedEmails);
+        const resolvedSelected = cached.selectedEmails && cached.selectedEmails.length > 0
+          ? cached.selectedEmails
+          : defaultEmails;
+        setSelectedEmails(resolvedSelected);
         setAdditionalEmails(cached.additionalEmails);
         setSendEmailCheckbox(cached.sendEmailCheckbox);
         setEmailLanguage(cached.emailLanguage);
@@ -2702,7 +2700,7 @@ MCS - Gestão Comercial`;
           faturaId: fatura.id,
           clientId: fatura.client_id,
           clientName: clientName,
-          recipientEmail: cached.selectedEmails.join(", "),
+          recipientEmail: resolvedSelected.join(", "),
           subject: cached.subject,
           body: cached.body,
           token: fatura.magic_link_token,
@@ -2787,10 +2785,34 @@ MCS - Gestão Comercial`;
 
   const handleSendEmail = async () => {
     if (!emailData) return;
+
+    if (!sendEmailCheckbox) {
+      try {
+        setSendingEmail(true);
+        if (isEmailAcceptance) {
+          const { error: updateStatusError } = await supabase
+            .schema('core_finance')
+            .from('faturas')
+            .update({ status: 'invoice_sent' })
+            .eq('id', emailData.faturaId);
+
+          if (updateStatusError) {
+            toast.error('Erro ao atualizar status da fatura: ' + updateStatusError.message);
+            return;
+          }
+          setFaturas(prev => prev.map(f => f.id === emailData.faturaId ? { ...f, status: 'invoice_sent' } : f));
+        }
+        toast.success('Fatura confirmada e liberada para geração de cobros!');
+        setIsEmailModalOpen(false);
+      } finally {
+        setSendingEmail(false);
+      }
+      return;
+    }
     
     const toEmails = [...selectedEmails];
     if (additionalEmails.trim()) {
-      additionalEmails.split(',').forEach(e => {
+      additionalEmails.split(/[;,]/).forEach(e => {
         const trimmed = e.trim();
         if (trimmed && !toEmails.includes(trimmed)) {
           toEmails.push(trimmed);
@@ -3540,7 +3562,7 @@ MCS - Gestão Comercial`;
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />
                                     Cobros Gerado
                                   </span>
-                                ) : (
+                                ) : isDirectSemHoras ? (
                                   <button
                                     onClick={() => handleGerarCobro(fatura)}
                                     disabled={isGeneratingCobro}
@@ -3549,7 +3571,7 @@ MCS - Gestão Comercial`;
                                     {isGeneratingCobro ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FileText className="w-3.5 h-3.5" />}
                                     Gerar Cobros
                                   </button>
-                                )}
+                                ) : null}
 
                                 <button
                                   onClick={() => handleCancelFaturaTracking(fatura)}
@@ -3580,6 +3602,15 @@ MCS - Gestão Comercial`;
                                   >
                                     <Download className="w-3.5 h-3.5" /> PDF
                                   </button>
+
+                                  {isDirectSemHoras && (
+                                    <button
+                                      onClick={() => handleTriggerResendEmail(fatura, true)}
+                                      className="inline-flex items-center gap-1 text-xs text-indigo-655 hover:text-indigo-755 dark:text-indigo-450 dark:hover:text-indigo-355 font-bold transition-all px-2.5 py-1 border border-indigo-205 dark:border-indigo-805 rounded-md hover:bg-indigo-50 dark:hover:bg-indigo-950/20 shadow-sm"
+                                    >
+                                      <Mail className="w-3.5 h-3.5 mr-1" /> Enviar Fatura
+                                    </button>
+                                  )}
 
                                   <span className="text-xs text-emerald-655 bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-900 rounded-lg px-2.5 py-1.5 font-bold inline-flex items-center gap-1 shadow-sm">
                                     <CheckCircle2 className="w-3.5 h-3.5 text-emerald-600" />

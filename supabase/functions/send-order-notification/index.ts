@@ -135,6 +135,95 @@ async function convertDocxToPdfViaGraph(
   }
 }
 
+async function sendMailViaResend(
+  senderEmail: string,
+  senderName: string,
+  toEmails: string[],
+  subject: string,
+  htmlContent: string,
+  attachments: EmailAttachment[] = [],
+  replyToEmail?: string,
+  empresa?: any
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const resendApiKey = Deno.env.get("RESEND_API_KEY");
+    if (!resendApiKey) {
+      return { success: false, error: "RESEND_API_KEY não configurada." };
+    }
+
+    const cleanSender = (senderEmail || "notificacoes@mail.gestaologinpro.com").trim().toLowerCase();
+    const localPart = (cleanSender.split("@")[0] || "notificacoes").replace(/[^a-zA-Z0-9._-]/g, "") || "notificacoes";
+    const companyStr = `${empresa?.trade_name || ""} ${empresa?.nome || ""} ${empresa?.legal_name || ""} ${senderName || ""}`.toUpperCase();
+
+    const verifiedDomains = [
+      "es.wiseowe.com",
+      "fr.wiseowe.com",
+      "it.wiseowe.com",
+      "es.triangulolda.com",
+      "it.triangulolda.com",
+      "mail.luminousalley.com",
+      "mail.universatv.com",
+      "mail.gestaologinpro.com",
+    ];
+
+    let verifiedFromEmail = `${localPart}@mail.gestaologinpro.com`;
+    const senderDomain = cleanSender.split("@")[1] || "";
+
+    if (verifiedDomains.includes(senderDomain)) {
+      verifiedFromEmail = cleanSender;
+    } else if (cleanSender.includes("wiseowe.com") || companyStr.includes("WISEOWE")) {
+      verifiedFromEmail = `${localPart}@es.wiseowe.com`;
+    } else if (cleanSender.includes("triangulolda.com") || companyStr.includes("TRIANGULO") || companyStr.includes("TRIÂNGULO")) {
+      verifiedFromEmail = `${localPart}@es.triangulolda.com`;
+    } else if (cleanSender.includes("luminousalley.com") || companyStr.includes("LUMINOUS")) {
+      verifiedFromEmail = `${localPart}@mail.luminousalley.com`;
+    }
+
+    const displayName = (senderName || empresa?.legal_name || empresa?.trade_name || "MCS Faturamento").replace(/[<>"]/g, "").trim();
+    const effectiveReplyTo = (replyToEmail || senderEmail || "").trim();
+
+    const resendPayload: any = {
+      from: `${displayName} <${verifiedFromEmail}>`,
+      to: toEmails.map((e) => e.trim()).filter(Boolean),
+      subject: subject,
+      html: htmlContent,
+    };
+
+    if (effectiveReplyTo && effectiveReplyTo.includes("@")) {
+      resendPayload.reply_to = effectiveReplyTo;
+    }
+
+    if (attachments && attachments.length > 0) {
+      resendPayload.attachments = attachments.map((att) => ({
+        filename: att.name,
+        content: att.contentBytes,
+      }));
+    }
+
+    console.log(`[Resend] Disparando e-mail de ${resendPayload.from} (reply-to: ${effectiveReplyTo}) para: ${toEmails.join(", ")}`);
+    const res = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(resendPayload),
+    });
+
+    if (res.ok) {
+      console.log("[Resend] E-mail enviado com sucesso.");
+      return { success: true };
+    } else {
+      const errText = await res.text();
+      console.error("[Resend] Falha no envio:", errText);
+      return { success: false, error: `Resend API Error (${res.status}): ${errText}` };
+    }
+  } catch (err: any) {
+    console.error("[Resend] Erro no envio de e-mail:", err);
+    return { success: false, error: err.message };
+  }
+}
+
 async function sendMailViaGraph(
   senderEmail: string,
   senderName: string,
@@ -155,7 +244,7 @@ async function sendMailViaGraph(
       return { success: false, error: "Microsoft Graph secrets are missing." };
     }
 
-    // 1. Obter Token de Acesso
+    // 1. Obter Token de Acesso (timeout 6s)
     const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     const formData = new URLSearchParams();
     formData.append('client_id', clientId);
@@ -167,6 +256,7 @@ async function sendMailViaGraph(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
+      signal: AbortSignal.timeout(3500),
     });
 
     if (!tokenRes.ok) {
@@ -177,7 +267,7 @@ async function sendMailViaGraph(
 
     const { access_token } = await tokenRes.json();
 
-    // 2. Disparar email via Microsoft Graph API
+    // 2. Disparar email via Microsoft Graph API (timeout 3.5s)
     const sendMailUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
     
     const toRecipients = toEmails.map(email => ({
@@ -211,7 +301,7 @@ async function sendMailViaGraph(
       saveToSentItems: true,
     };
 
-    console.log(`Disparando e-mail de notificação de pedido via Microsoft Graph para: ${toEmails.join(', ')}`);
+    console.log(`Disparando e-mail de notificação de pedido via Microsoft Graph (${senderEmail}) para: ${toEmails.join(', ')}`);
     const graphRes = await fetch(sendMailUrl, {
       method: 'POST',
       headers: {
@@ -219,15 +309,16 @@ async function sendMailViaGraph(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(mailPayload),
+      signal: AbortSignal.timeout(3500),
     });
 
     if (graphRes.ok) {
-      console.log("E-mail de notificação de pedido enviado com sucesso.");
+      console.log("E-mail de notificação de pedido enviado com sucesso via Microsoft Graph.");
       return { success: true };
     } else {
       const errText = await graphRes.text();
       console.error("Falha no Microsoft Graph sendMail:", errText);
-      return { success: false, error: `Microsoft Graph API Error: ${errText}` };
+      return { success: false, error: `Microsoft Graph API Error (${graphRes.status}): ${errText}` };
     }
   } catch (err: any) {
     console.error("Erro no envio de e-mail via Graph:", err);
@@ -945,10 +1036,11 @@ serve(async (req) => {
           resolvedEmpresa = empresa;
           if (is_faturamento) {
             senderEmail = empresa.billing_email || empresa.email || empresa.proposal_sender_email || senderEmail;
+            senderName = empresa.legal_name || empresa.razon_social || empresa.nome || empresa.trade_name || senderName;
           } else {
             senderEmail = empresa.proposal_sender_email || empresa.billing_email || senderEmail;
+            senderName = empresa.trade_name || empresa.nome || senderName;
           }
-          senderName = empresa.trade_name || empresa.nome || senderName;
         }
       }
     } else if (resolvedEmpresaId) {
@@ -964,10 +1056,11 @@ serve(async (req) => {
         resolvedEmpresa = empresa;
         if (is_faturamento) {
           senderEmail = empresa.billing_email || empresa.email || empresa.proposal_sender_email || senderEmail;
+          senderName = empresa.legal_name || empresa.razon_social || empresa.nome || empresa.trade_name || senderName;
         } else {
           senderEmail = empresa.proposal_sender_email || empresa.billing_email || senderEmail;
+          senderName = empresa.trade_name || empresa.nome || senderName;
         }
-        senderName = empresa.trade_name || empresa.nome || senderName;
       }
     }
     if (resolvedEmpresa) {
@@ -993,17 +1086,67 @@ serve(async (req) => {
       senderEmail = "valter@gestaologinpro.com";
     }
 
-    // 8. Enviar email via Microsoft Graph API
-    const mailRes = await sendMailViaGraph(
-      senderEmail,
-      senderName,
-      parsedToEmails,
-      email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`),
-      email_body,
-      attachments,
-      msCredentials,
-      resolvedReplyTo
-    );
+    const finalSubject = email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`);
+
+    // 8. Enviar email:
+    // Se a empresa possui credenciais próprias do Microsoft Graph (ex.: Stocco, Genio), tenta via Graph (timeout 8s)
+    // e faz fallback automático para Resend em caso de falha/indisponibilidade do Outlook/Exchange.
+    // Se a empresa não possui credenciais próprias de Graph (ex.: Wiseowe, Triangulo, Luminous, Hexagon, Login Pro),
+    // dispara diretamente via Resend (domínios verificados) com Reply-To configurado para o e-mail oficial da empresa.
+    let mailRes: { success: boolean; error?: string };
+
+    if (msCredentials) {
+      mailRes = await sendMailViaGraph(
+        senderEmail,
+        senderName,
+        parsedToEmails,
+        finalSubject,
+        email_body,
+        attachments,
+        msCredentials,
+        resolvedReplyTo
+      );
+      if (!mailRes.success) {
+        console.warn(`[send-order-notification] Graph falhou (${mailRes.error}). Acionando fallback via Resend...`);
+        const resendFallback = await sendMailViaResend(
+          senderEmail,
+          senderName,
+          parsedToEmails,
+          finalSubject,
+          email_body,
+          attachments,
+          resolvedReplyTo || senderEmail,
+          resolvedEmpresa
+        );
+        if (resendFallback.success) {
+          mailRes = resendFallback;
+        }
+      }
+    } else {
+      mailRes = await sendMailViaResend(
+        senderEmail,
+        senderName,
+        parsedToEmails,
+        finalSubject,
+        email_body,
+        attachments,
+        resolvedReplyTo || senderEmail,
+        resolvedEmpresa
+      );
+      if (!mailRes.success) {
+        console.warn(`[send-order-notification] Resend falhou (${mailRes.error}). Tentando fallback via Microsoft Graph...`);
+        mailRes = await sendMailViaGraph(
+          senderEmail,
+          senderName,
+          parsedToEmails,
+          finalSubject,
+          email_body,
+          attachments,
+          msCredentials,
+          resolvedReplyTo
+        );
+      }
+    }
 
     if (!mailRes.success) {
       return new Response(
