@@ -360,9 +360,12 @@ export function DocumentacionTasksPage() {
         puesto: 'PEON MONTADOR',
         grupo_profesional: '10',
         funciones: 'PEON MONTADOR',
-        centro_trabajo_calle: 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON',
+        centro_trabajo_calle: 'CALLE ARCHIVERO DIMAS PEREZ 2',
         centro_trabajo_cp: '16400',
         centro_trabajo_municipio: 'TARANCON',
+        centro_trabajo_cod_municipio: '16203',
+        centro_trabajo_pais: 'ESPAÑA',
+        centro_trabajo_cod_pais: '724',
         fecha_inicio: new Date().toISOString().split('T')[0],
         periodo_prueba: '2 MESES',
         retribucion_total: 'SEGUN CONVENIO',
@@ -375,9 +378,18 @@ export function DocumentacionTasksPage() {
         nuss: '',
         codigo_postal: '16400',
         municipio_domicilio: 'TARANCON',
+        pais_domicilio: 'ESPAÑA',
         nivel_formativo: 'FORMACION PROFESIONAL',
         clausulas_adicionales: ''
     });
+    const [assignedWorkSite, setAssignedWorkSite] = useState<{
+        name: string;
+        calle: string;
+        municipio: string;
+        cp: string;
+        pais: string;
+        cod_pais: string;
+    } | null>(null);
 
     // Configurações SEPE da Hexagon (salvas em core_common.empresas.contract_settings)
     const [hexagonSettings, setHexagonSettings] = useState<any>({
@@ -1683,13 +1695,67 @@ Muchas gracias.`;
         }
     };
 
+    const resolveSepeCountryCode = (countryInput: string): string => {
+        const u = String(countryInput || '').trim().toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+        if (!u) return '';
+        if (u.includes('ESPAN') || u === 'SPAIN' || u === 'ES') return '724';
+        if (u.includes('LUXEMB') || u === 'LU') return '442';
+        if (u.includes('PORTUG') || u === 'PT') return '620';
+        if (u.includes('FRANC') || u === 'FR') return '250';
+        if (u.includes('ALEMAN') || u.includes('GERMAN') || u === 'DE') return '276';
+        if (u.includes('BELG') || u === 'BE') return '056';
+        if (u.includes('PAISES BAJOS') || u.includes('HOLAND') || u.includes('NETHERLAND') || u === 'NL') return '528';
+        if (u.includes('ITAL') || u === 'IT') return '380';
+        if (u.includes('SUIZ') || u.includes('SUIC') || u.includes('SWITZ') || u === 'CH') return '756';
+        if (u.includes('AUSTRI') || u === 'AT') return '040';
+        if (u.includes('IRLAND') || u.includes('IRELAND') || u === 'IE') return '372';
+        if (u.includes('POLON') || u.includes('POLAND') || u === 'PL') return '616';
+        if (u.includes('REINO UNIDO') || u.includes('INGLAT') || u === 'UK' || u === 'GB') return '826';
+        if (u.includes('RUMAN') || u.includes('ROMEN') || u === 'RO') return '642';
+        if (u.includes('SUECI') || u === 'SE') return '752';
+        if (u.includes('DINAMARC') || u === 'DK') return '208';
+        if (u.includes('FINLAND') || u === 'FI') return '246';
+        if (u.includes('NORUEG') || u === 'NO') return '578';
+        if (u.includes('CHEC') || u === 'CZ') return '203';
+        if (u.includes('COLOMB')) return '170';
+        if (u.includes('VENEZ')) return '862';
+        if (u.includes('BRASIL') || u.includes('BRAZIL')) return '076';
+        if (u.includes('PERU')) return '604';
+        if (u.includes('ECUAD') || u.includes('EQUAT')) return '218';
+        if (u.includes('MARRUEC') || u.includes('MARROQ')) return '504';
+        return '';
+    };
+
+    const buildFullWorkCenterPreview = (formObj: any): string => {
+        const calle = String(formObj?.centro_trabajo_calle || '').trim().toUpperCase();
+        const cp = String(formObj?.centro_trabajo_cp || '').trim().toUpperCase();
+        const mun = String(formObj?.centro_trabajo_municipio || '').trim().toUpperCase();
+        const pais = String(formObj?.centro_trabajo_pais || 'ESPAÑA').trim().toUpperCase();
+        const parts: string[] = [];
+        if (calle) parts.push(calle);
+        const hasCp = cp && calle.includes(cp);
+        const hasMun = mun && calle.includes(mun);
+        if (!hasCp && !hasMun && (cp || mun)) {
+            parts.push([cp, mun].filter(Boolean).join(' '));
+        } else if (!hasCp && cp) {
+            parts.push(cp);
+        } else if (!hasMun && mun) {
+            parts.push(mun);
+        }
+        if (pais && !calle.includes(pais)) {
+            parts.push(pais);
+        }
+        return parts.join(', ');
+    };
+
     const populateSepeFormForWorker = async (workerId: string, currentSettings?: any) => {
         const cfg = currentSettings || hexagonSettings;
+        setAssignedWorkSite(null);
         try {
             const [{ data: w }, { data: dr }, { data: wa }] = await Promise.all([
                 supabase.schema('core_personal').from('workers').select('*').eq('id', workerId).maybeSingle(),
                 supabase.schema('core_personal').from('document_requests').select('extracted_data').eq('worker_id', workerId).order('updated_at', { ascending: false }).limit(1).maybeSingle(),
-                supabase.schema('core_personal').from('worker_assignments').select('*, client:clients(trade_name, legal_name, address_line, city), site:client_sites(name, address_line, city, province, postal_code)').eq('worker_id', workerId).order('created_at', { ascending: false }).limit(1).maybeSingle()
+                supabase.schema('core_personal').from('worker_assignments').select('*').eq('worker_id', workerId).order('created_at', { ascending: false }).limit(1).maybeSingle()
             ]);
 
             let colab: any = null;
@@ -1703,13 +1769,78 @@ Muchas gracias.`;
                 colab = colabData;
             }
 
+            let detectedSite: { name: string; calle: string; municipio: string; cp: string; pais: string; cod_pais: string } | null = null;
+            const siteIdToLookup = (wa as any)?.client_site_id || (dr as any)?.extracted_data?.client_site_id;
+            if (siteIdToLookup) {
+                const { data: siteRow } = await supabase
+                    .schema('core_common')
+                    .from('client_sites')
+                    .select('id, name, address_line, city, province, postal_code, country_id')
+                    .eq('id', siteIdToLookup)
+                    .maybeSingle();
+                if (siteRow) {
+                    let sitePais = 'ESPAÑA';
+                    if (siteRow.country_id) {
+                        const { data: countryRow } = await supabase
+                            .schema('core_common')
+                            .from('countries')
+                            .select('name, iso_code')
+                            .eq('id', siteRow.country_id)
+                            .maybeSingle();
+                        if (countryRow?.name) {
+                            const upperCountry = String(countryRow.name).toUpperCase();
+                            if (upperCountry.includes('LUXEMB')) sitePais = 'LUXEMBURGO';
+                            else if (upperCountry.includes('ESPAN') || upperCountry.includes('SPAIN')) sitePais = 'ESPAÑA';
+                            else if (upperCountry.includes('PORTUG')) sitePais = 'PORTUGAL';
+                            else if (upperCountry.includes('FRANC')) sitePais = 'FRANCIA';
+                            else if (upperCountry.includes('ALEMAN') || upperCountry.includes('GERMAN')) sitePais = 'ALEMANIA';
+                            else if (upperCountry.includes('BELG')) sitePais = 'BÉLGICA';
+                            else sitePais = upperCountry;
+                        }
+                    } else {
+                        const combinedHint = `${siteRow.name || ''} ${siteRow.address_line || ''} ${siteRow.city || ''} ${siteRow.province || ''}`.toUpperCase();
+                        if (combinedHint.includes('LUXEMB') || /^L-\d{4}/.test(String(siteRow.postal_code || '').trim().toUpperCase())) {
+                            sitePais = 'LUXEMBURGO';
+                        } else if (combinedHint.includes('FRANC')) {
+                            sitePais = 'FRANCIA';
+                        } else if (combinedHint.includes('PORTUG')) {
+                            sitePais = 'PORTUGAL';
+                        }
+                    }
+                    const codPais = resolveSepeCountryCode(sitePais) || (sitePais === 'ESPAÑA' ? '724' : '');
+                    detectedSite = {
+                        name: siteRow.name || 'Obra Asignada',
+                        calle: (siteRow.address_line || siteRow.name || '').toUpperCase(),
+                        municipio: (siteRow.city || siteRow.province || '').toUpperCase(),
+                        cp: (siteRow.postal_code || '').toUpperCase(),
+                        pais: sitePais,
+                        cod_pais: codPais,
+                    };
+                    setAssignedWorkSite(detectedSite);
+                }
+            }
+
             const ed = (dr as any)?.extracted_data || {};
             const rawFunc = String(w?.funcion || ed?.funcion || 'PEON MONTADOR').trim().toUpperCase();
             const roleCfg = resolveStandardSepeRole(rawFunc, cfg?.cargos_mapeamento);
 
-            const ctCalle = 'CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON';
-            const ctCp = cfg?.cp_empresa || '16400';
-            const ctMun = cfg?.municipio_empresa || 'TARANCON';
+            // Se a obra atribuída ao trabalhador for fora da Espanha (ex: Luxemburgo) e tiver endereço/cidade, já pré-carrega a obra! Caso contrário usa o padrão Sede Tarancón
+            const useDetectedForeignSite = Boolean(detectedSite && detectedSite.pais !== 'ESPAÑA' && (detectedSite.calle || detectedSite.municipio));
+            const ctCalle = useDetectedForeignSite
+                ? (detectedSite!.calle || detectedSite!.name)
+                : (cfg?.centro_trabajo_calle || 'CALLE ARCHIVERO DIMAS PEREZ 2').replace(/\s+TARANCON$/i, '');
+            const ctCp = useDetectedForeignSite
+                ? (detectedSite!.cp || '')
+                : (cfg?.centro_trabajo_cp || cfg?.cp_empresa || '16400');
+            const ctMun = useDetectedForeignSite
+                ? (detectedSite!.municipio || detectedSite!.pais)
+                : (cfg?.centro_trabajo_municipio || cfg?.municipio_empresa || 'TARANCON');
+            const ctPais = useDetectedForeignSite
+                ? detectedSite!.pais
+                : (cfg?.centro_trabajo_pais || 'ESPAÑA');
+            const ctCodPais = resolveSepeCountryCode(ctPais) || (ctPais === 'ESPAÑA' ? '724' : '');
+            const ctCodMun = (ctPais === 'ESPAÑA' && ctMun.toUpperCase().includes('TARANCON')) ? '16203' : '';
+
             const startDate = ((wa as any)?.planned_start_date || (wa as any)?.start_date || ed?.start_date || new Date().toISOString()).substring(0, 10);
             const resolvedVacaciones = (!cfg?.vacaciones || String(cfg.vacaciones).toUpperCase() === '30 DIAS NATURALES' || String(cfg.vacaciones).toUpperCase().includes('LUNES A VIERNES'))
                 ? '22 dias laborales'
@@ -1723,6 +1854,9 @@ Muchas gracias.`;
                 centro_trabajo_calle: ctCalle,
                 centro_trabajo_cp: ctCp,
                 centro_trabajo_municipio: ctMun,
+                centro_trabajo_cod_municipio: ctCodMun,
+                centro_trabajo_pais: ctPais,
+                centro_trabajo_cod_pais: ctCodPais,
                 fecha_inicio: startDate,
                 periodo_prueba: roleCfg?.periodo_prueba || cfg?.periodo_prueba_default || '2 MESES',
                 retribucion_total: cfg?.retribucion_default || 'SEGUN CONVENIO',
@@ -1735,7 +1869,8 @@ Muchas gracias.`;
                 pasaporte: w?.pasaporte || colab?.pasaporte || ed?.pasaporte || '',
                 nuss: w?.nuss || colab?.nuss || ed?.nuss || '',
                 codigo_postal: w?.codigo_postal || ed?.codigo_postal || '16400',
-                municipio_domicilio: w?.municipio_domicilio || ed?.municipio_domicilio || w?.location || ed?.ubicacion_actual || ctMun,
+                municipio_domicilio: w?.municipio_domicilio || ed?.municipio_domicilio || w?.location || ed?.ubicacion_actual || 'TARANCON',
+                pais_domicilio: 'ESPAÑA',
             }));
         } catch (err) {
             console.warn("Aviso ao pré-preencher dados SEPE do trabalhador:", err);
@@ -3972,7 +4107,7 @@ Muchas gracias.`;
                                 <Plus className="h-4 w-4" />
                                 Generar Contrato
                             </Button>
-                            <DialogContent className={`${generationSuccess ? 'sm:max-w-7xl max-w-7xl w-[95vw] h-[88vh]' : selectedContractType === 'contrato_fijo_discontinuo' ? 'sm:max-w-4xl max-w-4xl w-[92vw] max-h-[92vh]' : 'sm:max-w-2xl max-w-2xl w-[90vw]'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
+                            <DialogContent className={`${generationSuccess ? 'sm:max-w-7xl max-w-7xl w-[96vw] h-[90vh]' : selectedContractType === 'contrato_fijo_discontinuo' ? 'sm:max-w-6xl max-w-6xl w-[95vw] max-h-[95vh]' : 'sm:max-w-2xl max-w-2xl w-[90vw]'} flex flex-col bg-white dark:bg-slate-900 overflow-hidden transition-all duration-300`}>
                                 <DialogHeader>
                                     <DialogTitle className="text-xl font-bold">Generar Nuevo Contrato</DialogTitle>
                                     <DialogDescription>
@@ -4154,7 +4289,7 @@ Muchas gracias.`;
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
                                                     <div className="flex flex-col justify-end space-y-1.5">
                                                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Municipio Domicilio del Trabajador">
                                                             Municipio Domicilio del Trabajador
@@ -4162,7 +4297,7 @@ Muchas gracias.`;
                                                         <Input
                                                             value={sepeForm.municipio_domicilio}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, municipio_domicilio: e.target.value }))}
-                                                            placeholder="Ej: TARANCON"
+                                                            placeholder="Ej: MURCIA / TARANCON"
                                                             className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
@@ -4173,8 +4308,20 @@ Muchas gracias.`;
                                                         <Input
                                                             value={sepeForm.codigo_postal}
                                                             onChange={(e) => setSepeForm(p => ({ ...p, codigo_postal: e.target.value }))}
-                                                            placeholder="Ej: 16400"
+                                                            placeholder="Ej: 30002"
                                                             className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="País Domicilio del Trabajador">
+                                                            País Domicilio del Trabajador
+                                                        </Label>
+                                                        <Input
+                                                            list="sepe-country-options"
+                                                            value={(sepeForm as any).pais_domicilio || 'ESPAÑA'}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, pais_domicilio: e.target.value.toUpperCase() }))}
+                                                            placeholder="Ej: ESPAÑA"
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
                                                 </div>
@@ -4251,43 +4398,208 @@ Muchas gracias.`;
                                                     />
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
-                                                    <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            Centro de Trabajo (Obra / Calle)
-                                                        </Label>
-                                                        <Input
-                                                            value={sepeForm.centro_trabajo_calle}
-                                                            onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_calle: e.target.value }))}
-                                                            placeholder="Ex: Obra Camp Nou, Av. d'Arístides Maillol"
-                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
-                                                        />
+                                                {/* Bloco Completo de Endereço do Centro de Trabalho + País (Espanha, Luxemburgo, etc.) */}
+                                                <div className="p-3.5 rounded-xl border border-indigo-200 dark:border-indigo-800 bg-white/80 dark:bg-slate-900/70 space-y-3">
+                                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                                        <div className="flex items-center gap-1.5">
+                                                            <MapPin className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                                                            <span className="text-xs font-bold uppercase tracking-wide text-indigo-700 dark:text-indigo-300">
+                                                                Dirección Completa del Centro de Trabajo (Impresa en Pág. 1 y Primera Cláusula)
+                                                            </span>
+                                                        </div>
+                                                        <div className="flex flex-wrap items-center gap-1.5">
+                                                            {assignedWorkSite && (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setSepeForm(p => ({
+                                                                        ...p,
+                                                                        centro_trabajo_calle: assignedWorkSite.calle,
+                                                                        centro_trabajo_municipio: assignedWorkSite.municipio,
+                                                                        centro_trabajo_cp: assignedWorkSite.cp,
+                                                                        centro_trabajo_pais: assignedWorkSite.pais,
+                                                                        centro_trabajo_cod_pais: assignedWorkSite.cod_pais,
+                                                                        centro_trabajo_cod_municipio: (assignedWorkSite.pais === 'ESPAÑA' && assignedWorkSite.municipio.includes('TARANCON')) ? '16203' : '',
+                                                                    }))}
+                                                                    className="px-2.5 py-1 rounded-md text-[11px] font-bold border border-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 transition-all"
+                                                                >
+                                                                    📍 Obra Asignada: {assignedWorkSite.name} ({assignedWorkSite.pais})
+                                                                </button>
+                                                            )}
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSepeForm(p => ({
+                                                                    ...p,
+                                                                    centro_trabajo_calle: 'CALLE ARCHIVERO DIMAS PEREZ 2',
+                                                                    centro_trabajo_municipio: 'TARANCON',
+                                                                    centro_trabajo_cp: '16400',
+                                                                    centro_trabajo_pais: 'ESPAÑA',
+                                                                    centro_trabajo_cod_pais: '724',
+                                                                    centro_trabajo_cod_municipio: '16203',
+                                                                }))}
+                                                                className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all ${
+                                                                    (sepeForm as any).centro_trabajo_pais === 'ESPAÑA' && sepeForm.centro_trabajo_municipio.toUpperCase().includes('TARANCON')
+                                                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-400'
+                                                                }`}
+                                                            >
+                                                                🇪🇸 Sede Tarancón (España)
+                                                            </button>
+                                                            <button
+                                                                type="button"
+                                                                onClick={() => setSepeForm(p => ({
+                                                                    ...p,
+                                                                    centro_trabajo_calle: p.centro_trabajo_calle.includes('ARCHIVERO DIMAS PEREZ') ? '' : p.centro_trabajo_calle,
+                                                                    centro_trabajo_municipio: p.centro_trabajo_municipio.toUpperCase() === 'TARANCON' ? 'LUXEMBOURG' : p.centro_trabajo_municipio,
+                                                                    centro_trabajo_cp: p.centro_trabajo_cp === '16400' ? '' : p.centro_trabajo_cp,
+                                                                    centro_trabajo_pais: 'LUXEMBURGO',
+                                                                    centro_trabajo_cod_pais: '442',
+                                                                    centro_trabajo_cod_municipio: '',
+                                                                }))}
+                                                                className={`px-2.5 py-1 rounded-md text-[11px] font-bold border transition-all ${
+                                                                    (sepeForm as any).centro_trabajo_pais === 'LUXEMBURGO'
+                                                                        ? 'bg-indigo-600 text-white border-indigo-600'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:border-indigo-400'
+                                                                }`}
+                                                            >
+                                                                🇱🇺 Proyecto Luxemburgo (Cód. 442)
+                                                            </button>
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            Municipio del Centro de Trabajo
-                                                        </Label>
-                                                        <Input
-                                                            value={sepeForm.centro_trabajo_municipio}
-                                                            onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_municipio: e.target.value }))}
-                                                            placeholder="Ex: BARCELONA"
-                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
-                                                        />
+
+                                                    <datalist id="sepe-country-options">
+                                                        <option value="ESPAÑA" />
+                                                        <option value="LUXEMBURGO" />
+                                                        <option value="PORTUGAL" />
+                                                        <option value="FRANCIA" />
+                                                        <option value="ALEMANIA" />
+                                                        <option value="BÉLGICA" />
+                                                        <option value="PAÍSES BAJOS" />
+                                                        <option value="ITALIA" />
+                                                        <option value="SUIZA" />
+                                                        <option value="AUSTRIA" />
+                                                        <option value="IRLANDA" />
+                                                        <option value="POLONIA" />
+                                                    </datalist>
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                                        <div className="md:col-span-6 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Dirección Completa del Centro de Trabajo (Obra / Calle y Número)">
+                                                                Dirección Completa del Centro de Trabajo (Obra / Calle y Nº)
+                                                            </Label>
+                                                            <Input
+                                                                value={sepeForm.centro_trabajo_calle}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_calle: e.target.value }))}
+                                                                placeholder="Ej: Rue de l'Industrie 15 / Obra Luxemburgo"
+                                                                className="h-10 text-xs bg-white dark:bg-slate-900 font-medium"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-4 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Municipio / Localidad del Centro de Trabajo">
+                                                                Municipio / Ciudad (Centro de Trabajo)
+                                                            </Label>
+                                                            <Input
+                                                                value={sepeForm.centro_trabajo_municipio}
+                                                                onChange={(e) => {
+                                                                    const munVal = e.target.value;
+                                                                    setSepeForm(p => {
+                                                                        const isSp = ((p as any).centro_trabajo_pais || 'ESPAÑA').toUpperCase().includes('ESPAN') || ((p as any).centro_trabajo_pais || 'ESPAÑA').toUpperCase().includes('ESPAÑ');
+                                                                        return {
+                                                                            ...p,
+                                                                            centro_trabajo_municipio: munVal,
+                                                                            centro_trabajo_cod_municipio: (isSp && munVal.toUpperCase().includes('TARANCON')) ? '16203' : '',
+                                                                        };
+                                                                    });
+                                                                }}
+                                                                placeholder="Ej: LUXEMBOURG / DIFFERDANGE / TARANCON"
+                                                                className="h-10 text-xs bg-white dark:bg-slate-900"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Código Postal del Centro de Trabajo">
+                                                                CP Centro Trabajo
+                                                            </Label>
+                                                            <Input
+                                                                value={sepeForm.centro_trabajo_cp}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_cp: e.target.value }))}
+                                                                placeholder="Ej: L-2449 / 16400"
+                                                                className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
+                                                            />
+                                                        </div>
                                                     </div>
-                                                    <div className="flex flex-col justify-end space-y-1.5">
-                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate">
-                                                            CP del Centro de Trabajo
-                                                        </Label>
-                                                        <Input
-                                                            value={sepeForm.centro_trabajo_cp}
-                                                            onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_cp: e.target.value }))}
-                                                            placeholder="Ex: 08028"
-                                                            className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
-                                                        />
+
+                                                    <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-end">
+                                                        <div className="md:col-span-5 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-indigo-700 dark:text-indigo-300 block truncate" title="País del Centro de Trabajo (Impreso en el contrato)">
+                                                                País del Centro de Trabajo *
+                                                            </Label>
+                                                            <Input
+                                                                list="sepe-country-options"
+                                                                value={(sepeForm as any).centro_trabajo_pais || 'ESPAÑA'}
+                                                                onChange={(e) => {
+                                                                    const newPais = e.target.value.toUpperCase();
+                                                                    const autoCod = resolveSepeCountryCode(newPais);
+                                                                    const isSpain = autoCod === '724';
+                                                                    setSepeForm(p => ({
+                                                                        ...p,
+                                                                        centro_trabajo_pais: newPais,
+                                                                        centro_trabajo_cod_pais: autoCod || (p as any).centro_trabajo_cod_pais || '',
+                                                                        centro_trabajo_cod_municipio: (isSpain && p.centro_trabajo_municipio.toUpperCase().includes('TARANCON')) ? '16203' : '',
+                                                                    }));
+                                                                }}
+                                                                placeholder="Ej: LUXEMBURGO, ESPAÑA, FRANCIA, PORTUGAL..."
+                                                                className="h-10 text-xs font-bold bg-white dark:bg-slate-900 border-indigo-300 dark:border-indigo-700"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Código Oficial SEPE del País (3 dígitos: 724=España, 442=Luxemburgo)">
+                                                                Cód. País SEPE
+                                                            </Label>
+                                                            <Input
+                                                                value={(sepeForm as any).centro_trabajo_cod_pais || ''}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_cod_pais: e.target.value.slice(0, 3) }))}
+                                                                placeholder="442 / 724"
+                                                                maxLength={3}
+                                                                className="h-10 text-xs font-mono bg-white dark:bg-slate-900"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-2 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Código INE Municipio (5 dígitos — solo para municipios de España)">
+                                                                Cód. INE (Solo ES)
+                                                            </Label>
+                                                            <Input
+                                                                value={(sepeForm as any).centro_trabajo_cod_municipio || ''}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, centro_trabajo_cod_municipio: e.target.value.slice(0, 5) }))}
+                                                                placeholder={(sepeForm as any).centro_trabajo_pais === 'ESPAÑA' ? '16203' : 'Vacío (Exterior)'}
+                                                                maxLength={5}
+                                                                disabled={(sepeForm as any).centro_trabajo_pais !== 'ESPAÑA'}
+                                                                className="h-10 text-xs font-mono bg-white dark:bg-slate-900 disabled:opacity-50"
+                                                            />
+                                                        </div>
+                                                        <div className="md:col-span-3 flex flex-col justify-end space-y-1.5">
+                                                            <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Lugar de Firma del Contrato (Página 7)">
+                                                                Lugar de Firma (Pág. 7)
+                                                            </Label>
+                                                            <Input
+                                                                value={sepeForm.lugar_firma}
+                                                                onChange={(e) => setSepeForm(p => ({ ...p, lugar_firma: e.target.value }))}
+                                                                placeholder="Ej: TARANCON"
+                                                                className="h-10 text-xs bg-white dark:bg-slate-900"
+                                                            />
+                                                        </div>
+                                                    </div>
+
+                                                    <div className="text-[11px] text-slate-600 dark:text-slate-300 bg-indigo-50/70 dark:bg-indigo-950/40 border border-indigo-200/70 dark:border-indigo-800/60 rounded-lg px-3 py-1.5 flex flex-wrap items-center justify-between gap-2">
+                                                        <span>
+                                                            <strong className="text-indigo-700 dark:text-indigo-300">Se imprimirá en el contrato:</strong>{' '}
+                                                            {buildFullWorkCenterPreview(sepeForm) || '—'}
+                                                        </span>
+                                                        <span className="font-mono text-[10px] text-indigo-700 dark:text-indigo-300">
+                                                            País Pág. 1: {(sepeForm as any).centro_trabajo_pais || 'ESPAÑA'} ({(sepeForm as any).centro_trabajo_cod_pais || '—'})
+                                                        </span>
                                                     </div>
                                                 </div>
 
-                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                                                     <div className="flex flex-col justify-end space-y-1.5">
                                                         <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Fecha de Inicio (Cuarta Cláusula)">
                                                             Fecha de Inicio (Cuarta Cláusula)
@@ -4319,17 +4631,16 @@ Muchas gracias.`;
                                                             className="h-10 text-xs bg-white dark:bg-slate-900"
                                                         />
                                                     </div>
-                                                </div>
-
-                                                <div className="flex flex-col justify-end space-y-1.5">
-                                                    <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Vacaciones Anuales (Séptima Cláusula)">
-                                                        Vacaciones Anuales (Séptima Cláusula)
-                                                    </Label>
-                                                    <Input
-                                                        value={(sepeForm as any).vacaciones || '22 dias laborales'}
-                                                        onChange={(e) => setSepeForm(p => ({ ...p, vacaciones: e.target.value }))}
-                                                        className="h-10 text-xs bg-white dark:bg-slate-900"
-                                                    />
+                                                    <div className="flex flex-col justify-end space-y-1.5">
+                                                        <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block truncate" title="Vacaciones Anuales (Séptima Cláusula)">
+                                                            Vacaciones Anuales (Séptima Cláusula)
+                                                        </Label>
+                                                        <Input
+                                                            value={(sepeForm as any).vacaciones || '22 dias laborales'}
+                                                            onChange={(e) => setSepeForm(p => ({ ...p, vacaciones: e.target.value }))}
+                                                            className="h-10 text-xs bg-white dark:bg-slate-900"
+                                                        />
+                                                    </div>
                                                 </div>
                                             </div>
                                         )}

@@ -534,11 +534,83 @@ serve(async (req) => {
         Object.entries(funcionesMap).find(([k]) => cargoUpper.includes(k.toUpperCase()) || k.toUpperCase().includes(cargoUpper))?.[1] ||
         null;
 
-      // Extrair CP, Município e Endereço do Centro de Trabalho (Padrão: Sede Oficial de Tarancón conforme Gestoría)
-      const resolvedSiteCp = sepe.centro_trabajo_cp || settings.centro_trabajo_cp || settings.cp_empresa || settings.empresa_cp || "16400";
-      const resolvedSiteMunicipio = (sepe.centro_trabajo_municipio || settings.centro_trabajo_municipio || settings.municipio_empresa || settings.empresa_municipio || "TARANCON").toUpperCase();
-      const resolvedSiteCodMunicipio = sepe.centro_trabajo_cod_municipio || settings.centro_trabajo_cod_municipio || settings.municipio_ct_cod || (resolvedSiteMunicipio.includes("TARANCON") ? "16203" : "");
-      const resolvedSiteCalle = (sepe.centro_trabajo_calle || settings.centro_trabajo_calle || "CALLE ARCHIVERO DIMAS PEREZ 2 TARANCON").toUpperCase();
+      // Mapa oficial SEPE / ISO numérico de códigos de país (3 dígitos)
+      const resolveCountryCode = (countryInput: string): string => {
+        const u = String(countryInput || "").trim().toUpperCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+        if (!u) return "";
+        if (u.includes("ESPAN") || u === "SPAIN" || u === "ES") return "724";
+        if (u.includes("LUXEMB") || u === "LU") return "442";
+        if (u.includes("PORTUG") || u === "PT") return "620";
+        if (u.includes("FRANC") || u === "FR") return "250";
+        if (u.includes("ALEMAN") || u.includes("GERMAN") || u === "DE") return "276";
+        if (u.includes("BELG") || u === "BE") return "056";
+        if (u.includes("PAISES BAJOS") || u.includes("HOLAND") || u.includes("NETHERLAND") || u === "NL") return "528";
+        if (u.includes("ITAL") || u === "IT") return "380";
+        if (u.includes("SUIZ") || u.includes("SUIC") || u.includes("SWITZ") || u === "CH") return "756";
+        if (u.includes("AUSTRI") || u === "AT") return "040";
+        if (u.includes("IRLAND") || u.includes("IRELAND") || u === "IE") return "372";
+        if (u.includes("POLON") || u.includes("POLAND") || u === "PL") return "616";
+        if (u.includes("REINO UNIDO") || u.includes("INGLAT") || u === "UK" || u === "GB") return "826";
+        if (u.includes("RUMAN") || u.includes("ROMEN") || u === "RO") return "642";
+        if (u.includes("SUECI") || u === "SE") return "752";
+        if (u.includes("DINAMARC") || u === "DK") return "208";
+        if (u.includes("FINLAND") || u === "FI") return "246";
+        if (u.includes("NORUEG") || u === "NO") return "578";
+        if (u.includes("CHEC") || u === "CZ") return "203";
+        if (u.includes("COLOMB")) return "170";
+        if (u.includes("VENEZ")) return "862";
+        if (u.includes("BRASIL") || u.includes("BRAZIL")) return "076";
+        if (u.includes("PERU")) return "604";
+        if (u.includes("ECUAD") || u.includes("EQUAT")) return "218";
+        if (u.includes("MARRUEC") || u.includes("MARROQ")) return "504";
+        return "";
+      };
+
+      // Extrair País, CP, Município e Endereço Completo do Centro de Trabalho
+      const rawSitePais = (sepe.centro_trabajo_pais || settings.centro_trabajo_pais || "ESPAÑA").trim().toUpperCase();
+      const resolvedSitePais = rawSitePais || "ESPAÑA";
+      const resolvedSiteCodPais = String(sepe.centro_trabajo_cod_pais || resolveCountryCode(resolvedSitePais) || "").trim();
+      const isSpainWorkSite = resolvedSiteCodPais === "724" || resolvedSitePais.includes("ESPAÑ") || resolvedSitePais.includes("ESPAN");
+
+      const rawSiteCp = String(sepe.centro_trabajo_cp !== undefined ? sepe.centro_trabajo_cp : (isSpainWorkSite ? (settings.centro_trabajo_cp || settings.cp_empresa || settings.empresa_cp || "16400") : "")).trim().toUpperCase();
+      // Para o quadro AA0303-E05 (5 casillas), removemos espaço/hífen se passar de 5 caracteres (ex: L-2449 -> L2449)
+      const resolvedSiteCpBox = rawSiteCp.length > 5 ? rawSiteCp.replace(/[\s-]+/g, "").slice(0, 5) : rawSiteCp;
+
+      const resolvedSiteMunicipio = String(
+        sepe.centro_trabajo_municipio ||
+        (isSpainWorkSite ? (settings.centro_trabajo_municipio || settings.municipio_empresa || settings.empresa_municipio || "TARANCON") : resolvedSitePais)
+      ).trim().toUpperCase();
+
+      // Código INE de 5 dígitos: SOMENTE para municípios espanhóis (jamais estampar 16203 de Tarancón em obras no exterior ou em outros municípios!)
+      const resolvedSiteCodMunicipio = isSpainWorkSite
+        ? String(
+            sepe.centro_trabajo_cod_municipio !== undefined
+              ? sepe.centro_trabajo_cod_municipio
+              : (resolvedSiteMunicipio.includes("TARANCON") ? "16203" : "")
+          ).trim()
+        : "";
+
+      const rawSiteCalleOnly = String(
+        sepe.centro_trabajo_calle ||
+        (isSpainWorkSite ? (settings.centro_trabajo_calle || "CALLE ARCHIVERO DIMAS PEREZ 2") : "")
+      ).trim().toUpperCase();
+
+      // Montar endereço completo do Centro de Trabalho para a Primeira Cláusula (C0104: calle, nº, CP, localidad y país)
+      const siteAddrParts: string[] = [];
+      if (rawSiteCalleOnly) siteAddrParts.push(rawSiteCalleOnly);
+      const calleHasCp = rawSiteCp && rawSiteCalleOnly.includes(rawSiteCp);
+      const calleHasMun = resolvedSiteMunicipio && rawSiteCalleOnly.includes(resolvedSiteMunicipio);
+      if (!calleHasCp && !calleHasMun && (rawSiteCp || resolvedSiteMunicipio)) {
+        siteAddrParts.push([rawSiteCp, resolvedSiteMunicipio].filter(Boolean).join(" "));
+      } else if (!calleHasCp && rawSiteCp) {
+        siteAddrParts.push(rawSiteCp);
+      } else if (!calleHasMun && resolvedSiteMunicipio) {
+        siteAddrParts.push(resolvedSiteMunicipio);
+      }
+      if (resolvedSitePais && !rawSiteCalleOnly.includes(resolvedSitePais)) {
+        siteAddrParts.push(resolvedSitePais);
+      }
+      const resolvedSiteCalle = siteAddrParts.join(", ");
 
       // Dados da Empresa (Oficiais Hexagon conforme Gestoría)
       const empCif = sepe.cif || settings.cif || "B05688197";
@@ -574,12 +646,12 @@ serve(async (req) => {
       setTxt("AA0203", resolvedCnaeTexto);
       if (resolvedCnaeCod) setTxt("AA0204-E02", resolvedCnaeCod, 2);
 
-      // Dados do Centro de Trabalho
+      // Dados do Centro de Trabalho (Página 1 — Municipio, Cód INE, CP, País e Cód País SEPE)
       setTxt("AA0301", resolvedSiteMunicipio);
       if (resolvedSiteCodMunicipio) setTxt("AA0302-E05", resolvedSiteCodMunicipio, 5);
-      setTxt("AA0303-E05", resolvedSiteCp, 5);
-      setTxt("AA0304", "ESPAÑA");
-      setTxt("AA0305-E03", "724", 3);
+      if (resolvedSiteCpBox) setTxt("AA0303-E05", resolvedSiteCpBox, 5);
+      setTxt("AA0304", resolvedSitePais);
+      if (resolvedSiteCodPais) setTxt("AA0305-E03", resolvedSiteCodPais, 3);
 
       // Mapa oficial INE de códigos de nacionalidade (3 dígitos)
       const resolveNationalityCode = (nat: string): string => {
@@ -631,9 +703,12 @@ serve(async (req) => {
       if (sepe.cod_nivel_formativo) setTxt("AA0408-E02", sepe.cod_nivel_formativo, 2);
       setTxt("AA0409", workerMunicipioDom);
       if (sepe.cod_municipio_domicilio) setTxt("AA0410-E05", sepe.cod_municipio_domicilio, 5);
-      setTxt("AA0411-E05", workerCpDom, 5);
-      setTxt("AA0412", "ESPAÑA");
-      setTxt("AA0413-E03", "724", 3);
+      const workerPaisDom = String(sepe.pais_domicilio || "ESPAÑA").trim().toUpperCase();
+      const workerCodPaisDom = resolveCountryCode(workerPaisDom) || (workerPaisDom.includes("ESPAN") || workerPaisDom.includes("ESPAÑ") ? "724" : "");
+      const workerCpDomBox = workerCpDom.length > 5 ? workerCpDom.replace(/[\s-]+/g, "").slice(0, 5) : workerCpDom;
+      setTxt("AA0411-E05", workerCpDomBox, 5);
+      setTxt("AA0412", workerPaisDom);
+      if (workerCodPaisDom) setTxt("AA0413-E03", workerCodPaisDom, 3);
 
       // Código SEPE da Modalidade (300 = Fijo-Discontinuo, 100 = Indefinido Tiempo Completo, 200 = Tiempo Parcial)
       const sepeCodigo = String(sepe.sepe_codigo || settings.sepe_codigo_default || "300").trim();
@@ -673,7 +748,15 @@ serve(async (req) => {
       setTxt("C0101", resolvedPuesto);
       setTxt("C0102", resolvedGrupo);
       setTxt("C0103", resolvedFunciones);
-      setTxt("C0104", resolvedSiteCalle);
+      try {
+        const tfCentro = form.getTextField("C0104");
+        if (resolvedSiteCalle.length > 65) {
+          tfCentro.setFontSize(8.5);
+        }
+        tfCentro.setText(resolvedSiteCalle);
+      } catch (e) {
+        setTxt("C0104", resolvedSiteCalle);
+      }
 
       if (sepeCodigo === "300" && sepe.preencher_clausula_segunda === true) {
         setTxt("C0201", (sepe.actividad_fijo_discontinuo || settings.actividad_fijo_discontinuo || resolvedPuesto).toUpperCase());
