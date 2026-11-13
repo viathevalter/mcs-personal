@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { formatCurrency, formatDate } from '../lib/utils';
-import { fetchObservacoes, saveObservacao, updateContaReceber } from '../data/loader';
+import { fetchObservacoes, saveObservacao, updateContaReceber, deleteContaReceber } from '../data/loader';
 import type { EnrichedTitulo, CobrancaObservacao } from '../types';
 import { supabase } from '../lib/supabase';
 import { fetchAllPages } from '@/features/faturamento/api/faturamentoApi';
@@ -32,7 +32,8 @@ import {
     FileSpreadsheet,
     ShieldCheck,
     Eye,
-    RotateCcw
+    RotateCcw,
+    Trash2
 } from 'lucide-react';
 import { 
     buildFaturaPdfFilename, 
@@ -984,6 +985,28 @@ export function CobroDetalhesSheet({
                                     <RotateCcw size={14} className="mr-1.5" /> Estornar Baixa (Voltar p/ Vencido)
                                 </Button>
                             )}
+
+                            {/* Excluir Cobro */}
+                            <Button
+                                variant="outline"
+                                onClick={async () => {
+                                    if (!window.confirm(`Tem certeza que deseja excluir o cobro ${titulo.Num_doc || ''} (${titulo.Cliente} — ${formatCurrency(titulo.Valot_total)})? Esta ação não pode ser desfeita.`)) {
+                                        return;
+                                    }
+                                    try {
+                                        const res = await deleteContaReceber(titulo.id);
+                                        if (!res.success) throw res.error;
+                                        toast.success('Cobro excluído com sucesso!');
+                                        onRefresh();
+                                        onClose();
+                                    } catch (err: any) {
+                                        toast.error('Erro ao excluir cobro: ' + (err?.message || 'Erro desconhecido'));
+                                    }
+                                }}
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50 border-red-200 dark:border-red-900/50 dark:text-red-400 text-xs h-9 font-semibold"
+                            >
+                                <Trash2 size={14} className="mr-1.5" /> {t('common.delete', 'Excluir')}
+                            </Button>
 
                             {/* Editar/Alterar */}
                             <Button 

@@ -387,8 +387,13 @@ export const Cobros = () => {
 
     const handleDelete = async (id: string) => {
         if (window.confirm("Tem certeza que deseja excluir este recebimento?")) {
-            await deleteContaReceber(id);
-            await loadData();
+            const res = await deleteContaReceber(id);
+            if (res.success) {
+                toast.success('Cobro excluído com sucesso!');
+                await loadData();
+            } else {
+                toast.error('Erro ao excluir cobro: ' + (res.error?.message || 'Erro desconhecido'));
+            }
         }
     };
 

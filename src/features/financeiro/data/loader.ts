@@ -543,6 +543,11 @@ export async function updateContaReceber(id: string, data: Partial<ContasReceber
 
 export async function deleteContaReceber(id: string): Promise<{ success: boolean; error?: any }> {
   try {
+    try {
+      await supabase.from('cobranca_observacoes').delete().eq('conta_receber_id', String(id));
+    } catch (obsErr) {
+      console.warn('Could not clean up cobranca_observacoes before deleting cobro:', obsErr);
+    }
     const { error } = await supabase.from('contas_receber').delete().eq('id', id);
     if (error) throw error;
     return { success: true };
