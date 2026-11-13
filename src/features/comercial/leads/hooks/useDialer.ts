@@ -1129,6 +1129,7 @@ export function useMutateDialer() {
       tags,
       userId,
       maxAttempts = 3,
+      preserveExistingSchedule = false,
     }: {
       queueItemId: string;
       campaignId?: string | null;
@@ -1144,6 +1145,7 @@ export function useMutateDialer() {
       tags?: string[];
       userId?: string | null;
       maxAttempts?: number;
+      preserveExistingSchedule?: boolean;
     }) => {
       const { data: authData } = await supabase.auth.getUser();
       const effectiveUserId =
@@ -1187,40 +1189,76 @@ export function useMutateDialer() {
       const { data: currentQueueItem } = await supabase
         .schema('core_comercial')
         .from('dialer_queue_items')
-        .select('status, scheduled_for, scheduled_notes, attempts_count, sort_order, assigned_to, tags')
+        .select('status, scheduled_for, scheduled_notes, priority, attempts_count, sort_order, assigned_to, tags')
         .eq('id', queueItemId)
         .single();
 
       const newAttempts = (currentQueueItem?.attempts_count || 0) + 1;
       const currentSort = currentQueueItem?.sort_order || 0;
 
+      const appendScheduledNote = (existingNotes?: string | null, addedNote?: string | null) => {
+        const cleanExisting = (existingNotes || '').trim();
+        const cleanAdded = (addedNote || '').trim();
+        if (!cleanAdded) return cleanExisting || null;
+        if (cleanExisting && cleanExisting.includes(cleanAdded)) return cleanExisting;
+        const stamp = new Intl.DateTimeFormat('pt-PT', {
+          day: '2-digit',
+          month: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+        }).format(new Date());
+        const formattedAdded = `[${stamp}] ${cleanAdded}`;
+        return cleanExisting ? `${cleanExisting}<br/>${formattedAdded}` : cleanAdded;
+      };
+
+      const hasExistingSchedule =
+        currentQueueItem?.status === 'scheduled' && Boolean(currentQueueItem?.scheduled_for);
+      const hasFutureSchedule =
+        hasExistingSchedule &&
+        new Date(currentQueueItem!.scheduled_for).getTime() > Date.now();
+
       // 3. Calculate New Queue Item Status & Order
       let nextStatus: string = 'pending';
       let nextScheduledFor: string | null = null;
       let nextScheduledNotes: string | null = notes || null;
+      let nextPriority: string = priority || currentQueueItem?.priority || 'normal';
       let nextSortOrderModifier = 0;
 
-      if (outcome === 'answered_converted') {
+      if (preserveExistingSchedule && hasExistingSchedule) {
+        nextStatus = 'scheduled';
+        nextScheduledFor = currentQueueItem!.scheduled_for;
+        nextScheduledNotes = appendScheduledNote(currentQueueItem!.scheduled_notes, notes);
+        nextPriority = currentQueueItem!.priority || priority || 'normal';
+      } else if (outcome === 'answered_converted') {
         nextStatus = 'converted';
       } else if (outcome === 'answered_rejected') {
         nextStatus = 'rejected';
       } else if (outcome === 'answered_callback') {
         nextStatus = 'scheduled';
-        nextScheduledFor = scheduledCallbackAt || null;
+        nextScheduledFor = scheduledCallbackAt || currentQueueItem?.scheduled_for || null;
       } else if (outcome === 'answered_interested') {
-        // Material sent! Preserve 'converted' or existing future 'scheduled' callback if already set
+        // Material sent! Preserve 'converted' or existing 'scheduled' callback if already set
         if (currentQueueItem?.status === 'converted') {
           nextStatus = 'converted';
-        } else if (currentQueueItem?.status === 'scheduled' && currentQueueItem?.scheduled_for) {
+        } else if (hasExistingSchedule) {
           nextStatus = 'scheduled';
-          nextScheduledFor = currentQueueItem.scheduled_for;
-          nextScheduledNotes = currentQueueItem.scheduled_notes || notes || null;
+          nextScheduledFor = currentQueueItem!.scheduled_for;
+          nextScheduledNotes = appendScheduledNote(currentQueueItem!.scheduled_notes, notes);
+          nextPriority = currentQueueItem!.priority || priority || 'normal';
         } else {
           nextStatus = 'interested';
         }
       } else if (outcome === 'no_answer' || outcome === 'busy' || outcome === 'gatekeeper_blocked') {
-        nextStatus = 'no_answer';
-        nextSortOrderModifier = 10000;
+        // If calling early on a future scheduled appointment and client didn't pick up / gatekeeper, NEVER erase the future appointment!
+        if (hasFutureSchedule) {
+          nextStatus = 'scheduled';
+          nextScheduledFor = currentQueueItem!.scheduled_for;
+          nextScheduledNotes = appendScheduledNote(currentQueueItem!.scheduled_notes, notes);
+          nextPriority = currentQueueItem!.priority || priority || 'normal';
+        } else {
+          nextStatus = 'no_answer';
+          nextSortOrderModifier = 10000;
+        }
       } else {
         nextStatus = 'pending';
       }
@@ -1235,16 +1273,16 @@ export function useMutateDialer() {
         attempts_count: newAttempts,
         scheduled_for: nextScheduledFor,
         scheduled_notes: nextScheduledNotes,
-        priority: priority || 'normal',
+        priority: nextPriority,
         sort_order: currentSort + nextSortOrderModifier,
         last_attempt_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       };
 
       if (tags !== undefined) {
-        queueUpdateData.tags = extractTagsFromAppointment(tags, notes);
-      } else if (outcome === 'answered_callback') {
-        queueUpdateData.tags = extractTagsFromAppointment(currentQueueItem?.tags, notes);
+        queueUpdateData.tags = extractTagsFromAppointment(tags, nextScheduledNotes || notes);
+      } else if (outcome === 'answered_callback' || nextStatus === 'scheduled') {
+        queueUpdateData.tags = extractTagsFromAppointment(currentQueueItem?.tags, nextScheduledNotes || notes);
       }
 
       if (effectiveUserId && (outcome === 'answered_callback' || !currentQueueItem?.assigned_to)) {
@@ -1274,9 +1312,25 @@ export function useMutateDialer() {
           const { data: leadRow } = await supabase
             .schema('core_comercial')
             .from('leads')
-            .select('empresa_id, stage_id')
+            .select('empresa_id, stage_id, notes')
             .eq('id', leadId)
             .maybeSingle();
+
+          if (preserveExistingSchedule && notes?.trim()) {
+            const plainAdded = notes.replace(/<[^>]+>/g, '').trim();
+            if (plainAdded) {
+              const stamp = new Intl.DateTimeFormat('pt-PT', {
+                day: '2-digit',
+                month: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+              }).format(new Date());
+              const existingLeadNotes = (leadRow?.notes || '').trim();
+              leadUpdatePayload.notes = existingLeadNotes
+                ? `${existingLeadNotes}\n[${stamp}] ${plainAdded}`
+                : `[${stamp}] ${plainAdded}`;
+            }
+          }
 
           const targetEmpId = leadRow?.empresa_id || selectedEmpresaId;
           if (targetEmpId) {

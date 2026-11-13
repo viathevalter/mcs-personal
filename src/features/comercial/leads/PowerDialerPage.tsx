@@ -91,6 +91,7 @@ export function PowerDialerPage() {
   const campaignIdParam = searchParams.get('campaignId');
   const queueItemIdParam = searchParams.get('queueItemId');
   const queueItemIdsParam = searchParams.get('queueItemIds');
+  const fromAgendaParam = searchParams.get('fromAgenda') === '1';
 
   const {
     activeProfile,
@@ -171,22 +172,14 @@ export function PowerDialerPage() {
 
   const { data: activeCampaign } = useDialerCampaign(activeCampaignId);
   const { data: campaignQueue = [], isLoading: isLoadingQueue } = useDialerQueue(activeCampaignId);
-  const { data: directQueueItems = [] } = useDialerDirectQueueItems(directAgendaItemIds);
+  const { data: directQueueItems = [], isLoading: isLoadingDirectQueue } = useDialerDirectQueueItems(directAgendaItemIds);
 
-  const isDirectAgendaMode = useMemo(() => {
-    return (
-      directAgendaItemIds.length > 0 &&
-      (!activeCampaignId ||
-        Boolean(queueItemIdsParam) ||
-        (directQueueItems.length > 0 && !campaignQueue.some(q => q.id === directQueueItems[0]?.id)))
-    );
-  }, [directAgendaItemIds.length, activeCampaignId, queueItemIdsParam, directQueueItems, campaignQueue]);
-
-  // In Campaign Mode, filter to ONLY callable leads (due callbacks, fresh pending, and no_answer retries)
-  // so already-completed or future-scheduled leads never block or sit at Lead 1 of the active queue!
+  // In Campaign Mode, filter to ONLY callable leads (due callbacks, fresh pending, and no_answer retries),
+  // PLUS always include a specifically requested queueItemIdParam so future scheduled leads opened from Agenda/Queue never vanish!
   const callableCampaignQueue = useMemo(() => {
     const nowMs = Date.now();
     return campaignQueue.filter(item => {
+      if (queueItemIdParam && item.id === queueItemIdParam) return true;
       if (item.status === 'in_progress') return true;
       if (item.status === 'pending' && (item.attempts_count || 0) === 0) return true;
       if (item.status === 'no_answer') return true;
@@ -195,14 +188,39 @@ export function PowerDialerPage() {
       }
       return false;
     });
-  }, [campaignQueue]);
+  }, [campaignQueue, queueItemIdParam]);
+
+  const isDirectAgendaMode = useMemo(() => {
+    if (directAgendaItemIds.length === 0) return false;
+    if (fromAgendaParam || Boolean(queueItemIdsParam) || !activeCampaignId) return true;
+
+    // Also treat as Direct Agenda Mode whenever the requested item is a future scheduled or already-closed lead
+    const targetInCampaign = campaignQueue.find(q => q.id === queueItemIdParam);
+    if (!targetInCampaign) return directQueueItems.length > 0;
+    if (targetInCampaign.status === 'scheduled' && targetInCampaign.scheduled_for) {
+      if (new Date(targetInCampaign.scheduled_for).getTime() > Date.now()) return true;
+    }
+    return !['in_progress', 'pending', 'no_answer'].includes(targetInCampaign.status);
+  }, [
+    directAgendaItemIds.length,
+    fromAgendaParam,
+    queueItemIdsParam,
+    activeCampaignId,
+    campaignQueue,
+    queueItemIdParam,
+    directQueueItems.length,
+  ]);
 
   const queue = useMemo(() => {
-    if (isDirectAgendaMode && directQueueItems.length > 0) {
-      return directQueueItems;
+    if (isDirectAgendaMode) {
+      if (directQueueItems.length > 0) return directQueueItems;
+      if (queueItemIdParam) {
+        const matched = campaignQueue.filter(q => q.id === queueItemIdParam);
+        if (matched.length > 0) return matched;
+      }
     }
     return callableCampaignQueue;
-  }, [isDirectAgendaMode, directQueueItems, callableCampaignQueue]);
+  }, [isDirectAgendaMode, directQueueItems, queueItemIdParam, campaignQueue, callableCampaignQueue]);
 
   const { logCallAndAdvance, isLoggingCall, createQuickPresupuesto, completeCampaign, isCompletingCampaign } = useMutateDialer();
 
@@ -704,6 +722,90 @@ export function PowerDialerPage() {
     }
   };
 
+  // Register an extra call / note while preserving the existing scheduled appointment intact (keeps lead on screen)
+  const handleSaveNoteKeepingSchedule = async () => {
+    if (!currentQueueItem || !currentLead) return;
+    const trimmedNotes = callNotes.trim();
+    const isScheduledAppointment =
+      currentQueueItem.status === 'scheduled' && Boolean(currentQueueItem.scheduled_for);
+
+    if (!isScheduledAppointment && !trimmedNotes) {
+      toast.error(
+        tr(
+          'Digite uma anotação antes de salvar.',
+          'Escriba una nota antes de guardar.',
+          'Saisissez une note avant d’enregistrer.',
+          'Inserisci una nota prima di salvare.'
+        )
+      );
+      return;
+    }
+
+    const effectiveNote =
+      trimmedNotes ||
+      tr(
+        'Atendimento realizado antecipadamente (agendamento mantido).',
+        'Atención realizada anticipadamente (agendamiento mantenido).',
+        'Appel effectué par anticipation (rendez-vous planifié conservé).',
+        'Contatto effettuato in anticipo (appuntamento mantenuto).'
+      );
+
+    const effectiveDuration =
+      callDuration >= 5
+        ? callDuration
+        : callDuration > 0
+        ? callDuration
+        : Math.min(Math.max(leadScreenSeconds, 10), 1800);
+
+    try {
+      setIsCalling(false);
+      await logCallAndAdvance({
+        queueItemId: currentQueueItem.id,
+        campaignId: currentQueueItem.campaign_id || activeCampaignId || null,
+        leadId: currentLead.id,
+        outcome: isScheduledAppointment ? 'answered_callback' : 'answered_interested',
+        durationSeconds: effectiveDuration,
+        notes: effectiveNote,
+        phoneCalled: currentLead.phone,
+        contactPerson: currentLead.name,
+        scheduledCallbackAt: currentQueueItem.scheduled_for || null,
+        priority: currentQueueItem.priority || 'normal',
+        preserveExistingSchedule: isScheduledAppointment,
+      });
+
+      setCallNotes('');
+      setCallDuration(0);
+      setLeadScreenSeconds(0);
+
+      toast.success(
+        isScheduledAppointment
+          ? tr(
+              '✅ Atendimento e anotação salvos! O agendamento foi mantido intacto.',
+              '✅ ¡Atención y nota guardadas! El agendamiento se mantuvo intacto.',
+              '✅ Appel et note enregistrés ! Le rendez-vous planifié est conservé.',
+              '✅ Chiamata e nota salvate! L’appuntamento pianificato è stato mantenuto.'
+            )
+          : tr(
+              '✅ Anotação salva no histórico do cliente!',
+              '✅ ¡Nota guardada en el historial del cliente!',
+              '✅ Note enregistrée dans l’historique du client !',
+              '✅ Nota salvata nella cronologia del cliente!'
+            )
+      );
+    } catch (err: any) {
+      console.error(err);
+      toast.error(
+        err.message ||
+          tr(
+            'Erro ao salvar anotação',
+            'Error al guardar nota',
+            'Erreur lors de l’enregistrement de la note',
+            'Errore durante il salvataggio della nota'
+          )
+      );
+    }
+  };
+
   const handleNextLead = () => {
     if (currentQueueIndex < queue.length - 1) {
       setCurrentQueueIndex(prev => prev + 1);
@@ -933,6 +1035,55 @@ export function PowerDialerPage() {
           rows={4}
           className="bg-background border-input text-foreground text-xs leading-relaxed"
         />
+
+        {(currentQueueItem?.status === 'scheduled' && currentQueueItem?.scheduled_for) ? (
+          <div className="pt-1.5 space-y-1">
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveNoteKeepingSchedule}
+              disabled={isLoggingCall}
+              className="w-full h-9 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5 shadow-sm rounded-xl"
+            >
+              <CalendarDays className="w-3.5 h-3.5 shrink-0" />
+              <span className="truncate">
+                {tr(
+                  'Salvar Nota / Contato (Manter Agendamento)',
+                  'Guardar Nota / Llamada (Mantener Cita)',
+                  'Enregistrer Note / Appel (Garder le RDV)',
+                  'Salva Nota / Chiamata (Mantieni Appuntamento)'
+                )}
+              </span>
+            </Button>
+            <p className="text-[10px] text-muted-foreground leading-snug">
+              {tr(
+                'Registra esta conversa e anotação sem alterar a data agendada.',
+                'Registra esta llamada y nota sin cambiar la fecha agendada.',
+                'Enregistre cet appel et vos notes sans modifier la date du rendez-vous.',
+                'Registra questa chiamata e nota senza modificare la data pianificata.'
+              )}
+            </p>
+          </div>
+        ) : callNotes.trim().length > 0 ? (
+          <div className="pt-1">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={handleSaveNoteKeepingSchedule}
+              disabled={isLoggingCall}
+              className="w-full h-8 text-xs border-indigo-500/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 font-bold gap-1.5 rounded-xl"
+            >
+              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+              {tr(
+                'Salvar Anotação no Histórico',
+                'Guardar Nota en el Historial',
+                'Enregistrer la Note dans l’Historique',
+                'Salva Nota nella Cronologia'
+              )}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );
@@ -1339,7 +1490,7 @@ export function PowerDialerPage() {
         )}
 
         {/* Core Cockpit Grid: Wide Asymmetric Layout */}
-        {isLoadingQueue ? (
+        {(isDirectAgendaMode ? isLoadingDirectQueue : isLoadingQueue) ? (
           <div className="p-12 text-center rounded-2xl bg-card border border-border space-y-3 my-8">
             <Clock className="w-10 h-10 text-blue-500 animate-spin mx-auto" />
             <p className="text-sm font-medium text-muted-foreground">

@@ -453,12 +453,12 @@ export function DialerAgendaPage() {
     }
   };
 
-  // Call a single appointment in the Cockpit (works even if campaign_id is null!)
+  // Call a single appointment in the Cockpit (works for past, today, AND future appointments!)
   const handleStartDialer = (item: ScheduledAppointmentItem) => {
     if (item.campaign_id) {
-      navigate(`/comercial/discador?campaignId=${item.campaign_id}&queueItemId=${item.id}`);
+      navigate(`/comercial/discador?fromAgenda=1&campaignId=${item.campaign_id}&queueItemId=${item.id}`);
     } else {
-      navigate(`/comercial/discador?queueItemId=${item.id}`);
+      navigate(`/comercial/discador?fromAgenda=1&queueItemId=${item.id}`);
     }
   };
 
@@ -481,7 +481,7 @@ export function DialerAgendaPage() {
       return;
     }
 
-    navigate(`/comercial/discador?queueItemIds=${ids.join(',')}`);
+    navigate(`/comercial/discador?fromAgenda=1&queueItemIds=${ids.join(',')}`);
   };
 
   // Open Modal to Create a Work Queue (dialer_campaigns) from selected/filtered appointments

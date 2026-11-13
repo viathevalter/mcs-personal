@@ -662,6 +662,7 @@ export function DialerCampaignsListPage() {
                       <th className="py-2.5 px-3">{tr('Telefone', 'Teléfono', 'Téléphone', 'Telefono')}</th>
                       <th className="py-2.5 px-3 text-center">{tr('Tentativas', 'Intentos', 'Tentatives', 'Tentativi')}</th>
                       <th className="py-2.5 px-3 text-center">{tr('Status', 'Estado', 'Statut', 'Stato')}</th>
+                      <th className="py-2.5 px-3 text-right">{tr('Ação', 'Acción', 'Action', 'Azione')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
@@ -710,6 +711,22 @@ export function DialerCampaignsListPage() {
                             }`}>
                               {statusLabel}
                             </span>
+                          </td>
+                          <td className="py-2.5 px-3 text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                setIsQueueModalOpen(false);
+                                navigate(
+                                  `/comercial/discador?fromAgenda=1&campaignId=${selectedCampaignForQueue?.id || item.campaign_id}&queueItemId=${item.id}`
+                                );
+                              }}
+                              className="h-7 px-2 text-[11px] font-bold gap-1 border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                            >
+                              <Play className="w-3 h-3" />
+                              {tr('Abrir', 'Abrir', 'Ouvrir', 'Apri')}
+                            </Button>
                           </td>
                         </tr>
                       );
