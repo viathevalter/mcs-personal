@@ -1093,6 +1093,13 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'Cataluña - Liseth',
+      'Sin Correo - Cataluña - Liseth',
+      'Sem E-mail - Cataluña - Liseth',
+      'Mailing Liseth - Cataluña 2026',
+      'Mailing Liseth Inéditos - Cataluña 2026',
+      'Tarragona - Liseth',
+      'Lleida - Liseth',
       'Wiseowe Itália',
       'Mailing Giada',
       'Mailing Giada - Inéditos PDF Italia',

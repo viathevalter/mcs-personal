@@ -184,6 +184,41 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // LISETH (ESPANHA - WISEOWE)
   // ==========================================
   {
+    id: 'aud_liseth_ineditos_cataluna_2026',
+    name: '🚀 🇪🇸 Liseth (Wiseowe) - Inéditos Cataluña (29 leads)',
+    leadCount: 29,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Liseth Inéditos - Cataluña 2026',
+    },
+  },
+  {
+    id: 'aud_liseth_cataluna_completo_2026',
+    name: '🎯 🇪🇸 Liseth (Wiseowe) - Cataluña Completo [Tag: Cataluña - Liseth] (58 leads)',
+    leadCount: 58,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Cataluña - Liseth'],
+      tagKeyword: 'Cataluña - Liseth',
+    },
+  },
+  {
+    id: 'aud_liseth_cataluna_sin_correo_2026',
+    name: '📞 🇪🇸 Liseth (Wiseowe) - Sin Correo p/ Marcador [Tag: Sin Correo - Cataluña - Liseth] (4 leads)',
+    leadCount: 4,
+    ownerKey: 'liseth',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Sin Correo - Cataluña - Liseth'],
+      tagKeyword: 'Sin Correo - Cataluña - Liseth',
+    },
+  },
+  {
     id: 'aud_liseth_ineditos_madrid_2026',
     name: '🚀 🇪🇸 Liseth (Wiseowe) - Inéditos Madrid (36 leads)',
     leadCount: 36,
