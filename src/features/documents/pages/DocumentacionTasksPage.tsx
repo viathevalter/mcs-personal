@@ -9,6 +9,7 @@ import {
     listDocumentRequests, createDocumentRequest, reopenDocumentRequest, updateDocumentRequest, deleteDocumentRequest, approveDocumentRequest, processDocumentOcr, HEXAGON_EMPRESA_ID, type DocumentRequest
 } from '../api/contractsApi';
 import { PdfCanvasViewer } from '../components/PdfCanvasViewer';
+import { RichTextEditor } from '@/features/financeiro/components/RichTextEditor';
 import { listWorkers } from '@/features/workers/api/workersApi';
 import { Combobox } from '@/components/ui/combobox';
 import { Button } from '@/components/ui/button';
@@ -68,6 +69,17 @@ const formatIsoToBr = (isoStr?: string | null): string => {
     const m = String(isoStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
     if (m) return `${m[3]}/${m[2]}/${m[1]}`;
     return isoStr;
+};
+
+const stripHtml = (html?: string | null): string => {
+    if (!html) return '';
+    return html
+        .replace(/<br\s*\/?>/gi, ' ')
+        .replace(/<\/p>|<\/div>|<\/li>/gi, ' ')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/gi, ' ')
+        .replace(/\s+/g, ' ')
+        .trim();
 };
 
 const formatCurrencyEur = (val: number): string => {
@@ -528,6 +540,8 @@ export function DocumentacionTasksPage() {
     const [savingNotice, setSavingNotice] = useState(false);
     const [noticeWorkerId, setNoticeWorkerId] = useState<string | null>(null);
     const [noticeWorkerName, setNoticeWorkerName] = useState<string>('');
+    const [noticeWorkerClient, setNoticeWorkerClient] = useState<string>('');
+    const [noticeWorkerPedido, setNoticeWorkerPedido] = useState<string>('');
     const [noticeAssignmentId, setNoticeAssignmentId] = useState<string | null>(null);
     const [noticeContratante, setNoticeContratante] = useState<string>('STOCCO');
     const [noticeWorkStartDate, setNoticeWorkStartDate] = useState<string>('');
@@ -3530,6 +3544,8 @@ Muchas gracias.`;
         setEditingNoticeContract(null);
         setNoticeWorkerId(null);
         setNoticeWorkerName('');
+        setNoticeWorkerClient('');
+        setNoticeWorkerPedido('');
         setNoticeAssignmentId(null);
         setNoticeContratante(resolveContratanteOption(activeEmpresaId || selectedEmpresaId));
         setNoticeWorkStartDate('');
@@ -3556,6 +3572,8 @@ Muchas gracias.`;
         setNoticeWorkerId(workerId);
         if (!workerId) {
             setNoticeWorkerName('');
+            setNoticeWorkerClient('');
+            setNoticeWorkerPedido('');
             setNoticeWorkStartDate('');
             return;
         }
@@ -3571,13 +3589,13 @@ Muchas gracias.`;
                 supabase
                     .schema('core_personal')
                     .from('workers')
-                    .select('id, nome, contratante, data_ingresso, data_alta_seguridad')
+                    .select('id, nome, contratante, cliente, cod_colab, data_ingresso, data_alta_seguridad')
                     .eq('id', workerId)
                     .maybeSingle(),
                 supabase
                     .schema('core_personal')
                     .from('worker_assignments')
-                    .select('id, empresa_id, start_date, planned_start_date')
+                    .select('id, empresa_id, client_id, pedido_id, start_date, planned_start_date')
                     .eq('worker_id', workerId)
                     .order('created_at', { ascending: false })
                     .limit(1)
@@ -3586,6 +3604,34 @@ Muchas gracias.`;
 
             if (w?.nome) setNoticeWorkerName(w.nome);
             if (wa?.id) setNoticeAssignmentId(wa.id);
+
+            let resolvedClient = w?.cliente || '';
+            let resolvedPedido = '';
+
+            const [clientRes, pedidoRes, allocRes] = await Promise.all([
+                wa?.client_id
+                    ? supabase.schema('core_common').from('clients').select('trade_name, legal_name').eq('id', wa.client_id).maybeSingle()
+                    : Promise.resolve({ data: null }),
+                wa?.pedido_id
+                    ? supabase.schema('core_comercial').from('pedidos').select('codigo').eq('id', wa.pedido_id).maybeSingle()
+                    : Promise.resolve({ data: null }),
+                w?.cod_colab
+                    ? supabase.schema('core_personal').from('vw_worker_allocations').select('cliente_nombre, codpedido').eq('cod_colab', w.cod_colab).order('fechainiciopedido', { ascending: false }).limit(1).maybeSingle()
+                    : Promise.resolve({ data: null }),
+            ]);
+
+            if (clientRes?.data) {
+                resolvedClient = clientRes.data.trade_name || clientRes.data.legal_name || resolvedClient;
+            } else if (allocRes?.data?.cliente_nombre) {
+                resolvedClient = allocRes.data.cliente_nombre;
+            }
+            if (pedidoRes?.data?.codigo) {
+                resolvedPedido = pedidoRes.data.codigo;
+            } else if (allocRes?.data?.codpedido) {
+                resolvedPedido = allocRes.data.codpedido;
+            }
+            setNoticeWorkerClient(resolvedClient);
+            setNoticeWorkerPedido(resolvedPedido);
             const rawContratante = w?.contratante || wa?.empresa_id || cached?.contratante;
             if (rawContratante) {
                 setNoticeContratante(resolveContratanteOption(rawContratante));
@@ -3606,6 +3652,13 @@ Muchas gracias.`;
         setEditingNoticeContract(contract);
         setNoticeWorkerId(contract.worker_id);
         setNoticeWorkerName(contract.worker?.nome || 'Trabalhador');
+        setNoticeWorkerClient(
+            contract.assignment?.client?.trade_name ||
+            contract.assignment?.client?.legal_name ||
+            contract.worker?.cliente ||
+            ''
+        );
+        setNoticeWorkerPedido(contract.pedido_codigo || contract.solicitud_codigo || '');
         setNoticeAssignmentId(contract.assignment_id);
         setNoticeContratante(contract.contratante || 'STOCCO');
         setNoticeWorkStartDate(info.workStartDate ? info.workStartDate.substring(0, 10) : '');
@@ -3618,10 +3671,7 @@ Muchas gracias.`;
         const defaultStopIso = info.stopDate || today;
         const defaultComp = info.payrollCompetence || (info.stopDate || info.startNotice || today).substring(0, 7);
         setNoticeCompetenceMonth(defaultComp);
-        setNoticeStopReason(
-            info.payrollStopReason ||
-            (info.notes ? info.notes : 'Abandono de trabalho / Não cumpriu aviso prévio')
-        );
+        setNoticeStopReason(info.payrollStopReason || 'Abandono de trabalho / Não cumpriu aviso prévio');
         setNoticePayrollDescriptionCustom('');
         setNoticePayrollDescriptionEdited(false);
 
@@ -3716,7 +3766,7 @@ Muchas gracias.`;
             work_start_date: noticeWorkStartDate || null,
             month_worked_days: parsedWorkedDays !== null && Number.isFinite(parsedWorkedDays) ? parsedWorkedDays : null,
             fulfilled_days_override: parsedOverride !== null && Number.isFinite(parsedOverride) ? parsedOverride : null,
-            notice_notes: noticeNotes.trim() || null,
+            notice_notes: (stripHtml(noticeNotes) || noticeNotes.includes('<img')) ? noticeNotes.trim() : null,
         };
 
         return {
@@ -3801,8 +3851,8 @@ Muchas gracias.`;
             dailyRate,
             penaltyTotal: penaltyTotalVal,
             finalDiscount: discountAmount,
-            stopReason: noticeStopReason || noticeNotes || 'Abandono de trabalho / Não cumpriu aviso prévio',
-            extraNotes: noticeNotes,
+            stopReason: noticeStopReason || stripHtml(noticeNotes) || 'Abandono de trabalho / Não cumpriu aviso prévio',
+            extraNotes: stripHtml(noticeNotes),
             monthWorkedDays: noticeMonthWorkedDays,
         });
 
@@ -3826,7 +3876,7 @@ Muchas gracias.`;
                 stop_date: finalStopDate,
                 fulfilled_days_override: fulfilledDaysToUse,
                 apply_deduction: true,
-                notice_notes: (noticeNotes || noticeStopReason || '').trim() || null,
+                notice_notes: (stripHtml(noticeNotes) || noticeNotes.includes('<img')) ? noticeNotes.trim() : (noticeStopReason || null),
             };
 
             if (!contractIdToConsolidate && noticeDialogMode === 'create' && noticeWorkerId) {
@@ -8203,7 +8253,7 @@ Muchas gracias.`;
             </Dialog>
             {/* Modal de Gestão, Inclusão e Consolidação de Desconto do Aviso Prévio na Folha */}
             <Dialog open={noticeDialogOpen} onOpenChange={setNoticeDialogOpen}>
-                <DialogContent className="sm:max-w-[95vw] max-w-[1320px] w-[95vw] p-5 bg-white dark:bg-slate-900 overflow-hidden">
+                <DialogContent className="sm:max-w-[95vw] max-w-[1320px] w-[95vw] max-h-[94vh] overflow-y-auto p-5 bg-white dark:bg-slate-900">
                     <DialogHeader className="pb-2 border-b border-slate-200 dark:border-slate-800">
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pr-6">
                             <div>
@@ -8216,6 +8266,25 @@ Muchas gracias.`;
                                 <DialogDescription className="text-xs mt-0.5">
                                     Controle los 15 días de preaviso, registre la fecha de cese/abandono y consolide el descuento directamente en la nómina (último salario).
                                 </DialogDescription>
+                                {(noticeWorkerClient || noticeWorkerPedido) && (
+                                    <div className="flex flex-wrap items-center gap-2 mt-2">
+                                        {noticeWorkerClient && (
+                                            <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-0.5 gap-1.5 bg-blue-50 text-blue-800 border border-blue-200 dark:bg-blue-950/40 dark:text-blue-200 dark:border-blue-800">
+                                                <Building2 className="h-3.5 w-3.5 shrink-0" />
+                                                Cliente: {noticeWorkerClient}
+                                            </Badge>
+                                        )}
+                                        {noticeWorkerPedido && (
+                                            <Badge variant="outline" className="text-xs font-mono font-semibold px-2.5 py-0.5 gap-1.5 bg-indigo-50 text-indigo-800 border-indigo-200 dark:bg-indigo-950/40 dark:text-indigo-200 dark:border-indigo-800">
+                                                <Package className="h-3.5 w-3.5 shrink-0" />
+                                                Pedido: {noticeWorkerPedido}
+                                                {editingNoticeContract?.solicitud_tipo === 'replacement' && !noticeWorkerPedido.startsWith('R-') && (
+                                                    <span className="text-[10px] opacity-80">(Reemplazo)</span>
+                                                )}
+                                            </Badge>
+                                        )}
+                                    </div>
+                                )}
                             </div>
                             {noticeDialogMode === 'edit' && (
                                 <div className="flex items-center gap-2 shrink-0">
@@ -8268,8 +8337,8 @@ Muchas gracias.`;
                             dailyRate: dailyRatePreview,
                             penaltyTotal: safePenalty,
                             finalDiscount: previewRestante,
-                            stopReason: noticeStopReason || noticeNotes || 'Abandono de trabalho / Não cumpriu aviso prévio',
-                            extraNotes: noticeNotes,
+                            stopReason: noticeStopReason || stripHtml(noticeNotes) || 'Abandono de trabalho / Não cumpriu aviso prévio',
+                            extraNotes: stripHtml(noticeNotes),
                             monthWorkedDays: noticeMonthWorkedDays,
                         });
 
@@ -8572,13 +8641,14 @@ Muchas gracias.`;
                                                     </div>
                                                 </div>
 
-                                                <div className="space-y-1 pt-1">
+                                                <div className="space-y-1.5 pt-1">
                                                     <Label className="text-[11px] font-semibold">Observación Adicional del Preaviso</Label>
-                                                    <Input
-                                                        placeholder="Ej: abandonó el trabajo el día 27/10 sin avisar al encargado..."
+                                                    <RichTextEditor
                                                         value={noticeNotes}
-                                                        onChange={(e) => setNoticeNotes(e.target.value)}
-                                                        className="h-8 text-xs bg-white dark:bg-black"
+                                                        onChange={setNoticeNotes}
+                                                        minHeight="135px"
+                                                        maxHeight="240px"
+                                                        placeholder="Escriba aquí las observaciones detalladas del preaviso, historial, comunicaciones o motivos..."
                                                     />
                                                 </div>
                                             </div>
