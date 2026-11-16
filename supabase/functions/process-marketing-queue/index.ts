@@ -135,7 +135,7 @@ serve(async (req) => {
           .from("marketing_campaign_queue")
           .select("*", { count: "exact", head: true })
           .eq("campaign_id", camp.id)
-          .eq("status", "pending");
+          .in("status", ["pending", "processing"]);
 
         if (!errCount && count && count > 0) {
           campaignsToProcess.push({ ...camp, pending: count });
@@ -226,6 +226,19 @@ serve(async (req) => {
     const sentDomainsInBatch = new Set<string>();
 
     for (const item of queueItems) {
+      // Lock atômico por linha: evita envio duplicado ou sobrescrita caso pg_cron e disparo manual rodem juntos
+      const { data: claimedItem } = await supabase
+        .from("marketing_campaign_queue")
+        .update({ status: "processing" })
+        .eq("id", item.id)
+        .eq("status", "pending")
+        .select("id")
+        .maybeSingle();
+
+      if (!claimedItem) {
+        continue;
+      }
+
       const campaign = item.marketing_campaigns;
       const template = campaign?.marketing_templates;
       const lead = item.leads;
@@ -688,6 +701,7 @@ serve(async (req) => {
               .select("*", { count: "exact", head: true })
               .eq("lead_id", targetLeadId)
               .eq("status", "sent")
+              .neq("id", item.id)
               .gte("sent_at", cooldownDate);
 
             if (recentSentCount && recentSentCount > 0) {
@@ -698,7 +712,8 @@ serve(async (req) => {
                   status: "failed",
                   error_message: "Proteção Anti-Spam: Lead já recebeu e-mail nos últimos 7 dias (Bloqueio de repetição)",
                 })
-                .eq("id", item.id);
+                .eq("id", item.id)
+                .is("resend_email_id", null);
               continue;
             }
           }
@@ -786,6 +801,11 @@ serve(async (req) => {
             // Se ainda for 429 após retry, não marca como falha definitiva: mantém pending para o próximo ciclo
             if (res.status === 429) {
               console.warn(`Item ${item.id} retido em pending devido a rate limit do Resend.`);
+              await supabase
+                .from("marketing_campaign_queue")
+                .update({ status: "pending" })
+                .eq("id", item.id)
+                .is("resend_email_id", null);
               await new Promise((resolve) => setTimeout(resolve, 1000));
               continue;
             }
@@ -800,6 +820,7 @@ serve(async (req) => {
               status: "sent",
               sent_at: new Date().toISOString(),
               resend_email_id: resData.id,
+              error_message: null,
             })
             .eq("id", item.id);
 
@@ -813,6 +834,11 @@ serve(async (req) => {
         // Se for erro de rate limit na exceção, mantém pending
         if (err.message && err.message.includes("429")) {
           console.warn(`Item ${item.id} mantido em pending.`);
+          await supabase
+            .from("marketing_campaign_queue")
+            .update({ status: "pending" })
+            .eq("id", item.id)
+            .is("resend_email_id", null);
           await new Promise((resolve) => setTimeout(resolve, 1000));
           continue;
         }
@@ -823,7 +849,8 @@ serve(async (req) => {
             status: "failed",
             error_message: err.message,
           })
-          .eq("id", item.id);
+          .eq("id", item.id)
+          .is("resend_email_id", null);
       }
     }
 
@@ -834,7 +861,7 @@ serve(async (req) => {
         .from("marketing_campaign_queue")
         .select("*", { count: "exact", head: true })
         .eq("campaign_id", cId)
-        .eq("status", "pending");
+        .in("status", ["pending", "processing"]);
 
       if (!countErr && count === 0) {
         await supabase
