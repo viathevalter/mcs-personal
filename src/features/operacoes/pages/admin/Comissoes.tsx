@@ -284,6 +284,8 @@ export const Comissoes: React.FC = () => {
                 cliente_cod: g.cliente_cod || '',
                 cliente_created_at: g.cliente_created_at || null,
                 pedido_cod: g.codpedido || '',
+                pedido_start_date: g.pedido_start_date || g.data_referencia,
+                pedido_created_at: g.pedido_created_at || null,
                 tipo_lancamento: g.tipo,
                 desc,
                 job_function: g.job_function || '',
@@ -334,6 +336,8 @@ export const Comissoes: React.FC = () => {
                 cliente_cod: '',
                 cliente_created_at: null,
                 pedido_cod: '',
+                pedido_start_date: l.created_at ? l.created_at.split('T')[0] : '',
+                pedido_created_at: null,
                 tipo_lancamento: l.tipo,
                 desc:
                     l.tipo === 'pagamento'
@@ -768,6 +772,7 @@ export const Comissoes: React.FC = () => {
             'Cliente': r.cliente_nome || '-',
             'Cadastro Cliente': r.cliente_created_at ? new Date(r.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
             'Pedido': r.pedido_cod || '-',
+            'Data Início Pedido': r.pedido_start_date ? new Date(r.pedido_start_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
             'Tipo': r.tipo_lancamento === 'bonus_cliente_novo' ? 'Bônus Cliente Novo' : r.tipo_lancamento === 'contratacao' ? 'Contratação (Vaga)' : r.tipo_lancamento,
             'Trabalhador Titular / Histórico': r.desc,
             'Documento': r.worker_doc || '-',
@@ -799,78 +804,63 @@ export const Comissoes: React.FC = () => {
 
     return (
         <div className="w-full px-1 sm:px-2 py-2 space-y-3.5 text-slate-800 dark:text-slate-100">
-            {/* Header & Primary Controls */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-                <div>
-                    <div className="flex items-center gap-2.5 flex-wrap">
-                        <h1 className="text-2xl font-bold tracking-tight">Conta Corrente de Comissões</h1>
-                        <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                            Comercial & Contratações
+            {/* Top Title Bar (Compact at the top) */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-1">
+                <div className="flex items-center gap-2.5 flex-wrap">
+                    <h1 className="text-xl sm:text-2xl font-bold tracking-tight leading-none">Conta Corrente de Comissões</h1>
+                    <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
+                        Comercial & Contratações
+                    </span>
+                    {activeRuleSummary.isCustom && (
+                        <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+                            ★ Regra Individual: {activeRuleSummary.sellerName} (€ {activeRuleSummary.comissao_base} vaga / € {activeRuleSummary.bonus_novo_cliente} cliente)
                         </span>
-                        {activeRuleSummary.isCustom && (
-                            <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
-                                ★ Regra Individual: {activeRuleSummary.sellerName} (€ {activeRuleSummary.comissao_base} vaga / € {activeRuleSummary.bonus_novo_cliente} cliente)
-                            </span>
-                        )}
-                    </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-0.5">
-                        Controle de bônus de novos clientes (€ {activeRuleSummary.bonus_novo_cliente}), contratações por vaga (€ {activeRuleSummary.comissao_base}), carência de {activeRuleSummary.carencia_dias} dias e liberação por quitação de fatura
-                    </p>
+                    )}
                 </div>
 
-                {/* Period & Seller Selector */}
-                <div className="flex flex-wrap gap-2 items-center w-full xl:w-auto">
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                {isSupervisor && (
+                    <div className="flex items-center gap-2 flex-wrap">
                         <button
-                            onClick={() => applyQuickPeriod('all_2026')}
-                            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${startDate === '2026-07-01' ? 'bg-white dark:bg-slate-900 shadow-sm text-blue-600 dark:text-blue-400' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
+                            onClick={() => handleOpenSettingsModal()}
+                            className="px-3 py-1.5 text-xs font-semibold border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
                         >
-                            Geral (2026)
+                            <Settings size={14} /> Regras por Vendedor
                         </button>
+
                         <button
-                            onClick={() => applyQuickPeriod('current_month')}
-                            className="px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            onClick={() => setIsAdjustmentModalOpen(true)}
+                            className="px-3 py-1.5 text-xs font-medium border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors flex items-center gap-1.5"
                         >
-                            Este Mês
+                            <PlusCircle size={14} /> Lançamento / Ajuste Extra
                         </button>
+
                         <button
-                            onClick={() => applyQuickPeriod('prev_month')}
-                            className="px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                            onClick={exportToExcel}
+                            className="px-3 py-1.5 text-xs font-medium border border-slate-700 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors flex items-center gap-1.5"
                         >
-                            Mês Anterior
+                            <Download size={14} /> Exportar Excel
                         </button>
                     </div>
+                )}
+            </div>
 
-                    <div className="flex items-center gap-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-1.5 rounded-lg">
-                        <Filter size={15} className="text-slate-400" />
-                        <span className="text-xs text-slate-500 font-medium">De:</span>
-                        <input
-                            type="date"
-                            value={startDate}
-                            onChange={e => setStartDate(e.target.value)}
-                            className="bg-transparent border-none outline-none text-xs sm:text-sm dark:text-white"
-                        />
-                        <span className="text-xs text-slate-500 font-medium ml-1">Até:</span>
-                        <input
-                            type="date"
-                            value={endDate}
-                            onChange={e => setEndDate(e.target.value)}
-                            className="bg-transparent border-none outline-none text-xs sm:text-sm dark:text-white"
-                        />
-                    </div>
-
-                    {isSupervisor && (
+            {/* Seller (Left) & Period Management Bar (Row Below Title) */}
+            <div className="flex flex-wrap items-center justify-between gap-2.5 bg-slate-50 dark:bg-slate-800/70 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700">
+                {/* Left Side: Commercial / Seller Selector */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Vendedor:</span>
+                    {isSupervisor ? (
                         <div className="flex items-center gap-1.5 flex-wrap">
                             <select
                                 value={vendedorFilter}
                                 onChange={e => setVendedorFilter(e.target.value)}
-                                className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-3 py-2 text-sm font-medium rounded-lg outline-none min-w-[230px]"
+                                className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1.5 text-xs sm:text-sm font-semibold rounded-lg outline-none min-w-[230px]"
                             >
-                                <option value="">Vendedores Ativos ({activeSellers.length})</option>
+                                <option value="">Todos os Vendedores Ativos ({activeSellers.length})</option>
                                 <optgroup label={`Vendedores Ativos (${activeSellers.length})`}>
                                     {activeSellers.map(s => {
                                         const rule = settings?.regras_vendedores?.[s.email.toLowerCase()];
-                                        const ruleTag = rule?.ativo ? ` • [Regra: €${rule.comissao_base}/€${rule.bonus_novo_cliente}]` : '';
+                                        const ruleTag = rule?.ativo ? ` • [€${rule.comissao_base}/€${rule.bonus_novo_cliente}]` : '';
                                         return (
                                             <option key={s.email} value={s.email}>
                                                 {s.name} ({s.email.split('@')[0]}){ruleTag}
@@ -905,14 +895,59 @@ export const Comissoes: React.FC = () => {
                                 </button>
                             )}
                         </div>
+                    ) : (
+                        <span className="text-sm font-semibold">{user?.email}</span>
                     )}
+                </div>
+
+                {/* Right Side: Period Presets + Date Range + Refresh */}
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Período:</span>
+                    <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
+                        <button
+                            onClick={() => applyQuickPeriod('all_2026')}
+                            className={`px-2.5 py-1 rounded-md font-medium transition-colors ${startDate === '2026-07-01' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'}`}
+                        >
+                            Geral (2026)
+                        </button>
+                        <button
+                            onClick={() => applyQuickPeriod('current_month')}
+                            className="px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        >
+                            Este Mês
+                        </button>
+                        <button
+                            onClick={() => applyQuickPeriod('prev_month')}
+                            className="px-2.5 py-1 rounded-md font-medium text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white transition-colors"
+                        >
+                            Mês Anterior
+                        </button>
+                    </div>
+
+                    <div className="flex items-center gap-2 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-1 rounded-lg">
+                        <Filter size={14} className="text-slate-400" />
+                        <span className="text-xs text-slate-500 font-medium">De:</span>
+                        <input
+                            type="date"
+                            value={startDate}
+                            onChange={e => setStartDate(e.target.value)}
+                            className="bg-transparent border-none outline-none text-xs sm:text-sm font-medium dark:text-white"
+                        />
+                        <span className="text-xs text-slate-500 font-medium ml-1">Até:</span>
+                        <input
+                            type="date"
+                            value={endDate}
+                            onChange={e => setEndDate(e.target.value)}
+                            className="bg-transparent border-none outline-none text-xs sm:text-sm font-medium dark:text-white"
+                        />
+                    </div>
 
                     <button
                         onClick={loadData}
-                        className="p-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors"
+                        className="p-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors"
                         title="Atualizar Conta Corrente"
                     >
-                        <RefreshCw size={16} className={loading ? 'animate-spin text-blue-600' : ''} />
+                        <RefreshCw size={15} className={loading ? 'animate-spin text-blue-600' : ''} />
                     </button>
                 </div>
             </div>

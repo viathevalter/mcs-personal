@@ -741,6 +741,10 @@ export const commissionService = {
                 vendedor_email: seller.email,
                 codpedido: matchedPedido?.codigo || currentEntry.meta.sol?.codigo || 'S/N',
                 pedido_id: matchedPedido?.id || undefined,
+                pedido_start_date: matchedPedido?.expected_start_date
+                    ? String(matchedPedido.expected_start_date).split('T')[0]
+                    : (firstEntry.meta.startDateStr || (matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : refDateStr)),
+                pedido_created_at: matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : null,
                 nome_colab: currentEntry.raw.worker?.nome || 'Trabalhador',
                 worker_doc: currentEntry.raw.worker?.dni || currentEntry.raw.worker?.nif || currentEntry.raw.worker?.cod_colab || '-',
                 job_function: currentEntry.raw.job_function_name_snapshot || currentEntry.raw.worker?.funcion || 'Geral',
@@ -809,6 +813,10 @@ export const commissionService = {
                 vendedor_email: seller.email,
                 codpedido: pedido?.codigo || '1º Pedido',
                 pedido_id: pedido?.id || undefined,
+                pedido_start_date: pedido?.expected_start_date
+                    ? String(pedido.expected_start_date).split('T')[0]
+                    : (pedido?.created_at ? String(pedido.created_at).split('T')[0] : firstDate),
+                pedido_created_at: pedido?.created_at ? String(pedido.created_at).split('T')[0] : null,
                 nome_colab: `Cadastro Cliente: ${new Date(clientCreatedDate + 'T12:00:00').toLocaleDateString('pt-PT')}`,
                 cliente_id: clientId,
                 cliente_cod: client?.codigo || undefined,
