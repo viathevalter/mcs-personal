@@ -327,6 +327,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
             source_worker_id,
             source_client_id,
             source_client_site_id,
+            source_end_date,
             target_job_function_id,
             target_job_function_name,
             target_assignment_id,
@@ -1382,6 +1383,11 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                 
                                 <p className="text-[11px] text-slate-700 dark:text-slate-300">
                                   Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{workerName}</strong>{workerCod}
+                                  {firstRep?.source_end_date && (
+                                    <span className="ml-1.5 inline-block px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 font-bold text-[10px]">
+                                      Trabalha até: {new Date(`${String(firstRep.source_end_date).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-PT')}
+                                    </span>
+                                  )}
                                 </p>
 
                                 {isFunctionChanged && (

@@ -191,10 +191,12 @@ export function NewSolicitudPage() {
         enabled: Boolean(selectedEmpresaId) && (actionType === 'order_postponement' || actionType === 'order_cancellation')
     });
 
-    // Job Function and Question States
+    // Job Function, Question, and Replaced Worker End Date States
     const { data: jobFunctions = [] } = useJobFunctions(selectedEmpresaId);
     const [targetFunctions, setTargetFunctions] = useState<Record<string, { id: string; name: string }>>({});
     const [answers, setAnswers] = useState<Record<string, Record<string, { pergunta: string; resposta: string; cargo: string }>>>({});
+    const [workerEndDates, setWorkerEndDates] = useState<Record<string, string>>({});
+    const [bulkWorkerEndDate, setBulkWorkerEndDate] = useState<string>('');
     const [isConfigDialogOpen, setIsConfigDialogOpen] = useState(false);
 
     // Email Notification State
@@ -422,6 +424,7 @@ export function NewSolicitudPage() {
         setSelectedPedidoId('all');
         setSelectedReemplazoId('all');
         setSelectedAssignments([]);
+        setWorkerEndDates({});
     }, [selectedClientId]);
 
     // Reset target site when target client changes
@@ -482,6 +485,35 @@ export function NewSolicitudPage() {
             }
         }
     }, [actionType, postponeOriginType, selectedReemplazoId, selectedPedidoId, selectedReemplazo, pedidos]);
+
+    // Pre-populate end date ONLY for late-replacement (baja recente) workers whose exit date is already known
+    useEffect(() => {
+        if (actionType === 'replacement' && selectedAssignments.length > 0) {
+            setWorkerEndDates(prev => {
+                const next = { ...prev };
+                let changed = false;
+                selectedAssignments.forEach(id => {
+                    if (next[id] === undefined) {
+                        const single = assignments.find(a => a.id === id);
+                        if (single?.is_baja_recente) {
+                            const rawExit = single.end_date || single.data_baixa || single.worker?.data_baixa;
+                            if (rawExit) {
+                                const d = new Date(rawExit);
+                                if (!isNaN(d.getTime())) {
+                                    const yyyy = d.getFullYear();
+                                    const mm = String(d.getMonth() + 1).padStart(2, '0');
+                                    const dd = String(d.getDate()).padStart(2, '0');
+                                    next[id] = `${yyyy}-${mm}-${dd}`;
+                                    changed = true;
+                                }
+                            }
+                        }
+                    }
+                });
+                return changed ? next : prev;
+            });
+        }
+    }, [selectedAssignments, actionType, assignments]);
 
     // Pre-select functions for each selected worker
     useEffect(() => {
@@ -682,6 +714,9 @@ export function NewSolicitudPage() {
                 if (Array.isArray(draft.selectedAssignments) && draft.selectedAssignments.length > 0) {
                     setSelectedAssignments(draft.selectedAssignments);
                 }
+                if (draft.workerEndDates && typeof draft.workerEndDates === 'object') {
+                    setWorkerEndDates(draft.workerEndDates);
+                }
 
                 if (draft.reason || draft.notes || draft.dueDate || (draft.selectedAssignments && draft.selectedAssignments.length > 0) || (draft.selectedClientId && draft.selectedClientId !== 'all') || (draft.selectedPedidoId && draft.selectedPedidoId !== 'all')) {
                     setIsDraftRestored(true);
@@ -706,6 +741,7 @@ export function NewSolicitudPage() {
             selectedClientSiteId,
             selectedPedidoId,
             selectedAssignments,
+            workerEndDates,
             workerSearch,
             pedidoSearch,
             includeRecentBajas,
@@ -733,7 +769,7 @@ export function NewSolicitudPage() {
         localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
     }, [
         actionType, selectedClientId, selectedClientSiteId, selectedPedidoId,
-        selectedAssignments, workerSearch, pedidoSearch, includeRecentBajas, title, priority, dueDate,
+        selectedAssignments, workerEndDates, workerSearch, pedidoSearch, includeRecentBajas, title, priority, dueDate,
         reason, notes, requiresReplacement, targetClientId, targetClientSiteId,
         requiresHousing, housingStartDate, housingEndDate, sendEmailNotification,
         additionalEmails, selectedEmails, emailLanguage, emailSubject, emailBody,
@@ -749,6 +785,8 @@ export function NewSolicitudPage() {
         setPriority('normal');
         setRequiresReplacement(false);
         setSelectedAssignments([]);
+        setWorkerEndDates({});
+        setBulkWorkerEndDate('');
         setSelectedClientId('all');
         setSelectedClientSiteId('all');
         setSelectedPedidoId('all');
@@ -835,17 +873,40 @@ export function NewSolicitudPage() {
                 || selectedClientName 
                 || 'Cliente');
 
+        const distinctSelectedPedidos = [
+            ...new Set(selectedList.map(a => a.pedido?.codigo || a.pedido_codigo).filter(Boolean))
+        ];
+
         const pedidoCodigo = ((actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation')) || (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')) && selectedReemplazo
             ? selectedReemplazo.codigo
-            : (selectedPedido?.codigo 
-                || firstAssignment?.pedido?.codigo 
-                || firstAssignment?.pedido_codigo 
-                || 'N/A');
+            : (distinctSelectedPedidos.length > 0
+                ? distinctSelectedPedidos.join(', ')
+                : (selectedPedido?.codigo 
+                    || firstAssignment?.pedido?.codigo 
+                    || firstAssignment?.pedido_codigo 
+                    || 'N/A'));
 
         let workerNames = selectedList.map(a => a.worker?.nome).filter(Boolean).join(', ');
         if (!workerNames && actionType === 'order_postponement' && (postponeOriginType === 'reemplazo' || postponeOriginType === 'relocation') && selectedReemplazo?.target_worker_nome) {
             workerNames = selectedReemplazo.target_worker_nome;
         }
+
+        const replacementWorkersHtml = actionType === 'replacement' && selectedList.length > 0
+            ? `<ul style="margin-top: 4px; margin-bottom: 6px;">${selectedList.map(a => {
+                const wName = a.worker?.nome || 'Trabalhador';
+                const wCod = a.worker?.cod_colab ? ` (${a.worker.cod_colab})` : '';
+                const pCod = a.pedido?.codigo ? ` [${a.pedido.codigo}]` : '';
+                const endDt = workerEndDates[a.id]
+                    ? formatLocalDate(workerEndDates[a.id])
+                    : (emailLanguage === 'es' ? 'Pendiente definir' : emailLanguage === 'en' ? 'Pending' : 'Pendente definir');
+                const untilLabel = emailLanguage === 'es'
+                    ? 'Trabaja hasta'
+                    : emailLanguage === 'en'
+                    ? 'Works until'
+                    : 'Trabalha até';
+                return `<li><strong>${wName}${wCod}</strong>${pCod} — <strong style="color: #b45309;">${untilLabel}: ${endDt}</strong></li>`;
+            }).join('')}</ul>`
+            : '';
 
         const expectedStartStr = dueDate 
             ? formatLocalDate(dueDate)
@@ -1050,12 +1111,16 @@ export function NewSolicitudPage() {
 <p><strong>Detalles de la Operación:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Código del Pedido:</strong> ${pedidoCodigo}</li>
-  <li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || 'Ninguno seleccionado'}</li>
-  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
+  <li><strong>Código(s) del Pedido:</strong> ${pedidoCodigo}</li>
+  ${actionType === 'replacement' && replacementWorkersHtml
+    ? `<li><strong>Trabajador(es) Reemplazado(s) y Fecha Fin de Trabajo:</strong>${replacementWorkersHtml}</li>
+  <li><strong>Fecha de Inicio de la Nueva Contratación (Sustituto):</strong> ${expectedStartStr}</li>`
+    : `<li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || 'Ninguno seleccionado'}</li>
+  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>`}
   <li><strong>Motivo:</strong> ${reason || 'No informado'}</li>
   <li><strong>Observaciones Extras:</strong> ${notes || 'Ninguna'}</li>
 </ul>
+${actionType === 'replacement' ? '<p><strong>Importante (Seguridad Social / RRHH / Logística):</strong> Mantener activa el alta y asignación de cada trabajador reemplazado hasta su respectiva fecha de cierre indicada arriba y programar su baja tras dicha fecha.</p>' : ''}
 <p>Por favor, realicen los trámites necesarios en sus respectivos sectores.</p>
 <p>Atentamente,<br/><strong>Operaciones</strong></p>`;
         } else if (emailLanguage === 'en') {
@@ -1064,12 +1129,16 @@ export function NewSolicitudPage() {
 <p><strong>Operation Details:</strong></p>
 <ul>
   <li><strong>Client:</strong> ${clientName}</li>
-  <li><strong>Order Code:</strong> ${pedidoCodigo}</li>
-  <li><strong>Affected Worker(s):</strong> ${workerNames || 'None selected'}</li>
-  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
+  <li><strong>Order Code(s):</strong> ${pedidoCodigo}</li>
+  ${actionType === 'replacement' && replacementWorkersHtml
+    ? `<li><strong>Replaced Worker(s) & Last Working Day:</strong>${replacementWorkersHtml}</li>
+  <li><strong>New Hire Start Date (Replacement):</strong> ${expectedStartStr}</li>`
+    : `<li><strong>Affected Worker(s):</strong> ${workerNames || 'None selected'}</li>
+  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>`}
   <li><strong>Reason:</strong> ${reason || 'Not provided'}</li>
   <li><strong>Extra Observations:</strong> ${notes || 'None'}</li>
 </ul>
+${actionType === 'replacement' ? '<p><strong>Important (Social Security / HR / Logistics):</strong> Keep each replaced worker active until their respective last working day listed above and schedule offboarding after that date.</p>' : ''}
 <p>Please carry out the necessary procedures in your respective departments.</p>
 <p>Best regards,<br/><strong>Operations</strong></p>`;
         } else {
@@ -1078,12 +1147,16 @@ export function NewSolicitudPage() {
 <p><strong>Detalhes da Operação:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Código do Pedido:</strong> ${pedidoCodigo}</li>
-  <li><strong>Trabalhador(es) Afetado(s):</strong> ${workerNames || 'Nenhum selecionado'}</li>
-  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>
+  <li><strong>Código(s) do Pedido:</strong> ${pedidoCodigo}</li>
+  ${actionType === 'replacement' && replacementWorkersHtml
+    ? `<li><strong>Trabalhador(es) Substituído(s) e Data de Encerramento:</strong>${replacementWorkersHtml}</li>
+  <li><strong>Data de Início da Nova Contratação (Substituto):</strong> ${expectedStartStr}</li>`
+    : `<li><strong>Trabalhador(es) Afetado(s):</strong> ${workerNames || 'Nenhum selecionado'}</li>
+  <li><strong>${dateLabel}:</strong> ${expectedStartStr}</li>`}
   <li><strong>Motivo:</strong> ${reason || 'Não informado'}</li>
   <li><strong>Observações Extras:</strong> ${notes || 'Nenhuma'}</li>
 </ul>
+${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH / Logística):</strong> Manter cada trabalhador substituído ativo até a respectiva data de encerramento informada acima e programar a baixa somente após essa data.</p>' : ''}
 <p>Por favor, realizem os trâmites necessários nos seus respectivos setores.</p>
 <p>Atentamente,<br/><strong>Operações</strong></p>`;
         }
@@ -1095,7 +1168,7 @@ export function NewSolicitudPage() {
         if (!isBodyEdited) {
             setEmailBody(body);
         }
-    }, [actionType, selectedAssignments, assignments, selectedPedidoId, pedidos, dueDate, reason, notes, isSubjectEdited, isBodyEdited, emailLanguage]);
+    }, [actionType, selectedAssignments, workerEndDates, assignments, selectedPedidoId, pedidos, dueDate, reason, notes, isSubjectEdited, isBodyEdited, emailLanguage]);
 
     const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
         setEmailLanguage(lang);
@@ -1205,6 +1278,28 @@ export function NewSolicitudPage() {
                 toast.error('Informe o motivo do desligamento.');
                 return;
             }
+        } else if (actionType === 'replacement') {
+            if (selectedAssignments.length === 0) {
+                toast.error('Selecione pelo menos um trabalhador na tabela.');
+                return;
+            }
+            if (!dueDate) {
+                toast.error('Informe a Data de Início da Nova Contratação (substituto).');
+                return;
+            }
+            const missingEndDateWorkers = assignments
+                .filter(a => selectedAssignments.includes(a.id) && !workerEndDates[a.id]?.trim())
+                .map(a => a.worker?.nome || a.worker?.cod_colab || 'Trabalhador');
+            if (missingEndDateWorkers.length > 0) {
+                toast.error(
+                    `Informe a Data de Encerramento de Trabalho (até quando vai trabalhar) para: ${missingEndDateWorkers.join(', ')}.`
+                );
+                return;
+            }
+            if (!reason.trim()) {
+                toast.error('Informe o motivo da substituição para continuar.');
+                return;
+            }
         } else {
             if (selectedAssignments.length === 0) {
                 toast.error('Selecione pelo menos um trabalhador na tabela.');
@@ -1219,7 +1314,7 @@ export function NewSolicitudPage() {
         const selectedList = assignments.filter(a => selectedAssignments.includes(a.id));
         const firstAssignment = selectedList[0];
 
-        // Guardrail: prevent submitting hidden workers left over from a previous draft or mixed clients
+        // Guardrail: workers in the same solicitud must belong to the SAME Client (may belong to different Pedidos of that Client)
         const isWorkerLevelOperation =
             actionType === 'replacement' ||
             actionType === 'relocation' ||
@@ -1234,20 +1329,26 @@ export function NewSolicitudPage() {
             );
             if (distinctClientKeys.size > 1) {
                 toast.error(
-                    'Você selecionou trabalhadores de clientes diferentes (provavelmente de um rascunho anterior). Clique em "Limpar" ao lado de selecionados e marque apenas os trabalhadores do mesmo cliente.'
+                    'Todos os trabalhadores selecionados devem pertencer ao mesmo Cliente (podem ser de pedidos diferentes do mesmo cliente). Clique em "Limpar" na seleção para corrigir.'
                 );
                 return;
             }
 
-            if ((pedidoSearch.trim() || selectedClientId !== 'all') && selectedList.some(a => !filteredAssignments.some(fa => fa.id === a.id))) {
-                const hiddenNames = selectedList
-                    .filter(a => !filteredAssignments.some(fa => fa.id === a.id))
-                    .map(a => a.worker?.nome || a.worker?.cod_colab || 'Trabalhador')
-                    .join(', ');
-                toast.error(
-                    `Há trabalhador(es) selecionado(s) fora do filtro atual (${hiddenNames}). Clique em "Limpar" ao lado de selecionados antes de enviar.`
-                );
-                return;
+            if (selectedClientId !== 'all') {
+                const wrongClientWorkers = selectedList
+                    .filter(a => {
+                        const aClientName = a.client?.trade_name || a.client?.legal_name || a.worker?.cliente || '';
+                        const isIdMatch = (a.client_id && a.client_id === selectedClientId) || (a.client?.id && a.client?.id === selectedClientId);
+                        const isNameMatch = aClientName && normalizeString(aClientName) === normalizeString(selectedClientName);
+                        return !isIdMatch && !isNameMatch;
+                    })
+                    .map(a => a.worker?.nome || a.worker?.cod_colab || 'Trabalhador');
+                if (wrongClientWorkers.length > 0) {
+                    toast.error(
+                        `Há trabalhador(es) selecionado(s) de outro cliente (${wrongClientWorkers.join(', ')}). Clique em "Limpar" ao lado de selecionados.`
+                    );
+                    return;
+                }
             }
         }
         
@@ -1282,6 +1383,7 @@ export function NewSolicitudPage() {
             source_pedido_item_id: a.pedido_item_id,
             source_client_id: a.client_id,
             source_client_site_id: a.client_site_id,
+            source_end_date: actionType === 'replacement' ? (workerEndDates[a.id] || null) : null,
             target_client_id: actionType === 'relocation' && targetClientId !== 'all' ? targetClientId : null,
             target_client_site_id: actionType === 'relocation' && targetClientSiteId !== 'all' ? targetClientSiteId : null,
             target_job_function_id: actionType === 'replacement' && targetFunctions[a.id]?.id ? targetFunctions[a.id].id : null,
@@ -2273,6 +2375,9 @@ export function NewSolicitudPage() {
                                      actionType === 'order_extension' ? t('torre_controle.new_solicitud.date_extension') : 
                                      actionType === 'order_termination' ? t('torre_controle.new_solicitud.date_termination') : 
                                      actionType === 'order_cancellation' ? t('torre_controle.new_solicitud.date_cancellation') :
+                                     actionType === 'replacement' ? (
+                                        <span>{t('torre_controle.new_solicitud.date_new_hire')} <span className="text-rose-500 font-bold">*</span></span>
+                                     ) :
                                      t('torre_controle.new_solicitud.date_new_hire')}
                                 </label>
                                 <Input 
@@ -2378,6 +2483,122 @@ export function NewSolicitudPage() {
 
                             {actionType === 'replacement' && (
                                 <div className="space-y-4 border-t border-b py-4 my-2 border-slate-100 dark:border-slate-800 animate-fade-in">
+                                    {/* Card Obrigatório: Data de Encerramento do(s) Trabalhador(es) Substituído(s) */}
+                                    <div className="bg-amber-50/60 dark:bg-amber-950/20 p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 space-y-3">
+                                        <div>
+                                            <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center justify-between gap-1.5">
+                                                <span className="flex items-center gap-1.5">
+                                                    <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
+                                                    Encerramento do(s) Substituído(s) <span className="text-rose-600 font-extrabold">*</span>
+                                                </span>
+                                                {selectedAssignments.length > 0 && (
+                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200">
+                                                        {selectedAssignments.filter(id => Boolean(workerEndDates[id]?.trim())).length}/{selectedAssignments.length} preenchido(s)
+                                                    </span>
+                                                )}
+                                            </h3>
+                                            <p className="text-[11px] text-amber-800/85 dark:text-amber-300/80 mt-1 leading-snug">
+                                                Informe <strong>até que dia cada trabalhador substituído vai trabalhar</strong>. Essa data irá para o e-mail, Seguridade Social e Alertas Operacionais.
+                                            </p>
+                                        </div>
+
+                                        {selectedAssignments.length === 0 ? (
+                                            <div className="text-xs text-amber-700/80 dark:text-amber-400/80 italic bg-white/70 dark:bg-slate-900/50 p-2.5 rounded-lg border border-amber-200/60 dark:border-amber-900/40 text-center">
+                                                Selecione o(s) trabalhador(es) na tabela ao lado para definir a data final de cada um.
+                                            </div>
+                                        ) : (
+                                            <div className="space-y-2.5">
+                                                {selectedAssignments.length > 1 && (
+                                                    <div className="flex items-center gap-1.5 p-2 rounded-lg bg-white/80 dark:bg-slate-900/60 border border-amber-200 dark:border-amber-800/60">
+                                                        <Input
+                                                            type="date"
+                                                            value={bulkWorkerEndDate}
+                                                            onChange={e => setBulkWorkerEndDate(e.target.value)}
+                                                            className="h-8 text-xs flex-1 bg-white dark:bg-slate-950"
+                                                        />
+                                                        <Button
+                                                            type="button"
+                                                            size="sm"
+                                                            variant="outline"
+                                                            disabled={!bulkWorkerEndDate}
+                                                            onClick={() => {
+                                                                if (!bulkWorkerEndDate) return;
+                                                                setWorkerEndDates(prev => {
+                                                                    const next = { ...prev };
+                                                                    selectedAssignments.forEach(id => {
+                                                                        next[id] = bulkWorkerEndDate;
+                                                                    });
+                                                                    return next;
+                                                                });
+                                                            }}
+                                                            className="h-8 px-2.5 text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 shrink-0"
+                                                        >
+                                                            Aplicar a todos
+                                                        </Button>
+                                                    </div>
+                                                )}
+
+                                                <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+                                                    {selectedAssignments.map(assignId => {
+                                                        const a = assignments.find(item => item.id === assignId);
+                                                        const wName = a?.worker?.nome || 'Trabalhador';
+                                                        const wCod = a?.worker?.cod_colab || '';
+                                                        const pCod = a?.pedido?.codigo || '';
+                                                        const val = workerEndDates[assignId] || '';
+                                                        return (
+                                                            <div
+                                                                key={assignId}
+                                                                className={`p-2.5 rounded-lg border bg-white dark:bg-slate-950 space-y-1.5 transition-colors ${
+                                                                    val
+                                                                        ? 'border-emerald-300 dark:border-emerald-800/70'
+                                                                        : 'border-rose-300 dark:border-rose-800/70'
+                                                                }`}
+                                                            >
+                                                                <div className="flex items-center justify-between gap-1.5">
+                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={wName}>
+                                                                        {wName}
+                                                                    </span>
+                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                        {wCod && (
+                                                                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                                                                                {wCod}
+                                                                            </span>
+                                                                        )}
+                                                                        {pCod && (
+                                                                            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                                                {pCod}
+                                                                            </span>
+                                                                        )}
+                                                                    </div>
+                                                                </div>
+                                                                <div className="flex items-center justify-between gap-2">
+                                                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                                        Trabalha até <span className="text-rose-500 font-bold">*</span>
+                                                                    </label>
+                                                                    <Input
+                                                                        type="date"
+                                                                        value={val}
+                                                                        onChange={e =>
+                                                                            setWorkerEndDates(prev => ({
+                                                                                ...prev,
+                                                                                [assignId]: e.target.value,
+                                                                            }))
+                                                                        }
+                                                                        className={`h-8 text-xs max-w-[155px] ${
+                                                                            val
+                                                                                ? 'border-emerald-300 focus-visible:ring-emerald-500'
+                                                                                : 'border-rose-300 focus-visible:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
+                                                                        }`}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        )}
+                                    </div>
+
                                     <div className="bg-indigo-50/40 dark:bg-slate-900/20 p-4 rounded-xl border border-indigo-100 dark:border-slate-850 space-y-3">
                                         <h3 className="text-xs font-bold text-indigo-900 dark:text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
                                             <HelpCircle className="w-4 h-4 text-indigo-650" />
@@ -2573,6 +2794,7 @@ export function NewSolicitudPage() {
                                     !reason.trim() ||
                                     (actionType === 'order_postponement' && !dueDate) ||
                                     (actionType === 'offboarding' && !dueDate) ||
+                                    (actionType === 'replacement' && (!dueDate || selectedAssignments.some(id => !workerEndDates[id]?.trim()))) ||
                                     createSolicitudWithTargets.isPending ||
                                     isSubmitting
                                 }

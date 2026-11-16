@@ -692,6 +692,11 @@ export function SeguridadePage() {
                                             <TableCell>
                                                 <div className="font-semibold text-sm">{item.worker.nome}</div>
                                                 <div className="text-xs text-muted-foreground font-mono">{item.worker.cod_colab}</div>
+                                                {item.reemplazo_end_date && (
+                                                    <div className="mt-1 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 text-[10px] font-bold text-amber-900 dark:text-amber-200">
+                                                        ⚠️ Em Reemplazo{item.reemplazo_codigo ? ` (${item.reemplazo_codigo})` : ''} • Trabalha até: {formatDateBR(item.reemplazo_end_date)}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell className="font-medium text-sm">
                                                 {item.origem_cliente_nome || '-'}
@@ -877,6 +882,19 @@ function PremiumStatusCard({
                     <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-800 dark:text-slate-200 bg-slate-100/70 dark:bg-slate-900 p-1.5 rounded border border-slate-200/60 dark:border-slate-800">
                         <Building2 className="h-3.5 w-3.5 text-indigo-500 shrink-0" />
                         <span className="truncate">{item.origem_cliente_nome}</span>
+                    </div>
+                )}
+
+                {/* Alerta de Reemplazo com Data Final de Trabalho */}
+                {item.reemplazo_end_date && (
+                    <div className="flex items-start gap-1.5 p-2 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-300 dark:border-amber-800 text-[11px] font-bold text-amber-900 dark:text-amber-200">
+                        <AlertTriangle className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                        <div className="leading-snug">
+                            <span className="block">Em Reemplazo{item.reemplazo_codigo ? ` (${item.reemplazo_codigo})` : ''}</span>
+                            <span className="text-rose-700 dark:text-rose-300 font-extrabold">
+                                Trabalha até: {formatDateBR(item.reemplazo_end_date)}
+                            </span>
+                        </div>
                     </div>
                 )}
 

@@ -105,6 +105,8 @@ export interface SeguridadeStatusWithWorker extends SeguridadeStatus {
     autor_inativacao?: string;
     hist_observacoes?: string;
     hist_data_efetiva?: string;
+    reemplazo_codigo?: string | null;
+    reemplazo_end_date?: string | null;
     worker: {
         id: string;
         nome: string;

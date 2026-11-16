@@ -108,12 +108,34 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
             || solicitud.pedido?.client?.legal_name 
             || 'Cliente';
 
-        const pedidoCodigo = solicitud.pedido?.codigo || 'N/A';
+        const distinctTargetPedidos = [
+            ...new Set(targets.map((tItem: any) => tItem.source_pedido?.codigo).filter(Boolean))
+        ];
+        const pedidoCodigo = distinctTargetPedidos.length > 0
+            ? distinctTargetPedidos.join(', ')
+            : (solicitud.pedido?.codigo || 'N/A');
 
         const workerNames = targets
             .map(t => t.source_worker?.nome)
             .filter(Boolean)
             .join(', ');
+
+        const replacementWorkersHtml = solicitud.tipo === 'replacement' && targets.length > 0
+            ? `<ul style="margin-top: 4px; margin-bottom: 6px;">${targets.map((tItem: any) => {
+                const wName = tItem.source_worker?.nome || 'Trabalhador';
+                const wCod = tItem.source_worker?.cod_colab ? ` (${tItem.source_worker.cod_colab})` : '';
+                const pCod = tItem.source_pedido?.codigo ? ` [${tItem.source_pedido.codigo}]` : '';
+                const endDt = tItem.source_end_date
+                    ? formatDateClean(tItem.source_end_date)
+                    : (emailLanguage === 'es' ? 'No informada' : emailLanguage === 'en' ? 'Not informed' : 'Não informada');
+                const untilLabel = emailLanguage === 'es'
+                    ? 'Trabaja hasta'
+                    : emailLanguage === 'en'
+                    ? 'Works until'
+                    : 'Trabalha até';
+                return `<li><strong>${wName}${wCod}</strong>${pCod} — <strong style="color: #b45309;">${untilLabel}: ${endDt}</strong></li>`;
+            }).join('')}</ul>`
+            : '';
 
         const effectiveDueDate = overrideDueDate || solicitud.due_date;
         const dateStr = effectiveDueDate ? formatDateClean(effectiveDueDate) : '';
@@ -197,8 +219,10 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
 <p><strong>Detalles de la Operación:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Código del Pedido:</strong> ${pedidoCodigo}</li>
-  <li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || solicitud.title || 'Ninguno seleccionado'}</li>
+  <li><strong>Código(s) del Pedido:</strong> ${pedidoCodigo}</li>
+  ${solicitud.tipo === 'replacement' && replacementWorkersHtml
+    ? `<li><strong>Trabajador(es) Reemplazado(s) y Fecha Fin de Trabajo:</strong>${replacementWorkersHtml}</li>`
+    : `<li><strong>Trabajador(es) Afectado(s):</strong> ${workerNames || solicitud.title || 'Ninguno seleccionado'}</li>`}
   ${hasDateChange ? `<li><strong>Fecha Anterior:</strong> <span style="text-decoration: line-through; color: #64748b;">${prevDateStr}</span></li>` : ''}
   <li><strong>${dateLabel} (Actualizada):</strong> <strong style="color: #d97706;">${expectedStartStr}</strong></li>
   <li><strong>Motivo:</strong> ${displayReason}</li>
@@ -214,8 +238,10 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
 <p><strong>Operation Details:</strong></p>
 <ul>
   <li><strong>Client:</strong> ${clientName}</li>
-  <li><strong>Order Code:</strong> ${pedidoCodigo}</li>
-  <li><strong>Affected Worker(s):</strong> ${workerNames || solicitud.title || 'None selected'}</li>
+  <li><strong>Order Code(s):</strong> ${pedidoCodigo}</li>
+  ${solicitud.tipo === 'replacement' && replacementWorkersHtml
+    ? `<li><strong>Replaced Worker(s) & Last Working Day:</strong>${replacementWorkersHtml}</li>`
+    : `<li><strong>Affected Worker(s):</strong> ${workerNames || solicitud.title || 'None selected'}</li>`}
   ${hasDateChange ? `<li><strong>Previous Date:</strong> <span style="text-decoration: line-through; color: #64748b;">${prevDateStr}</span></li>` : ''}
   <li><strong>${dateLabel} (Updated):</strong> <strong style="color: #d97706;">${expectedStartStr}</strong></li>
   <li><strong>Reason:</strong> ${displayReason}</li>
@@ -231,8 +257,10 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
 <p><strong>Detalhes da Operação:</strong></p>
 <ul>
   <li><strong>Cliente:</strong> ${clientName}</li>
-  <li><strong>Código do Pedido:</strong> ${pedidoCodigo}</li>
-  <li><strong>Trabalhador(es) Afetado(s):</strong> ${workerNames || solicitud.title || 'Nenhum selecionado'}</li>
+  <li><strong>Código(s) do Pedido:</strong> ${pedidoCodigo}</li>
+  ${solicitud.tipo === 'replacement' && replacementWorkersHtml
+    ? `<li><strong>Trabalhador(es) Substituído(s) e Data de Encerramento:</strong>${replacementWorkersHtml}</li>`
+    : `<li><strong>Trabalhador(es) Afetado(s):</strong> ${workerNames || solicitud.title || 'Nenhum selecionado'}</li>`}
   ${hasDateChange ? `<li><strong>Data Anterior:</strong> <span style="text-decoration: line-through; color: #64748b;">${prevDateStr}</span></li>` : ''}
   <li><strong>${dateLabel} (Atualizada):</strong> <strong style="color: #d97706;">${expectedStartStr}</strong></li>
   <li><strong>Motivo:</strong> ${displayReason}</li>

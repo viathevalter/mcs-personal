@@ -51,6 +51,7 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
     }
 
     const isOffboarding = solicitud?.tipo === 'offboarding' || displayItems.some((t: any) => t.action_type === 'offboard');
+    const isReplacement = solicitud?.tipo === 'replacement' || displayItems.some((t: any) => t.action_type === 'replace');
 
     return (
         <Card>
@@ -73,6 +74,9 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                         <TableHead>{t('solicitud_detail.targets.housing')}</TableHead>
                                     </>
                                 )}
+                                {isReplacement && (
+                                    <TableHead>Trabalha até (Encerramento)</TableHead>
+                                )}
                                 {isOffboarding && (
                                     <>
                                         <TableHead>{t('solicitud_detail.targets.offboarding_date')}</TableHead>
@@ -88,6 +92,7 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                 const workerName = target.source_worker?.nome || 'N/A';
                                 const siteName = target.source_site?.name || 'N/A';
                                 const clientName = target.source_client?.trade_name || target.source_client?.legal_name || 'N/A';
+                                const pedidoCodigo = target.source_pedido?.codigo || null;
                                 const targetSiteName = target.target_site?.name || 'N/A';
                                 const targetClientName = target.target_client?.trade_name || target.target_client?.legal_name || 'N/A';
 
@@ -101,7 +106,10 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                         </TableCell>
                                         <TableCell className="text-sm">
                                             <div className="font-medium">{clientName}</div>
-                                            <div className="text-xs text-muted-foreground">{siteName}</div>
+                                            <div className="text-xs text-muted-foreground">
+                                                {siteName}
+                                                {pedidoCodigo ? ` • ${pedidoCodigo}` : ''}
+                                            </div>
                                         </TableCell>
                                         {solicitud?.tipo === 'relocation' && (
                                             <>
@@ -126,6 +134,11 @@ export function SolicitudTargetsTab({ solicitud }: { solicitud: any }) {
                                                     )}
                                                 </TableCell>
                                             </>
+                                        )}
+                                        {isReplacement && (
+                                            <TableCell className="text-xs font-bold whitespace-nowrap text-amber-700 dark:text-amber-400">
+                                                {target.source_end_date ? `📅 ${formatLocalDate(target.source_end_date)}` : '-'}
+                                            </TableCell>
                                         )}
                                         {isOffboarding && (
                                             <>
