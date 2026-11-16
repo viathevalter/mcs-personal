@@ -450,13 +450,45 @@ export const Comissoes: React.FC = () => {
 
         const dirMultiplier = sortDir === 'asc' ? 1 : -1;
 
+        // Build pedido-level metadata so when groupByPedido is ON, all rows of the same Pedido stay together
+        const pedidoFirstDateMap = new Map<string, number>();
+        const pedidoClientMap = new Map<string, string>();
+        filtered.forEach(r => {
+            if (!r.pedido_cod) return;
+            const dStr = r.pedido_start_date || r.date;
+            const t = dStr ? new Date(dStr).getTime() : 0;
+            if (!pedidoFirstDateMap.has(r.pedido_cod) || (t > 0 && t < pedidoFirstDateMap.get(r.pedido_cod)!)) {
+                pedidoFirstDateMap.set(r.pedido_cod, t);
+            }
+            if (r.cliente_nome && !pedidoClientMap.has(r.pedido_cod)) {
+                pedidoClientMap.set(r.pedido_cod, r.cliente_nome);
+            }
+        });
+
         return [...filtered].sort((a, b) => {
+            // If groupByPedido is ON and rows belong to different Pedidos, sort the Pedido groups first so a Pedido is NEVER split apart!
+            if (groupByPedido && a.pedido_cod !== b.pedido_cod) {
+                let groupCmp = 0;
+                if (sortField === 'cliente') {
+                    const cA = pedidoClientMap.get(a.pedido_cod) || a.cliente_nome || '';
+                    const cB = pedidoClientMap.get(b.pedido_cod) || b.cliente_nome || '';
+                    groupCmp = String(cA).localeCompare(String(cB), 'pt', { sensitivity: 'base', numeric: true });
+                } else if (sortField === 'date') {
+                    const tA = pedidoFirstDateMap.get(a.pedido_cod) || 0;
+                    const tB = pedidoFirstDateMap.get(b.pedido_cod) || 0;
+                    groupCmp = tA - tB;
+                }
+                if (groupCmp === 0) {
+                    groupCmp = String(a.pedido_cod || '').localeCompare(String(b.pedido_cod || ''), 'pt', { sensitivity: 'base', numeric: true });
+                }
+                return groupCmp * dirMultiplier;
+            }
+
             let cmp = 0;
             switch (sortField) {
                 case 'pedido': {
                     cmp = String(a.pedido_cod || '').localeCompare(String(b.pedido_cod || ''), 'pt', { sensitivity: 'base', numeric: true });
                     if (cmp === 0) {
-                        // Put bonus_cliente_novo before or after contratacao, then sort worker A-Z
                         cmp = String(a.desc || '').localeCompare(String(b.desc || ''), 'pt', { sensitivity: 'base', numeric: true });
                     }
                     break;
@@ -506,7 +538,7 @@ export const Comissoes: React.FC = () => {
                     break;
                 }
                 case 'status': {
-                    const order: Record<string, number> = { ELEGIVEL: 4, BLOQUEADA_FATURA: 3, BLOQUEADA_CARENCIA: 2, PAGO: 1, AJUSTE: 0 };
+                    const order: Record<string, number> = { ELEGIVEL: 4, BLOQUEADA_FATURA: 3, BLOQUEADA_CARENCIA: 2, REMANEJADO: 1, PAGO: 0, AJUSTE: -1 };
                     cmp = (order[a.status] ?? 0) - (order[b.status] ?? 0);
                     break;
                 }
@@ -518,18 +550,20 @@ export const Comissoes: React.FC = () => {
                 }
                 case 'date':
                 default: {
-                    const tA = a.date ? new Date(a.date).getTime() : 0;
-                    const tB = b.date ? new Date(b.date).getTime() : 0;
+                    const dA = a.pedido_start_date || a.date;
+                    const dB = a.pedido_cod === b.pedido_cod ? (b.start_date || b.date) : (b.pedido_start_date || b.date);
+                    const tA = dA ? new Date(dA).getTime() : 0;
+                    const tB = dB ? new Date(dB).getTime() : 0;
                     cmp = tA - tB;
                     if (cmp === 0) {
-                        cmp = String(a.cliente_nome || '').localeCompare(String(b.cliente_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
+                        cmp = String(a.desc || '').localeCompare(String(b.desc || ''), 'pt', { sensitivity: 'base', numeric: true });
                     }
                     break;
                 }
             }
             return cmp * dirMultiplier;
         });
-    }, [rows, clienteFilter, pedidoFilter, mesRefFilter, tipoFilter, statusFilter, searchQuery, sortField, sortDir]);
+    }, [rows, clienteFilter, pedidoFilter, mesRefFilter, tipoFilter, statusFilter, searchQuery, sortField, sortDir, groupByPedido]);
 
     // Conta Corrente Financial Calculations
     const calc = useMemo(() => {
@@ -1802,6 +1836,62 @@ export const Comissoes: React.FC = () => {
                                                         </div>
                                                     </td>
                                                 </tr>
+
+                                                {/* Sub-linhas de Remanejos / Substituições dentro do Pedido quando Agrupar por Pedido está ativo */}
+                                                {groupByPedido && row.tipo_lancamento === 'contratacao' && (row.historico_vaga || []).filter((h: any) => !h.is_current).map((histEntry: any, hIdx: number) => (
+                                                    <tr
+                                                        key={`${row._id}_sub_${histEntry.assignment_id || hIdx}`}
+                                                        onClick={() => setHistoryModalRow(row)}
+                                                        className="cursor-pointer bg-amber-50/40 hover:bg-amber-50/80 dark:bg-amber-950/15 dark:hover:bg-amber-950/30 text-[11px] text-slate-600 dark:text-slate-400 border-l-4 border-l-amber-400"
+                                                    >
+                                                        {isSupervisor && <td className="px-2 py-1.5"></td>}
+                                                        <td className="px-2 py-1.5 text-slate-400">{firstName}</td>
+                                                        <td className="px-2 py-1.5 font-mono text-[10px] text-amber-700 dark:text-amber-400">
+                                                            {histEntry.solicitud_codigo || row.pedido_cod}
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center text-[10px]">
+                                                            {pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
+                                                        </td>
+                                                        <td className="px-2.5 py-1.5 truncate text-slate-500">
+                                                            {row.cliente_nome}
+                                                        </td>
+                                                        <td className="px-2.5 py-1.5">
+                                                            <div className="flex items-center gap-1.5 min-w-0 pl-3">
+                                                                <span className="font-bold text-amber-700 dark:text-amber-400 shrink-0">
+                                                                    ↳ {hIdx === 0 ? '1º na vaga (Substituído):' : `${hIdx + 1}º na vaga (Substituído):` }
+                                                                </span>
+                                                                <span className="font-semibold text-slate-700 dark:text-slate-200 truncate">
+                                                                    {histEntry.worker_name}
+                                                                </span>
+                                                                {histEntry.solicitud_codigo && (
+                                                                    <span className="shrink-0 px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-mono text-[10px]">
+                                                                        {histEntry.solicitud_codigo}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center text-[10px]">
+                                                            {histEntry.start_date ? new Date(histEntry.start_date + 'T12:00:00').toLocaleDateString('pt-PT') : 'Não iniciou'}
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center text-[10px] text-slate-500">
+                                                            Saiu c/ {histEntry.days_worked}d
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center text-[10px] text-slate-400">
+                                                            Mesma Vaga
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-right font-semibold text-slate-400">
+                                                            € 0.00
+                                                        </td>
+                                                        <td className="px-2 py-1.5 text-center">
+                                                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                                                                SUBSTITUÍDO
+                                                            </span>
+                                                        </td>
+                                                        <td className="px-1.5 py-1.5 text-center">
+                                                            <History size={13} className="inline text-amber-600" />
+                                                        </td>
+                                                    </tr>
+                                                ))}
                                             </React.Fragment>
                                         );
                                     })

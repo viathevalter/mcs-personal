@@ -243,7 +243,7 @@ export const commissionService = {
             supabase
                 .schema('core_operacoes')
                 .from('solicitud_targets')
-                .select('id, solicitud_id, source_assignment_id, source_worker_id, target_assignment_id, target_worker_id, action_type, reason'),
+                .select('id, solicitud_id, source_assignment_id, source_worker_id, target_assignment_id, target_worker_id, action_type, reason, source_worker:workers!source_worker_id(id, nome, nif, dni, cod_colab)'),
             supabase
                 .from('contas_receber')
                 .select('id, cod_cliente, cliente, num_doc, periodo_fat, data_emissao, dt_recebimento, valot_total, saldo_a_pagar, status')
@@ -407,16 +407,19 @@ export const commissionService = {
                 targetToSourceMap.set(t.target_assignment_id, {
                     source_assignment_id: t.source_assignment_id,
                     source_worker_id: t.source_worker_id,
+                    source_worker: t.source_worker,
                     reason: t.reason
-                });
+                } as any);
             }
             if (t.solicitud_id) {
                 const list = solicitudReplacementTargets.get(t.solicitud_id) || [];
                 list.push({
                     source_assignment_id: t.source_assignment_id,
                     source_worker_id: t.source_worker_id,
+                    target_worker_id: t.target_worker_id,
+                    source_worker: t.source_worker,
                     reason: t.reason
-                });
+                } as any);
                 solicitudReplacementTargets.set(t.solicitud_id, list);
             }
         });
@@ -784,14 +787,36 @@ export const commissionService = {
             let matchedClient: any = null;
             for (const item of enrichedChain) {
                 if (!matchedPedido && item.raw.pedido_id && pedidosMap.has(item.raw.pedido_id)) {
-                    matchedPedido = pedidosMap.get(item.raw.pedido_id);
+                    const cand = pedidosMap.get(item.raw.pedido_id);
+                    if (cand && !String(cand.codigo || '').toUpperCase().startsWith('R-')) {
+                        matchedPedido = cand;
+                    }
                 }
                 if (!matchedPedido && item.meta.sol?.pedido_id && pedidosMap.has(item.meta.sol.pedido_id)) {
-                    matchedPedido = pedidosMap.get(item.meta.sol.pedido_id);
+                    const cand = pedidosMap.get(item.meta.sol.pedido_id);
+                    if (cand && !String(cand.codigo || '').toUpperCase().startsWith('R-')) {
+                        matchedPedido = cand;
+                    }
                 }
                 const cId = item.raw.client_id || matchedPedido?.client_id || item.meta.sol?.client_id;
                 if (!matchedClient && cId && clientsMap.has(cId)) {
                     matchedClient = clientsMap.get(cId);
+                }
+            }
+
+            // If this slot was created from a floating Replacement Solicitud (R-2026-...) without pedido_id, attach it to the client's active PED-2026-... so it stays grouped inside the client's Pedido!
+            if (!matchedPedido && matchedClient?.id) {
+                const clientPedidos = Array.from(pedidosMap.values())
+                    .filter((p: any) => p.client_id === matchedClient.id && String(p.codigo || '').toUpperCase().startsWith('PED-'))
+                    .sort((a: any, b: any) => String(b.codigo || '').localeCompare(String(a.codigo || '')));
+                if (clientPedidos.length > 0) {
+                    const slotDate = currentEntry.meta.startDateStr || firstEntry.meta.startDateStr || '';
+                    // Prefer the PED- whose start/created date is closest on or before slotDate, or the latest PED- of that client
+                    const onOrBefore = clientPedidos.find((p: any) => {
+                        const pDate = String(p.expected_start_date || p.created_at || '').split('T')[0];
+                        return !slotDate || !pDate || pDate <= slotDate;
+                    });
+                    matchedPedido = onOrBefore || clientPedidos[0];
                 }
             }
 
@@ -859,6 +884,32 @@ export const commissionService = {
                 solicitud_codigo: item.meta.sol?.codigo || null
             }));
 
+            // If this slot has only 1 worker in worker_assignments but was created via a Replacement Solicitud (R-2026-...) that replaced a legacy source_worker, prepend that replaced worker to historico_vaga!
+            if (historico_vaga.length === 1 && currentEntry.raw.solicitud_id && solicitudReplacementTargets.has(currentEntry.raw.solicitud_id)) {
+                const solTargets = solicitudReplacementTargets.get(currentEntry.raw.solicitud_id)! as any[];
+                const matchedTarget = solTargets.find(st => st.target_worker_id === currentEntry.raw.worker_id) || solTargets[0];
+                if (matchedTarget?.source_worker?.nome && matchedTarget.source_worker_id !== currentEntry.raw.worker_id) {
+                    historico_vaga.unshift({
+                        assignment_id: `legacy_${currentEntry.raw.id}`,
+                        worker_id: matchedTarget.source_worker_id,
+                        worker_name: matchedTarget.source_worker.nome,
+                        worker_doc: matchedTarget.source_worker.dni || matchedTarget.source_worker.nif || matchedTarget.source_worker.cod_colab || '-',
+                        step_order: 1,
+                        is_current: false,
+                        is_relocated: false,
+                        start_date: matchedPedido?.expected_start_date ? String(matchedPedido.expected_start_date).split('T')[0] : null,
+                        planned_start_date: null,
+                        end_date: currentEntry.meta.startDateStr,
+                        days_worked: 0,
+                        status: 'replaced',
+                        status_label: 'Substituído (Reemplazo)',
+                        reason: matchedTarget.reason || currentEntry.meta.sol?.reason || null,
+                        solicitud_codigo: currentEntry.meta.sol?.codigo || null
+                    });
+                    historico_vaga[1].step_order = 2;
+                }
+            }
+
             // Days worked for eligibility: the current titular worker's days worked
             const titularDaysWorked = currentEntry.meta.daysWorked;
             const carenciaMeta = effectiveCarenciaDias || 15;
@@ -909,7 +960,7 @@ export const commissionService = {
                 motivoBloqueio = `${carenciaMeta} dias cumpridos (${titularDaysWorked}d) — Aguardando quitação da fatura de ${formatMesReferenciaLabel(mesRef)}`;
             }
 
-            const repassesCount = Math.max(0, enrichedChain.length - 1);
+            const repassesCount = Math.max(0, historico_vaga.length - 1);
 
             generatedList.push({
                 id: `vaga_${rootId}`,
