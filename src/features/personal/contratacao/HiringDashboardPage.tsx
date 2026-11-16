@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { fetchAllPages } from '@/shared/supabase/pagination';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { AllocateWorkerDialog } from './components/AllocateWorkerDialog';
 import { CancelAllocationDialog } from './components/CancelAllocationDialog';
@@ -313,43 +314,40 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     queryKey: ['active_replacement_targets', selectedEmpresaId],
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
-      let query = supabase
-        .schema('core_operacoes')
-        .from('solicitud_targets')
-        .select(`
-          id, 
-          empresa_id,
-          source_assignment_id, 
-          source_pedido_id,
-          source_pedido_item_id, 
-          source_worker_id,
-          source_client_id,
-          source_client_site_id,
-          target_job_function_id,
-          target_job_function_name,
-          target_assignment_id,
-          target_worker_id,
-          status, 
-          action_type, 
-          requires_replacement, 
-          reason,
-          notes,
-          solicitud_id, 
-          solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta, tipo, status, created_by, requested_by)
-        `)
-        .in('action_type', ['replace', 'offboard'])
-        .in('status', ['pending', 'in_progress', 'completed']);
+      const data = await fetchAllPages<any>((from, to) => {
+        let query = supabase
+          .schema('core_operacoes')
+          .from('solicitud_targets')
+          .select(`
+            id, 
+            empresa_id,
+            source_assignment_id, 
+            source_pedido_id,
+            source_pedido_item_id, 
+            source_worker_id,
+            source_client_id,
+            source_client_site_id,
+            target_job_function_id,
+            target_job_function_name,
+            target_assignment_id,
+            target_worker_id,
+            status, 
+            action_type, 
+            requires_replacement, 
+            reason,
+            notes,
+            solicitud_id, 
+            solicitud:solicitudes_operativas(due_date, codigo, title, description, client_id, client_site_id, pergunta_respuesta, tipo, status, created_by, requested_by)
+          `)
+          .in('action_type', ['replace', 'offboard'])
+          .in('status', ['pending', 'in_progress', 'completed']);
 
-      if (activeEmpresaId) {
-        query = query.eq('empresa_id', activeEmpresaId);
-      }
+        if (activeEmpresaId) {
+          query = query.eq('empresa_id', activeEmpresaId);
+        }
 
-      const { data, error } = await query;
-
-      if (error) {
-        console.error("Error fetching replacement targets:", error);
-        return [];
-      }
+        return query.order('id').range(from, to);
+      });
       
       const targets = (data || []).filter((t: any) => 
         (t.action_type === 'replace' || 
@@ -408,47 +406,48 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     queryFn: async () => {
       if (!selectedEmpresaId) return [];
       
-      let query = supabase
-        .schema('core_personal')
-        .from('worker_assignments')
-        .select(`
-          id,
-          solicitud_id,
-          status,
-          planned_start_date,
-          planned_end_date,
-          start_date,
-          end_date,
-          tarifa_acordada,
-          pedido_id,
-          pedido_item_id,
-          job_function_id,
-          job_function_name_snapshot,
-          replacement_of_assignment_id,
-          notes,
-          worker:workers(
+      const data = await fetchAllPages<any>((from, to) => {
+        let query = supabase
+          .schema('core_personal')
+          .from('worker_assignments')
+          .select(`
             id,
-            nome,
-            nif,
-            dni,
-            nie,
-            pasaporte,
-            camiseta,
-            pantalones,
-            licencia_conducir,
-            movil,
-            cod_colab
-          )
-        `)
-        .in('status', ['planned', 'active', 'paused', 'completed', 'replaced', 'relocated', 'terminated']);
+            solicitud_id,
+            status,
+            planned_start_date,
+            planned_end_date,
+            start_date,
+            end_date,
+            tarifa_acordada,
+            pedido_id,
+            pedido_item_id,
+            job_function_id,
+            job_function_name_snapshot,
+            replacement_of_assignment_id,
+            notes,
+            worker:workers(
+              id,
+              nome,
+              nif,
+              dni,
+              nie,
+              pasaporte,
+              camiseta,
+              pantalones,
+              licencia_conducir,
+              movil,
+              cod_colab
+            )
+          `)
+          .in('status', ['planned', 'active', 'paused', 'completed', 'replaced', 'relocated', 'terminated']);
 
-      if (activeEmpresaId) {
-        query = query.eq('empresa_id', activeEmpresaId);
-      }
-        
-      const { data, error } = await query;
-        
-      if (error) throw error;
+        if (activeEmpresaId) {
+          query = query.eq('empresa_id', activeEmpresaId);
+        }
+
+        return query.order('id').range(from, to);
+      });
+
       return data || [];
     },
     enabled: !!selectedEmpresaId
@@ -545,7 +544,83 @@ LICENCIA DE CONDUCIR: ${cnh}`;
     return allAllocations.filter(a => a.pedido_id === selectedPedidoId);
   }, [allAllocations, selectedPedidoId]);
 
-  // Helper to calculate a Pedido's hiring progress (subtracting active replacements)
+  // Deduplicate pending replacements per outgoing worker & avoid double-subtracting exited workers
+  const computeItemHiringMetrics = (item: any, pedido: any, replacementTargetsList: any[]) => {
+    if (pedido?.isSynthetic) {
+      const syntheticReps = replacementTargetsList.filter(
+        t => t.id === item.solicitud_target_id && (t.status === 'pending' || t.status === 'in_progress')
+      );
+      return {
+        itemReplacements: syntheticReps,
+        repCount: syntheticReps.length,
+        effectiveFulfilled: item.quantity_fulfilled || 0,
+      };
+    }
+
+    const rawReps = replacementTargetsList
+      .filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'))
+      .sort((a, b) => {
+        // Prefer explicit 'replace' over 'offboard' when deduplicating the same worker
+        if (a.action_type !== b.action_type) {
+          return a.action_type === 'replace' ? -1 : 1;
+        }
+        const dateA = a.solicitud?.due_date ? new Date(a.solicitud.due_date).getTime() : Infinity;
+        const dateB = b.solicitud?.due_date ? new Date(b.solicitud.due_date).getTime() : Infinity;
+        return dateA - dateB;
+      });
+
+    // Deduplicate by outgoing worker (prevents Baja + Reemplazo on the same worker from counting as 2 slots)
+    const seenWorkers = new Set<string>();
+    const itemReplacements = rawReps.filter(r => {
+      const key = r.source_worker_id || r.source_assignment_id || r.id;
+      if (seenWorkers.has(key)) return false;
+      seenWorkers.add(key);
+      return true;
+    });
+
+    const repCount = itemReplacements.length;
+    const isOrderCompleted =
+      (pedido?.operational_status || '').toLowerCase() === 'completed' ||
+      (pedido?.commercial_status || '').toLowerCase() === 'completed';
+
+    const rawFul = isOrderCompleted
+      ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0)
+      : (item.quantity_fulfilled || 0);
+
+    if (repCount === 0) {
+      return {
+        itemReplacements,
+        repCount: 0,
+        effectiveFulfilled: rawFul,
+      };
+    }
+
+    // Check which replaced workers are still counted in active/planned/paused allocations vs already exited
+    const activeItemAllocs = allAllocations.filter(
+      (a: any) => a.pedido_item_id === item.id && ['planned', 'active', 'paused'].includes(a.status)
+    );
+
+    const stillActiveRepCount = itemReplacements.filter(r =>
+      activeItemAllocs.some(
+        (a: any) =>
+          (r.source_assignment_id && a.id === r.source_assignment_id) ||
+          (r.source_worker_id && a.worker?.id === r.source_worker_id)
+      )
+    ).length;
+
+    const exitedRepCount = repCount - stillActiveRepCount;
+    // Only subtract exited replacements if rawFul has NOT already been decremented for their exit
+    const unaccountedExitedInDb = Math.max(0, rawFul - activeItemAllocs.length);
+    const totalToSubtract = stillActiveRepCount + Math.min(exitedRepCount, unaccountedExitedInDb);
+
+    return {
+      itemReplacements,
+      repCount,
+      effectiveFulfilled: Math.max(0, rawFul - totalToSubtract),
+    };
+  };
+
+  // Helper to calculate a Pedido's hiring progress (subtracting active replacements without double-counting)
   const getPedidoHiringStatus = (pedido: any, replacementTargetsList: any[]) => {
     let reqQty = 0;
     let fulQty = 0;
@@ -556,15 +631,11 @@ LICENCIA DE CONDUCIR: ${cnh}`;
       fulQty = pedido.pedido_items.filter((item: any) => item.quantity_fulfilled > 0).length;
       hasReplacement = fulQty < reqQty;
     } else {
-      const isOrderCompleted = (pedido.operational_status || '').toLowerCase() === 'completed' || (pedido.commercial_status || '').toLowerCase() === 'completed';
       pedido.pedido_items?.forEach((item: any) => {
         reqQty += item.quantity_requested || 0;
-        const repCount = replacementTargetsList.filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress')).length;
+        const { repCount, effectiveFulfilled } = computeItemHiringMetrics(item, pedido, replacementTargetsList);
         if (repCount > 0) hasReplacement = true;
-        const rawFul = isOrderCompleted
-          ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0)
-          : (item.quantity_fulfilled || 0);
-        fulQty += Math.max(0, rawFul - repCount);
+        fulQty += effectiveFulfilled;
       });
     }
 
@@ -1191,21 +1262,12 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {selectedPedido.pedido_items?.map((item: any) => {
-                    const itemReplacements = selectedPedido.isSynthetic
-                      ? replacementTargets.filter(t => t.id === item.solicitud_target_id && (t.status === 'pending' || t.status === 'in_progress'))
-                      : replacementTargets
-                          .filter(t => t.source_pedido_item_id === item.id && (t.status === 'pending' || t.status === 'in_progress'))
-                          .sort((a, b) => {
-                            const dateA = a.solicitud?.due_date ? new Date(a.solicitud.due_date).getTime() : Infinity;
-                            const dateB = b.solicitud?.due_date ? new Date(b.solicitud.due_date).getTime() : Infinity;
-                            return dateA - dateB;
-                          });
-                    const repCount = itemReplacements.length;
+                    const { itemReplacements, repCount, effectiveFulfilled } = computeItemHiringMetrics(
+                      item,
+                      selectedPedido,
+                      replacementTargets
+                    );
                     const firstRep = itemReplacements[0] || (selectedPedido.isSynthetic ? replacementTargets.find(t => t.id === item.solicitud_target_id) : undefined);
-                    const isOrderCompleted = (selectedPedido.operational_status || '').toLowerCase() === 'completed' || (selectedPedido.commercial_status || '').toLowerCase() === 'completed';
-                    const effectiveFulfilled = selectedPedido.isSynthetic 
-                      ? (item.quantity_fulfilled || 0)
-                      : Math.max(0, (isOrderCompleted ? Math.max(item.quantity_fulfilled || 0, item.quantity_requested || 0) : (item.quantity_fulfilled || 0)) - repCount);
                     const isItemFulfilled = effectiveFulfilled >= (item.quantity_requested || 0);
                     const progress = item.quantity_requested > 0 
                       ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))

@@ -421,6 +421,7 @@ export function NewSolicitudPage() {
         setSelectedClientSiteId('all');
         setSelectedPedidoId('all');
         setSelectedReemplazoId('all');
+        setSelectedAssignments([]);
     }, [selectedClientId]);
 
     // Reset target site when target client changes
@@ -1217,6 +1218,38 @@ export function NewSolicitudPage() {
 
         const selectedList = assignments.filter(a => selectedAssignments.includes(a.id));
         const firstAssignment = selectedList[0];
+
+        // Guardrail: prevent submitting hidden workers left over from a previous draft or mixed clients
+        const isWorkerLevelOperation =
+            actionType === 'replacement' ||
+            actionType === 'relocation' ||
+            actionType === 'offboarding' ||
+            actionType === 'technical_test';
+
+        if (isWorkerLevelOperation && selectedList.length > 0) {
+            const distinctClientKeys = new Set(
+                selectedList
+                    .map(a => a.client_id || normalizeString(a.client?.trade_name || a.client?.legal_name || a.worker?.cliente || ''))
+                    .filter(Boolean)
+            );
+            if (distinctClientKeys.size > 1) {
+                toast.error(
+                    'Você selecionou trabalhadores de clientes diferentes (provavelmente de um rascunho anterior). Clique em "Limpar" ao lado de selecionados e marque apenas os trabalhadores do mesmo cliente.'
+                );
+                return;
+            }
+
+            if ((pedidoSearch.trim() || selectedClientId !== 'all') && selectedList.some(a => !filteredAssignments.some(fa => fa.id === a.id))) {
+                const hiddenNames = selectedList
+                    .filter(a => !filteredAssignments.some(fa => fa.id === a.id))
+                    .map(a => a.worker?.nome || a.worker?.cod_colab || 'Trabalhador')
+                    .join(', ');
+                toast.error(
+                    `Há trabalhador(es) selecionado(s) fora do filtro atual (${hiddenNames}). Clique em "Limpar" ao lado de selecionados antes de enviar.`
+                );
+                return;
+            }
+        }
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
         const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
