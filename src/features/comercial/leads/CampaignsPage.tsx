@@ -3845,9 +3845,23 @@ export function CampaignsPage() {
         const selectedAudiences = savedAudiences.filter(a => selectedAudienceIdsForCampaign.includes(a.id));
         const combinedLeadIdsSet = new Set<string>();
 
+        const leadsByIdMap = new Map<string, any>(currentLeads.map((l: any) => [l.id, l]));
+        const isLeadQuarantined = (l: any) => {
+          if (!l) return false;
+          if (!l.email || !String(l.email).includes('@')) return true;
+          if (String(l.name || '').startsWith('[DESCADASTRADO]') || String(l.notes || '').includes('[Opt-out')) return true;
+          const tagsArr = Array.isArray(l.tags) ? l.tags : [];
+          return tagsArr.includes('Bounce') || tagsArr.includes('E-mail Inválido');
+        };
+
         for (const aud of selectedAudiences) {
           if (aud.leadIds && Array.isArray(aud.leadIds) && aud.leadIds.length > 0) {
-            aud.leadIds.forEach((id: string) => combinedLeadIdsSet.add(id));
+            aud.leadIds.forEach((id: string) => {
+              const leadObj = leadsByIdMap.get(id);
+              if (!isLeadQuarantined(leadObj)) {
+                combinedLeadIdsSet.add(id);
+              }
+            });
           } else if (aud.filters) {
             const resolved = getFilteredLeads({ ...aud.filters, recencyDays: 'all' }, currentLeads);
             resolved.forEach(l => combinedLeadIdsSet.add(l.id));
@@ -3990,10 +4004,12 @@ export function CampaignsPage() {
   const handleTriggerQueueManually = async () => {
     setIsTriggeringQueue(true);
     try {
+      const hasFailedItems = trackingQueueItems.some((item: any) => item.status === 'failed');
       const { data, error } = await supabase.functions.invoke('process-marketing-queue', {
         body: {
           campaign_id: selectedCampaignForTracking?.id,
-          empresa_id: selectedEmpresaId
+          empresa_id: selectedEmpresaId,
+          reprocess_recoverable: hasFailedItems,
         }
       });
       if (error) throw error;
@@ -4431,10 +4447,13 @@ export function CampaignsPage() {
         }
       }
 
-      // Must have valid email address and not be opted out
+      // Must have valid email address and not be opted out or in Bounce quarantine
       if (!l.email || !l.email.includes('@')) return false;
       const isOptedOut = (l.name || '').startsWith('[DESCADASTRADO]') || (l.notes || '').includes('[Opt-out');
-      return !isOptedOut;
+      if (isOptedOut) return false;
+      const leadTags = Array.isArray(l.tags) ? l.tags : [];
+      if (leadTags.includes('Bounce') || leadTags.includes('E-mail Inválido')) return false;
+      return true;
     });
 
     // 16. Apply limit and offset (Division of audience for batching)
@@ -4612,10 +4631,22 @@ export function CampaignsPage() {
     }
 
     const uniqueLeadIds = new Set<string>();
+    const leadsByIdMap = new Map<string, any>(allLeads.map((l: any) => [l.id, l]));
 
     for (const aud of selectedAudiencesForCampaign) {
       if (aud.leadIds && Array.isArray(aud.leadIds) && aud.leadIds.length > 0) {
-        aud.leadIds.forEach((id: string) => uniqueLeadIds.add(id));
+        aud.leadIds.forEach((id: string) => {
+          const l = leadsByIdMap.get(id);
+          if (!l) {
+            uniqueLeadIds.add(id);
+            return;
+          }
+          if (!l.email || !String(l.email).includes('@')) return;
+          if (String(l.name || '').startsWith('[DESCADASTRADO]') || String(l.notes || '').includes('[Opt-out')) return;
+          const tagsArr = Array.isArray(l.tags) ? l.tags : [];
+          if (tagsArr.includes('Bounce') || tagsArr.includes('E-mail Inválido')) return;
+          uniqueLeadIds.add(id);
+        });
       } else if (aud.filters) {
         const resolved = getFilteredLeads({ ...aud.filters, recencyDays: 'all' }, allLeads);
         resolved.forEach(l => uniqueLeadIds.add(l.id));

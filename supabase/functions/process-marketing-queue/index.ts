@@ -45,6 +45,7 @@ serve(async (req) => {
     }
     const requestedCampaignId = reqBody?.campaign_id || null;
     const requestedEmpresaId = reqBody?.empresa_id || null;
+    const reprocessRecoverable = Boolean(reqBody?.reprocess_recoverable);
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -55,6 +56,41 @@ serve(async (req) => {
     });
 
     console.log("Iniciando processamento da fila de e-mail marketing...");
+
+    // 0. Se solicitado reprocessamento manual de falhas recuperáveis de uma campanha específica
+    if (requestedCampaignId && reprocessRecoverable) {
+      const { data: failedRows } = await supabase
+        .from("marketing_campaign_queue")
+        .select("id, error_message")
+        .eq("campaign_id", requestedCampaignId)
+        .eq("status", "failed");
+
+      const recoverableIds = (failedRows || [])
+        .filter((r: any) => {
+          const msg = String(r.error_message || "");
+          if (msg.includes("Bounce") || msg.includes("quarentena")) return false;
+          if (msg.includes("Opt-out") || msg.includes("descadastrado")) return false;
+          if (msg.includes("Formato de e-mail inválido")) return false;
+          if (msg.includes("Domínio não corporativo bloqueado")) return false;
+          return true;
+        })
+        .map((r: any) => r.id);
+
+      if (recoverableIds.length > 0) {
+        for (let i = 0; i < recoverableIds.length; i += 500) {
+          const chunk = recoverableIds.slice(i, i + 500);
+          await supabase
+            .from("marketing_campaign_queue")
+            .update({ status: "pending", error_message: null })
+            .in("id", chunk);
+        }
+        await supabase
+          .from("marketing_campaigns")
+          .update({ status: "sending", updated_at: new Date().toISOString() })
+          .eq("id", requestedCampaignId);
+        console.log(`Reprocessamento manual: ${recoverableIds.length} itens recuperáveis reativados na campanha ${requestedCampaignId}.`);
+      }
+    }
 
     // 1. Ativar campanhas agendadas cujo horário já chegou
     const { data: dueScheduled } = await supabase
@@ -623,8 +659,8 @@ serve(async (req) => {
             continue;
           }
 
-          // 4. Trava de 1 E-mail por Domínio Corporativo no Lote + Cooldown Anti-Repetição (21 dias)
-          // Domínios internos da empresa ficam liberados da trava de mesmo domínio e do cooldown de 21 dias para permitir testes da diretoria/equipe
+          // 4. Trava de 1 E-mail por Domínio Corporativo no Lote + Cooldown Anti-Repetição (7 dias)
+          // Domínios internos da empresa ficam liberados da trava de mesmo domínio e do cooldown de 7 dias para permitir testes da diretoria/equipe
           const internalWhitelistedDomains = new Set(["gestaologinpro.com", "luminousalley.com", "wiseowe.com", "triangulolda.com", "geniomontagens.com"]);
           const isInternalTestDomain = internalWhitelistedDomains.has(emailDomain);
           const genericWebmailsEs = new Set([
@@ -646,7 +682,7 @@ serve(async (req) => {
           }
 
           if (targetLeadId && !isInternalTestDomain) {
-            const cooldownDate = new Date(Date.now() - 21 * 24 * 60 * 60 * 1000).toISOString();
+            const cooldownDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
             const { count: recentSentCount } = await supabase
               .from("marketing_campaign_queue")
               .select("*", { count: "exact", head: true })
@@ -655,12 +691,12 @@ serve(async (req) => {
               .gte("sent_at", cooldownDate);
 
             if (recentSentCount && recentSentCount > 0) {
-              console.warn(`[COOLDOWN 21 DIAS] Lead ${cleanLeadEmail} já recebeu campanha nos últimos 21 dias. Bloqueando reenvio.`);
+              console.warn(`[COOLDOWN 7 DIAS] Lead ${cleanLeadEmail} já recebeu campanha nos últimos 7 dias. Bloqueando reenvio.`);
               await supabase
                 .from("marketing_campaign_queue")
                 .update({
                   status: "failed",
-                  error_message: "Proteção Anti-Spam: Lead já recebeu e-mail nos últimos 21 dias (Bloqueio de repetição)",
+                  error_message: "Proteção Anti-Spam: Lead já recebeu e-mail nos últimos 7 dias (Bloqueio de repetição)",
                 })
                 .eq("id", item.id);
               continue;
