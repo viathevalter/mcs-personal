@@ -37,7 +37,7 @@ import {
 import * as XLSX from 'xlsx';
 import { MultiSelect } from '../../components/ui/MultiSelect';
 
-type SortField = 'date' | 'inicio_trab' | 'vendedor' | 'cliente' | 'trabalhador' | 'carencia' | 'fatura' | 'valor' | 'status';
+type SortField = 'pedido' | 'date' | 'inicio_trab' | 'vendedor' | 'cliente' | 'trabalhador' | 'carencia' | 'fatura' | 'valor' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 export const Comissoes: React.FC = () => {
@@ -63,7 +63,8 @@ export const Comissoes: React.FC = () => {
     const [pedidoFilter, setPedidoFilter] = useState<string[]>([]);
     const [tipoFilter, setTipoFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
-    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortField, setSortField] = useState<SortField>('pedido');
+    const [groupByPedido, setGroupByPedido] = useState<boolean>(true);
     const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
     const [loading, setLoading] = useState(false);
@@ -251,9 +252,11 @@ export const Comissoes: React.FC = () => {
             const isCarenciaOk = Boolean(g.carencia_cumprida);
             const isElegivel = isCarenciaOk && (!exigeFatura || isFaturaQuitada);
 
-            let statusConta: 'PAGO' | 'ELEGIVEL' | 'BLOQUEADA_FATURA' | 'BLOQUEADA_CARENCIA' = 'BLOQUEADA_CARENCIA';
+            let statusConta: 'PAGO' | 'ELEGIVEL' | 'BLOQUEADA_FATURA' | 'BLOQUEADA_CARENCIA' | 'REMANEJADO' = 'BLOQUEADA_CARENCIA';
             if (payment) {
                 statusConta = 'PAGO';
+            } else if (g.remanejado_de_pedido && g.valor === 0) {
+                statusConta = 'REMANEJADO';
             } else if (isElegivel) {
                 statusConta = 'ELEGIVEL';
             } else if (isCarenciaOk && exigeFatura && !isFaturaQuitada) {
@@ -299,6 +302,12 @@ export const Comissoes: React.FC = () => {
                 carencia_cumprida: isCarenciaOk,
                 is_pending_start: g.is_pending_start ?? false,
                 is_remanejado: g.is_remanejado ?? false,
+                pedido_vagas_solicitadas: g.pedido_vagas_solicitadas ?? 0,
+                remanejado_de_pedido: g.remanejado_de_pedido || null,
+                remanejado_de_cliente: g.remanejado_de_cliente || null,
+                remanejado_para_pedido: g.remanejado_para_pedido || null,
+                remanejado_para_cliente: g.remanejado_para_cliente || null,
+                historico_remanejamento: g.historico_remanejamento || [],
                 repasses_count: g.repasses_count ?? 0,
                 historico_vaga: g.historico_vaga || [],
                 fatura_quitada: isFaturaQuitada,
@@ -419,6 +428,7 @@ export const Comissoes: React.FC = () => {
             if (tipoFilter === 'contratacao') matchTipo = r.tipo_lancamento === 'contratacao';
             else if (tipoFilter === 'bonus_cliente_novo') matchTipo = r.tipo_lancamento === 'bonus_cliente_novo';
             else if (tipoFilter === 'com_repasses') matchTipo = (r.repasses_count || 0) > 0;
+            else if (tipoFilter === 'com_remanejamento') matchTipo = Boolean(r.remanejado_de_pedido || r.remanejado_para_pedido || (r.historico_remanejamento && r.historico_remanejamento.length > 1));
             else if (tipoFilter === 'ajuste') matchTipo = r._type === 'adjustment' || r._type === 'payment_record';
 
             let matchStatus = true;
@@ -427,6 +437,7 @@ export const Comissoes: React.FC = () => {
             else if (statusFilter === 'BLOQUEADA_CARENCIA') matchStatus = r.status === 'BLOQUEADA_CARENCIA';
             else if (statusFilter === 'BLOQUEADAS_TODAS') matchStatus = r.status === 'BLOQUEADA_CARENCIA' || r.status === 'BLOQUEADA_FATURA';
             else if (statusFilter === 'PAGO') matchStatus = r.status === 'PAGO';
+            else if (statusFilter === 'REMANEJADO') matchStatus = r.status === 'REMANEJADO' || Boolean(r.remanejado_de_pedido || r.remanejado_para_pedido);
 
             let matchSearch = true;
             if (q) {
@@ -442,6 +453,14 @@ export const Comissoes: React.FC = () => {
         return [...filtered].sort((a, b) => {
             let cmp = 0;
             switch (sortField) {
+                case 'pedido': {
+                    cmp = String(a.pedido_cod || '').localeCompare(String(b.pedido_cod || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    if (cmp === 0) {
+                        // Put bonus_cliente_novo before or after contratacao, then sort worker A-Z
+                        cmp = String(a.desc || '').localeCompare(String(b.desc || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    break;
+                }
                 case 'cliente': {
                     cmp = String(a.cliente_nome || '').localeCompare(String(b.cliente_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
                     if (cmp === 0) {
@@ -1164,6 +1183,7 @@ export const Comissoes: React.FC = () => {
                     <option value="contratacao">Contratação por Vaga (€ {activeRuleSummary.comissao_base})</option>
                     <option value="bonus_cliente_novo">Bônus Cliente Novo (€ {activeRuleSummary.bonus_novo_cliente})</option>
                     <option value="com_repasses">Vagas com Repasse / Substituição</option>
+                    <option value="com_remanejamento">⇄ Trabalhadores com Remanejamento entre Pedidos</option>
                     <option value="ajuste">Ajustes Manuais / Pagamentos</option>
                 </select>
 
@@ -1177,6 +1197,7 @@ export const Comissoes: React.FC = () => {
                     <option value="BLOQUEADA_FATURA">⏳ {activeRuleSummary.carencia_dias}d OK — Aguard. Quitação Fatura</option>
                     <option value="BLOQUEADA_CARENCIA">🔒 Bloqueada (Carência &lt; {activeRuleSummary.carencia_dias} dias)</option>
                     <option value="BLOQUEADAS_TODAS">🔒 Todas as Bloqueadas</option>
+                    <option value="REMANEJADO">⇄ Remanejado entre Pedidos</option>
                     <option value="PAGO">💰 Pago</option>
                 </select>
 
@@ -1211,32 +1232,60 @@ export const Comissoes: React.FC = () => {
                             )}
                         </div>
 
-                        {/* Quick Sort Pills */}
-                        <div className="flex items-center gap-1 text-[11px] bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
-                            <span className="text-slate-400 font-semibold mr-1">Ordenar:</span>
+                        {/* Quick Sort Pills & Group By Pedido Toggle */}
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <div className="flex items-center gap-1 text-[11px] bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                                <span className="text-slate-400 font-semibold mr-1">Ordenar:</span>
+                                <button
+                                    onClick={() => handleSort('pedido')}
+                                    className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'pedido' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    Pedido (Nº)
+                                </button>
+                                <button
+                                    onClick={() => handleSort('cliente')}
+                                    className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'cliente' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    Cliente (A-Z)
+                                </button>
+                                <button
+                                    onClick={() => handleSort('trabalhador')}
+                                    className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'trabalhador' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    Trabalhador (A-Z)
+                                </button>
+                                <button
+                                    onClick={() => handleSort('date')}
+                                    className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'date' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    Início Pedido
+                                </button>
+                                <button
+                                    onClick={() => handleSort('carencia')}
+                                    className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'carencia' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                >
+                                    Dias Trab.
+                                </button>
+                            </div>
+
                             <button
-                                onClick={() => handleSort('cliente')}
-                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'cliente' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                                type="button"
+                                onClick={() => {
+                                    const next = !groupByPedido;
+                                    setGroupByPedido(next);
+                                    if (next && sortField !== 'pedido' && sortField !== 'cliente') {
+                                        setSortField('pedido');
+                                        setSortDir('desc');
+                                    }
+                                }}
+                                className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-colors flex items-center gap-1.5 ${
+                                    groupByPedido
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                                }`}
+                                title="Agrupar as linhas visualmente por Pedido com resumo de vagas solicitadas, repasses e remanejamentos"
                             >
-                                Cliente (A-Z)
-                            </button>
-                            <button
-                                onClick={() => handleSort('trabalhador')}
-                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'trabalhador' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                            >
-                                Trabalhador (A-Z)
-                            </button>
-                            <button
-                                onClick={() => handleSort('date')}
-                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'date' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                            >
-                                Data
-                            </button>
-                            <button
-                                onClick={() => handleSort('carencia')}
-                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'carencia' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
-                            >
-                                Dias Trab.
+                                <span>📦 Agrupar por Pedido</span>
                             </button>
                         </div>
                     </div>
@@ -1277,57 +1326,67 @@ export const Comissoes: React.FC = () => {
                             <span>Sincronizando contratações, histórico de vagas e faturamento...</span>
                         </div>
                     ) : (
-                        <table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse min-w-[1120px]">
+                        <table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse min-w-[1160px]">
                             <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 shadow-xs">
                                 <tr>
                                     {isSupervisor && (
-                                        <th className="px-2 py-2.5 text-center w-[34px] bg-slate-100 dark:bg-slate-900">
+                                        <th className="px-2 py-2.5 text-center w-[32px] bg-slate-100 dark:bg-slate-900">
                                             <input type="checkbox" onChange={handleSelectAll} className="rounded" />
                                         </th>
                                     )}
                                     <th
                                         onClick={() => handleSort('vendedor')}
-                                        className="px-2 py-2.5 w-[68px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[64px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar por Vendedor"
                                     >
                                         <div className="flex items-center gap-1">
-                                            <span>Vendedor</span>
+                                            <span>Vend.</span>
                                             {renderSortIcon('vendedor')}
                                         </div>
                                     </th>
                                     <th
-                                        onClick={() => handleSort('cliente')}
-                                        className="px-2.5 py-2.5 w-[24%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
-                                        title="Clique para ordenar em ordem alfabética por Cliente e numérica por Pedido"
+                                        onClick={() => handleSort('pedido')}
+                                        className="px-2 py-2.5 w-[124px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar pelo número do Pedido (PED-...)"
                                     >
-                                        <div className="flex items-center gap-1.5">
-                                            <span>Cliente & Pedido</span>
-                                            {renderSortIcon('cliente')}
+                                        <div className="flex items-center gap-1">
+                                            <span>Pedido</span>
+                                            {renderSortIcon('pedido')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('date')}
-                                        className="px-2 py-2.5 w-[94px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[90px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Data em que o Pedido iniciou (Clique para ordenar)"
                                     >
                                         <div className="flex items-center justify-center gap-1">
-                                            <span>Início Pedido</span>
+                                            <span>Início Ped.</span>
                                             {renderSortIcon('date')}
                                         </div>
                                     </th>
                                     <th
+                                        onClick={() => handleSort('cliente')}
+                                        className="px-2.5 py-2.5 w-[20%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar em ordem alfabética por Cliente"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <span>Cliente</span>
+                                            {renderSortIcon('cliente')}
+                                        </div>
+                                    </th>
+                                    <th
                                         onClick={() => handleSort('trabalhador')}
-                                        className="px-2.5 py-2.5 w-[24%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2.5 py-2.5 w-[26%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar trabalhador por trabalhador (A-Z)"
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            <span>Trabalhador / Vaga</span>
+                                            <span>Trabalhador / Vaga & Movimentações</span>
                                             {renderSortIcon('trabalhador')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('inicio_trab')}
-                                        className="px-2 py-2.5 w-[94px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[90px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Data em que o Trabalhador iniciou na vaga (Clique para ordenar)"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1337,7 +1396,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('carencia')}
-                                        className="px-2 py-2.5 w-[96px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[92px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar numericamente por Dias Trabalhados"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1347,7 +1406,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('fatura')}
-                                        className="px-2 py-2.5 w-[112px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[108px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar pelo status da Fatura"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1357,7 +1416,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('valor')}
-                                        className="px-2 py-2.5 w-[78px] text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[76px] text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar numericamente por Valor (€)"
                                     >
                                         <div className="flex items-center justify-end gap-1">
@@ -1367,7 +1426,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('status')}
-                                        className="px-2 py-2.5 w-[110px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[106px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar pelo Status na Conta Corrente"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1375,19 +1434,19 @@ export const Comissoes: React.FC = () => {
                                             {renderSortIcon('status')}
                                         </div>
                                     </th>
-                                    <th className="px-1.5 py-2.5 text-center font-bold w-[44px] bg-slate-100 dark:bg-slate-900">Hist.</th>
+                                    <th className="px-1.5 py-2.5 text-center font-bold w-[42px] bg-slate-100 dark:bg-slate-900">Hist.</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/70">
                                 {filteredRows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={11} className="px-4 py-10 text-center text-slate-400 italic">
+                                        <td colSpan={12} className="px-4 py-10 text-center text-slate-400 italic">
                                             Nenhum registro encontrado para os filtros selecionados.
                                         </td>
                                     </tr>
                                 ) : (
-                                    filteredRows.map(row => {
-                                        const isSelectable = row._type === 'generated' && row.status !== 'PAGO';
+                                    filteredRows.map((row, idx) => {
+                                        const isSelectable = row._type === 'generated' && row.status !== 'PAGO' && row.status !== 'REMANEJADO';
                                         const pctCarencia = Math.min(100, Math.round(((row.dias_trabalhados || 0) / (row.carencia_dias_meta || 15)) * 100));
                                         const firstName = String(row.vendedor_nome || '').trim().split(/\s+/)[0] || '-';
                                         const shortFaturaLabel = row.fatura_quitada
@@ -1399,252 +1458,351 @@ export const Comissoes: React.FC = () => {
                                         const pedidoDateStr = row.pedido_start_date || row.date;
                                         const workerDateStr = row.start_date || row.date;
 
+                                        // Check if we should render a Pedido Group Header Row before this row
+                                        const prevRow = idx > 0 ? filteredRows[idx - 1] : null;
+                                        const isNewPedidoGroup = groupByPedido && row.pedido_cod && (!prevRow || prevRow.pedido_cod !== row.pedido_cod);
+                                        let pedidoGroupStats = null;
+                                        if (isNewPedidoGroup) {
+                                            const groupRows = filteredRows.filter(r => r.pedido_cod === row.pedido_cod);
+                                            const vagasContratacao = groupRows.filter(r => r.tipo_lancamento === 'contratacao');
+                                            const totalRepasses = vagasContratacao.reduce((acc, r) => acc + (r.repasses_count || 0), 0);
+                                            const totalRemanejados = vagasContratacao.filter(r => r.remanejado_de_pedido || r.remanejado_para_pedido).length;
+                                            const subtotalValor = groupRows.reduce((acc, r) => acc + (Number(r.valor) || 0), 0);
+                                            pedidoGroupStats = {
+                                                vagasSolicitadas: row.pedido_vagas_solicitadas || vagasContratacao.length,
+                                                vagasAlocadas: vagasContratacao.length,
+                                                totalRepasses,
+                                                totalRemanejados,
+                                                subtotalValor
+                                            };
+                                        }
+
                                         return (
-                                            <tr
-                                                key={row._id}
-                                                className={`hover:bg-slate-50/90 dark:hover:bg-slate-800/70 transition-colors ${
-                                                    selectedIds.has(row._id) ? 'bg-blue-50/40 dark:bg-blue-900/15' : ''
-                                                }`}
-                                            >
-                                                {isSupervisor && (
-                                                    <td className="px-2 py-2.5 text-center">
-                                                        {isSelectable && (
-                                                            <input
-                                                                type="checkbox"
-                                                                checked={selectedIds.has(row._id)}
-                                                                onChange={() => handleSelectRow(row._id)}
-                                                                className="rounded"
-                                                            />
-                                                        )}
-                                                    </td>
+                                            <React.Fragment key={row._id}>
+                                                {isNewPedidoGroup && pedidoGroupStats && (
+                                                    <tr className="bg-slate-100/95 dark:bg-slate-800/95 border-y border-slate-300 dark:border-slate-600">
+                                                        <td colSpan={isSupervisor ? 12 : 11} className="px-3 py-1.5">
+                                                            <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                                                                <div className="flex items-center gap-2 flex-wrap">
+                                                                    <span className="font-mono font-bold px-2 py-0.5 rounded bg-blue-600 text-white text-[11px]">
+                                                                        {row.pedido_cod}
+                                                                    </span>
+                                                                    <span className="font-bold text-slate-900 dark:text-white text-xs sm:text-sm">
+                                                                        {row.cliente_nome}
+                                                                    </span>
+                                                                    {pedidoDateStr && (
+                                                                        <span className="text-slate-500 dark:text-slate-400 text-[11px]">
+                                                                            • Início Pedido: <b>{new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT')}</b>
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                                <div className="flex items-center gap-3 text-[11px] font-medium text-slate-600 dark:text-slate-300">
+                                                                    <span>
+                                                                        Vagas no Pedido: <b>{pedidoGroupStats.vagasAlocadas}</b>
+                                                                        {pedidoGroupStats.vagasSolicitadas > 0 ? ` (de ${pedidoGroupStats.vagasSolicitadas} solicitadas)` : ''}
+                                                                    </span>
+                                                                    {pedidoGroupStats.totalRepasses > 0 && (
+                                                                        <span className="px-1.5 py-0.2 rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 font-bold">
+                                                                            {pedidoGroupStats.totalRepasses} {pedidoGroupStats.totalRepasses === 1 ? 'repasse' : 'repasses'}
+                                                                        </span>
+                                                                    )}
+                                                                    {pedidoGroupStats.totalRemanejados > 0 && (
+                                                                        <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 font-bold">
+                                                                            ⇄ {pedidoGroupStats.totalRemanejados} com remanejamento
+                                                                        </span>
+                                                                    )}
+                                                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">
+                                                                        Subtotal: € {pedidoGroupStats.subtotalValor.toFixed(2)}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                    </tr>
                                                 )}
 
-                                                {/* Vendedor (apenas primeiro nome) */}
-                                                <td className="px-2 py-2.5 whitespace-nowrap">
-                                                    <span
-                                                        className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100"
-                                                        title={`${row.vendedor_nome} (${row.vendedor_email})`}
-                                                    >
-                                                        {firstName}
-                                                    </span>
-                                                </td>
+                                                <tr
+                                                    className={`hover:bg-slate-50/90 dark:hover:bg-slate-800/70 transition-colors ${
+                                                        selectedIds.has(row._id) ? 'bg-blue-50/40 dark:bg-blue-900/15' : ''
+                                                    }`}
+                                                >
+                                                    {isSupervisor && (
+                                                        <td className="px-2 py-2.5 text-center">
+                                                            {isSelectable && (
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={selectedIds.has(row._id)}
+                                                                    onChange={() => handleSelectRow(row._id)}
+                                                                    className="rounded"
+                                                                />
+                                                            )}
+                                                        </td>
+                                                    )}
 
-                                                {/* Cliente & Pedido (em uma linha, destacado) */}
-                                                <td className="px-2.5 py-2.5">
-                                                    {row.cliente_nome ? (
+                                                    {/* Vendedor (apenas primeiro nome) */}
+                                                    <td className="px-2 py-2.5 whitespace-nowrap">
+                                                        <span
+                                                            className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100"
+                                                            title={`${row.vendedor_nome} (${row.vendedor_email})`}
+                                                        >
+                                                            {firstName}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Pedido (coluna dedicada ordenável) */}
+                                                    <td className="px-2 py-2.5 whitespace-nowrap">
+                                                        {row.pedido_cod ? (
+                                                            <span
+                                                                onClick={() => setPedidoFilter(pedidoFilter.includes(row.pedido_cod) ? [] : [row.pedido_cod])}
+                                                                className="cursor-pointer font-mono text-[11px] font-bold px-1.5 py-0.5 rounded bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/80 dark:border-blue-800 transition-colors"
+                                                                title="Clique para filtrar apenas este Pedido"
+                                                            >
+                                                                {row.pedido_cod}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Data Início do Pedido */}
+                                                    <td
+                                                        className="px-2 py-2.5 text-center whitespace-nowrap"
+                                                        title={`Data de Início do Pedido: ${pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}${row.pedido_created_at ? ' • Abertura do Pedido: ' + new Date(row.pedido_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
+                                                    >
+                                                        <span className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                                                            {pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
+                                                        </span>
+                                                    </td>
+
+                                                    {/* Cliente (em uma linha, destacado) */}
+                                                    <td className="px-2.5 py-2.5">
+                                                        {row.cliente_nome ? (
+                                                            <div
+                                                                className="flex items-center gap-1.5 min-w-0"
+                                                                title={`${row.cliente_nome} ${row.cliente_created_at ? '• Cad. Cliente: ' + new Date(row.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
+                                                            >
+                                                                <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
+                                                                    {row.cliente_nome}
+                                                                </span>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Trabalhador / Vaga & Remanejamentos */}
+                                                    <td className="px-2.5 py-2.5">
                                                         <div
                                                             className="flex items-center gap-1.5 min-w-0"
-                                                            title={`${row.cliente_nome} ${row.pedido_cod ? '• ' + row.pedido_cod : ''} ${row.cliente_created_at ? '• Cad. Cliente: ' + new Date(row.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
+                                                            title={`${row.desc} ${row.job_function ? '(' + row.job_function + ')' : ''} ${row.worker_doc && row.worker_doc !== '-' ? '• Doc: ' + row.worker_doc : ''}`}
                                                         >
-                                                            <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
-                                                                {row.cliente_nome}
-                                                            </span>
-                                                            {row.pedido_cod && (
-                                                                <span className="shrink-0 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800">
-                                                                    {row.pedido_cod}
+                                                            {row.tipo_lancamento === 'bonus_cliente_novo' && (
+                                                                <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                                                    Novo Cliente
                                                                 </span>
                                                             )}
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400">-</span>
-                                                    )}
-                                                </td>
 
-                                                {/* Data Início do Pedido */}
-                                                <td
-                                                    className="px-2 py-2.5 text-center whitespace-nowrap"
-                                                    title={`Data de Início do Pedido: ${pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}${row.pedido_created_at ? ' • Abertura do Pedido: ' + new Date(row.pedido_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
-                                                >
-                                                    <span className="font-semibold text-xs text-slate-700 dark:text-slate-200">
-                                                        {pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
-                                                    </span>
-                                                </td>
-
-                                                {/* Trabalhador / Vaga (em uma linha, destacado) */}
-                                                <td className="px-2.5 py-2.5">
-                                                    <div
-                                                        className="flex items-center gap-1.5 min-w-0"
-                                                        title={`${row.desc} ${row.job_function ? '(' + row.job_function + ')' : ''} ${row.worker_doc && row.worker_doc !== '-' ? '• Doc: ' + row.worker_doc : ''}`}
-                                                    >
-                                                        {row.tipo_lancamento === 'bonus_cliente_novo' && (
-                                                            <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
-                                                                Novo Cliente
+                                                            <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
+                                                                {row.desc}
                                                             </span>
-                                                        )}
 
-                                                        <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
-                                                            {row.desc}
+                                                            {row.tipo_lancamento === 'contratacao' && row.repasses_count > 0 && (
+                                                                <button
+                                                                    onClick={() => setHistoryModalRow(row)}
+                                                                    className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition-colors"
+                                                                    title="Clique para ver o histórico de substituições/repasses desta vaga"
+                                                                >
+                                                                    <ArrowRightLeft size={10} />
+                                                                    {row.repasses_count} {row.repasses_count === 1 ? 'repasse' : 'repasses'}
+                                                                </button>
+                                                            )}
+
+                                                            {row.remanejado_de_pedido && (
+                                                                <button
+                                                                    onClick={() => setHistoryModalRow(row)}
+                                                                    className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-100 hover:bg-indigo-200 text-indigo-800 dark:bg-indigo-900/50 dark:text-indigo-200 border border-indigo-300 dark:border-indigo-700 transition-colors"
+                                                                    title={`Trabalhador veio remanejado do pedido ${row.remanejado_de_pedido} (${row.remanejado_de_cliente}). Clique para ver a rota entre pedidos.`}
+                                                                >
+                                                                    ⇄ De {row.remanejado_de_pedido.replace('PED-2026-00', 'PED-')}
+                                                                </button>
+                                                            )}
+
+                                                            {!row.remanejado_de_pedido && row.remanejado_para_pedido && (
+                                                                <button
+                                                                    onClick={() => setHistoryModalRow(row)}
+                                                                    className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200 border border-slate-300 dark:border-slate-600 transition-colors"
+                                                                    title={`Posteriormente remanejado para o pedido ${row.remanejado_para_pedido} (${row.remanejado_para_cliente}). Clique para ver a rota entre pedidos.`}
+                                                                >
+                                                                    → P/ {row.remanejado_para_pedido.replace('PED-2026-00', 'PED-')}
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
+
+                                                    {/* Data Início do Trabalhador */}
+                                                    <td
+                                                        className="px-2 py-2.5 text-center whitespace-nowrap"
+                                                        title={`Data de Início do Trabalhador na vaga: ${workerDateStr ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}${row.end_date ? ' • Saída: ' + new Date(row.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : ' • Em atividade'}`}
+                                                    >
+                                                        <span className="font-semibold text-xs text-blue-700 dark:text-blue-300">
+                                                            {workerDateStr ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
                                                         </span>
+                                                    </td>
 
-                                                        {row.tipo_lancamento === 'contratacao' && row.repasses_count > 0 && (
-                                                            <button
-                                                                onClick={() => setHistoryModalRow(row)}
-                                                                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition-colors"
-                                                                title="Clique para ver o histórico de substituições/repasses desta vaga"
-                                                            >
-                                                                <ArrowRightLeft size={10} />
-                                                                {row.repasses_count} {row.repasses_count === 1 ? 'repasse' : 'repasses'}
-                                                            </button>
+                                                    {/* Carência (15d) */}
+                                                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                                                        {row._type === 'generated' ? (
+                                                            <div className="flex flex-col items-center gap-1">
+                                                                <div className="flex items-center justify-between w-full text-[11px] font-bold">
+                                                                    <span className={row.carencia_cumprida ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
+                                                                        {row.dias_trabalhados}/{row.carencia_dias_meta}d
+                                                                    </span>
+                                                                    {row.carencia_cumprida ? (
+                                                                        <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
+                                                                    ) : (
+                                                                        <Lock size={11} className="text-amber-500" />
+                                                                    )}
+                                                                </div>
+                                                                <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
+                                                                    <div
+                                                                        className={`h-full rounded-full transition-all ${
+                                                                            row.carencia_cumprida ? 'bg-emerald-500' : 'bg-amber-500'
+                                                                        }`}
+                                                                        style={{ width: `${pctCarencia}%` }}
+                                                                    />
+                                                                </div>
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-slate-400">-</span>
                                                         )}
-                                                    </div>
-                                                </td>
+                                                    </td>
 
-                                                {/* Data Início do Trabalhador */}
-                                                <td
-                                                    className="px-2 py-2.5 text-center whitespace-nowrap"
-                                                    title={`Data de Início do Trabalhador na vaga: ${workerDateStr ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}${row.end_date ? ' • Saída: ' + new Date(row.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : ' • Em atividade'}`}
-                                                >
-                                                    <span className="font-semibold text-xs text-blue-700 dark:text-blue-300">
-                                                        {row.tipo_lancamento === 'contratacao' && workerDateStr
-                                                            ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT')
-                                                            : (workerDateStr ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-')}
-                                                    </span>
-                                                </td>
-
-                                                {/* Carência (15d) */}
-                                                <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                                                    {row._type === 'generated' ? (
-                                                        <div className="flex flex-col items-center gap-1">
-                                                            <div className="flex items-center justify-between w-full text-[11px] font-bold">
-                                                                <span className={row.carencia_cumprida ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-                                                                    {row.dias_trabalhados}/{row.carencia_dias_meta}d
+                                                    {/* Fatura (compacta) */}
+                                                    <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                                                        {row._type === 'generated' ? (
+                                                            <div className="flex flex-col items-center gap-0.5" title={row.fatura_status_label}>
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
+                                                                        row.fatura_quitada
+                                                                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
+                                                                            : row.fatura_status === 'FATURA_ABERTA'
+                                                                                ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
+                                                                                : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:border-slate-600'
+                                                                    }`}
+                                                                >
+                                                                    {row.fatura_quitada ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                                                                    {shortFaturaLabel}
                                                                 </span>
-                                                                {row.carencia_cumprida ? (
-                                                                    <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
-                                                                ) : (
-                                                                    <Lock size={11} className="text-amber-500" />
+
+                                                                {isSupervisor && !row.fatura_quitada && row.status !== 'PAGO' && row.status !== 'REMANEJADO' && (
+                                                                    <button
+                                                                        onClick={() => handleReleaseInvoiceForRows([row])}
+                                                                        className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+                                                                        title="Confirmar manualmente que a fatura deste mês foi paga pelo cliente"
+                                                                    >
+                                                                        Confirmar
+                                                                    </button>
+                                                                )}
+
+                                                                {isSupervisor && row.manualReleaseInfo && (
+                                                                    <button
+                                                                        onClick={() => handleRevertLancamento(row.manualReleaseInfo.id, 'desbloqueio manual de fatura')}
+                                                                        className="text-[10px] text-slate-400 hover:text-red-500 hover:underline"
+                                                                    >
+                                                                        Reverter
+                                                                    </button>
                                                                 )}
                                                             </div>
-                                                            <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
-                                                                <div
-                                                                    className={`h-full rounded-full transition-all ${
-                                                                        row.carencia_cumprida ? 'bg-emerald-500' : 'bg-amber-500'
-                                                                    }`}
-                                                                    style={{ width: `${pctCarencia}%` }}
-                                                                />
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <span className="text-slate-400">-</span>
-                                                    )}
-                                                </td>
+                                                        ) : (
+                                                            <span className="text-slate-400 text-[11px]">Manual</span>
+                                                        )}
+                                                    </td>
 
-                                                {/* Fatura (compacta) */}
-                                                <td className="px-2 py-2.5 text-center whitespace-nowrap">
-                                                    {row._type === 'generated' ? (
-                                                        <div className="flex flex-col items-center gap-0.5" title={row.fatura_status_label}>
-                                                            <span
-                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
-                                                                    row.fatura_quitada
-                                                                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
-                                                                        : row.fatura_status === 'FATURA_ABERTA'
-                                                                            ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300 dark:border-amber-800'
-                                                                            : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:border-slate-600'
-                                                                }`}
-                                                            >
-                                                                {row.fatura_quitada ? <CheckCircle2 size={10} /> : <Clock size={10} />}
-                                                                {shortFaturaLabel}
+                                                    {/* Valor (€) */}
+                                                    <td className={`px-2 py-2.5 text-right font-bold whitespace-nowrap ${
+                                                        row.status === 'REMANEJADO'
+                                                            ? 'text-indigo-600 dark:text-indigo-400'
+                                                            : row.valor >= 0
+                                                                ? 'text-emerald-600 dark:text-emerald-400'
+                                                                : 'text-red-600 dark:text-red-400'
+                                                    }`}>
+                                                        <span>{row.valor > 0 ? '+' : ''}€ {row.valor.toFixed(2)}</span>
+                                                    </td>
+
+                                                    {/* Status Conta Corrente (compacto) */}
+                                                    <td className="px-2 py-2.5 text-center whitespace-nowrap" title={row.motivo_bloqueio || ''}>
+                                                        {row.status === 'PAGO' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                                <CheckCircle2 size={11} /> PAGO
                                                             </span>
+                                                        )}
 
-                                                            {isSupervisor && !row.fatura_quitada && row.status !== 'PAGO' && (
+                                                        {row.status === 'ELEGIVEL' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-300">
+                                                                <Unlock size={11} /> LIBERADA
+                                                            </span>
+                                                        )}
+
+                                                        {row.status === 'BLOQUEADA_FATURA' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-900/40 dark:text-orange-300">
+                                                                <Lock size={11} /> AG. FATURA
+                                                            </span>
+                                                        )}
+
+                                                        {row.status === 'BLOQUEADA_CARENCIA' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-300">
+                                                                <Lock size={11} /> CARÊNCIA
+                                                            </span>
+                                                        )}
+
+                                                        {row.status === 'REMANEJADO' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-100 text-indigo-800 border border-indigo-300 dark:bg-indigo-900/40 dark:text-indigo-300">
+                                                                ⇄ REMANEJADO
+                                                            </span>
+                                                        )}
+
+                                                        {row.status === 'AJUSTE' && (
+                                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-300">
+                                                                AJUSTE
+                                                            </span>
+                                                        )}
+                                                    </td>
+
+                                                    {/* Ações / Histórico */}
+                                                    <td className="px-1.5 py-2.5 text-center whitespace-nowrap">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            {row.tipo_lancamento === 'contratacao' && (
                                                                 <button
-                                                                    onClick={() => handleReleaseInvoiceForRows([row])}
-                                                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-                                                                    title="Confirmar manualmente que a fatura deste mês foi paga pelo cliente"
+                                                                    onClick={() => setHistoryModalRow(row)}
+                                                                    className="p-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                                                    title="Ver Histórico de Repasses da Vaga e Remanejamentos entre Pedidos"
                                                                 >
-                                                                    Confirmar
+                                                                    <History size={15} />
                                                                 </button>
                                                             )}
 
-                                                            {isSupervisor && row.manualReleaseInfo && (
+                                                            {isSupervisor && (row._type === 'payment_record' || row._type === 'adjustment') && (
                                                                 <button
-                                                                    onClick={() => handleRevertLancamento(row.manualReleaseInfo.id, 'desbloqueio manual de fatura')}
-                                                                    className="text-[10px] text-slate-400 hover:text-red-500 hover:underline"
+                                                                    onClick={() => handleRevertLancamento(row._id, 'lançamento')}
+                                                                    className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                    title="Excluir Lançamento"
                                                                 >
-                                                                    Reverter
+                                                                    <Trash2 size={14} />
+                                                                </button>
+                                                            )}
+
+                                                            {isSupervisor && row._type === 'generated' && row.status === 'PAGO' && row.paymentInfo && (
+                                                                <button
+                                                                    onClick={() => handleRevertLancamento(row.paymentInfo.id, 'pagamento')}
+                                                                    className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                    title="Estornar Pagamento"
+                                                                >
+                                                                    <Trash2 size={14} />
                                                                 </button>
                                                             )}
                                                         </div>
-                                                    ) : (
-                                                        <span className="text-slate-400 text-[11px]">Manual</span>
-                                                    )}
-                                                </td>
-
-                                                {/* Valor (€) */}
-                                                <td className={`px-2 py-2.5 text-right font-bold whitespace-nowrap ${
-                                                    row.valor >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
-                                                }`}>
-                                                    <span>{row.valor >= 0 ? '+' : ''}€ {row.valor.toFixed(2)}</span>
-                                                </td>
-
-                                                {/* Status Conta Corrente (compacto) */}
-                                                <td className="px-2 py-2.5 text-center whitespace-nowrap" title={row.motivo_bloqueio || ''}>
-                                                    {row.status === 'PAGO' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300">
-                                                            <CheckCircle2 size={11} /> PAGO
-                                                        </span>
-                                                    )}
-
-                                                    {row.status === 'ELEGIVEL' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-300">
-                                                            <Unlock size={11} /> LIBERADA
-                                                        </span>
-                                                    )}
-
-                                                    {row.status === 'BLOQUEADA_FATURA' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-900/40 dark:text-orange-300">
-                                                            <Lock size={11} /> AG. FATURA
-                                                        </span>
-                                                    )}
-
-                                                    {row.status === 'BLOQUEADA_CARENCIA' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-300">
-                                                            <Lock size={11} /> CARÊNCIA
-                                                        </span>
-                                                    )}
-
-                                                    {row.status === 'AJUSTE' && (
-                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-300">
-                                                            AJUSTE
-                                                        </span>
-                                                    )}
-                                                </td>
-
-                                                {/* Ações / Histórico */}
-                                                <td className="px-1.5 py-2.5 text-center whitespace-nowrap">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        {row.tipo_lancamento === 'contratacao' && (
-                                                            <button
-                                                                onClick={() => setHistoryModalRow(row)}
-                                                                className="p-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
-                                                                title="Ver Histórico de Trabalhadores e Repasses da Vaga"
-                                                            >
-                                                                <History size={15} />
-                                                            </button>
-                                                        )}
-
-                                                        {isSupervisor && (row._type === 'payment_record' || row._type === 'adjustment') && (
-                                                            <button
-                                                                onClick={() => handleRevertLancamento(row._id, 'lançamento')}
-                                                                className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                                                title="Excluir Lançamento"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
-
-                                                        {isSupervisor && row._type === 'generated' && row.status === 'PAGO' && row.paymentInfo && (
-                                                            <button
-                                                                onClick={() => handleRevertLancamento(row.paymentInfo.id, 'pagamento')}
-                                                                className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
-                                                                title="Estornar Pagamento"
-                                                            >
-                                                                <Trash2 size={14} />
-                                                            </button>
-                                                        )}
-                                                    </div>
-                                                </td>
-                                            </tr>
+                                                    </td>
+                                                </tr>
+                                            </React.Fragment>
                                         );
                                     })
                                 )}
@@ -2063,7 +2221,67 @@ export const Comissoes: React.FC = () => {
                             <b>Regra de Vaga Única (€ {Number(historyModalRow.valor).toFixed(2)}):</b> Substituições (reemplazos) ou remanejamentos dentro da mesma vaga não duplicam a comissão. Para desbloquear os € {Number(historyModalRow.valor).toFixed(2)}, o trabalhador alocado na vaga precisa completar <b>{historyModalRow.carencia_dias_meta} dias trabalhados</b> e a fatura do mês (<b>{historyModalRow.mes_referencia_label}</b>) deve estar quitada pelo cliente.
                         </div>
 
-                        <div className="flex-1 overflow-y-auto space-y-3 pr-1">
+                        <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                            {/* Seção 1: Rota de Remanejamentos entre Pedidos (se o trabalhador passou por mais de 1 pedido) */}
+                            {historyModalRow.historico_remanejamento && historyModalRow.historico_remanejamento.length > 1 && (
+                                <div className="p-3.5 rounded-xl bg-indigo-50/70 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-800 space-y-2.5">
+                                    <div className="flex items-center justify-between">
+                                        <span className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">
+                                            ⇄ Movimentações / Remanejamentos de {historyModalRow.desc} entre Pedidos ({historyModalRow.historico_remanejamento.length} pedidos)
+                                        </span>
+                                    </div>
+                                    <div className="space-y-2">
+                                        {historyModalRow.historico_remanejamento.map((rem: any, rIdx: number) => (
+                                            <div
+                                                key={rem.assignment_id || rIdx}
+                                                className={`p-2.5 rounded-lg border text-xs flex flex-wrap items-center justify-between gap-2 ${
+                                                    rem.is_current_slot
+                                                        ? 'bg-white dark:bg-slate-800 border-indigo-400 dark:border-indigo-600 shadow-xs'
+                                                        : 'bg-white/60 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700'
+                                                }`}
+                                            >
+                                                <div className="flex items-center gap-2">
+                                                    <span className="px-2 py-0.5 rounded font-bold bg-indigo-600 text-white text-[10px]">
+                                                        {rIdx + 1}º Pedido
+                                                    </span>
+                                                    <span className="font-mono font-bold text-blue-700 dark:text-blue-400">
+                                                        {rem.pedido_cod}
+                                                    </span>
+                                                    <span className="font-semibold text-slate-800 dark:text-slate-100">
+                                                        {rem.cliente_nombre}
+                                                    </span>
+                                                    {rIdx === 0 ? (
+                                                        <span className="px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300 text-[10px] font-bold">
+                                                            1ª Alocação (Gera Comissão)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-1.5 py-0.2 rounded bg-indigo-100 text-indigo-800 dark:bg-indigo-900/40 dark:text-indigo-300 text-[10px] font-bold">
+                                                            Remanejado (Sem Duplicar)
+                                                        </span>
+                                                    )}
+                                                </div>
+                                                <div className="text-right text-[11px] text-slate-600 dark:text-slate-300">
+                                                    <span>
+                                                        Início: <b>{rem.start_date ? new Date(rem.start_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}</b>
+                                                    </span>
+                                                    <span className="mx-1.5">•</span>
+                                                    <span>
+                                                        Fim: <b>{rem.end_date ? new Date(rem.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : 'Ativo'}</b>
+                                                    </span>
+                                                    <span className="ml-2 px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-700 font-bold">
+                                                        {rem.days_worked}d trab.
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Seção 2: Histórico de Trabalhadores nesta Vaga (Repasses / Substituições no Pedido Atual) */}
+                            <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                                Histórico de Trabalhadores nesta Vaga do Pedido {historyModalRow.pedido_cod} ({(historyModalRow.historico_vaga || []).length})
+                            </div>
                             {(historyModalRow.historico_vaga || []).map((entry: CommissionSlotHistoryEntry, idx: number) => (
                                 <div
                                     key={entry.assignment_id}

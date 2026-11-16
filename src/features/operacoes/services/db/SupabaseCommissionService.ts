@@ -199,6 +199,7 @@ export const commissionService = {
             settings,
             sellers,
             pedidosRes,
+            pedidoItemsRes,
             estimacionesRes,
             clientsRes,
             assignmentsRes,
@@ -212,6 +213,10 @@ export const commissionService = {
                 .schema('core_comercial')
                 .from('pedidos')
                 .select('id, codigo, client_id, client_site_id, commercial_owner_id, created_by, responsible_id, source_estimacion_id, document_language, country_id, expected_start_date, created_at'),
+            supabase
+                .schema('core_comercial')
+                .from('pedido_items')
+                .select('id, pedido_id, quantity_requested, quantity_fulfilled, job_function_name_snapshot'),
             supabase
                 .schema('core_comercial')
                 .from('estimaciones')
@@ -554,7 +559,18 @@ export const commissionService = {
             }
         });
 
-        // Also link pre-start cancelled workers on the same pedido_item_id to the subsequent worker hired for that same item
+        // Build map of requested slots per pedido_item and per pedido
+        const itemQtyMap = new Map<string, number>();
+        const pedidoVagasSolicitadasMap = new Map<string, number>();
+        ((pedidoItemsRes?.data || []) as any[]).forEach(pi => {
+            const q = Number(pi.quantity_requested || 0);
+            if (pi.id) itemQtyMap.set(pi.id, q);
+            if (pi.pedido_id) {
+                pedidoVagasSolicitadasMap.set(pi.pedido_id, (pedidoVagasSolicitadasMap.get(pi.pedido_id) || 0) + q);
+            }
+        });
+
+        // Also link pre-start cancelled workers and cap slots per pedido_item_id to quantity_requested
         const byPedidoItem = new Map<string, any[]>();
         rawAssignments.forEach(a => {
             if (a.pedido_item_id) {
@@ -564,16 +580,41 @@ export const commissionService = {
             }
         });
 
-        byPedidoItem.forEach(list => {
-            const unlinkedCancelled = list.filter(a => !parentOf.has(a.id) && getAssignmentDatesAndStatus(a).isWithdrawnPreStart);
-            const activeOrCompleted = list.filter(a => !getAssignmentDatesAndStatus(a).isWithdrawnPreStart && !parentOf.has(a.id));
-            unlinkedCancelled.forEach((canc, idx) => {
-                const targetSlot = activeOrCompleted[idx] || activeOrCompleted[0];
-                if (targetSlot && targetSlot.id !== canc.id) {
-                    // Attach cancelled pre-start worker to the active slot so it appears in history without creating an extra €20 slot
-                    parentOf.set(canc.id, targetSlot.id);
-                }
-            });
+        byPedidoItem.forEach((list, itemId) => {
+            // 1. Attach any cancelled/withdrawn pre-start worker to an active/completed slot on the same item
+            const unlinkedCancelled = list.filter(a => !parentOf.has(a.id) && (a.status === 'cancelled' || getAssignmentDatesAndStatus(a).isWithdrawnPreStart));
+            const nonCancelled = list.filter(a => !parentOf.has(a.id) && a.status !== 'cancelled' && !getAssignmentDatesAndStatus(a).isWithdrawnPreStart);
+            if (nonCancelled.length > 0) {
+                unlinkedCancelled.forEach((canc, idx) => {
+                    const targetSlot = nonCancelled[idx % nonCancelled.length];
+                    if (targetSlot && targetSlot.id !== canc.id) {
+                        parentOf.set(canc.id, targetSlot.id);
+                    }
+                });
+            }
+
+            // 2. If remaining unlinked roots on this item still exceed quantity_requested (e.g. worker left and was replaced without replacement_of_assignment_id), group earlier departed workers into the active/latest slots
+            const maxSlots = itemQtyMap.get(itemId) || 0;
+            const remainingRoots = list.filter(a => !parentOf.has(a.id));
+            if (maxSlots > 0 && remainingRoots.length > maxSlots) {
+                // Sort so active/planned/latest stay as titular roots, and earlier completed/replaced attach to them
+                const sortedRoots = [...remainingRoots].sort((x, y) => {
+                    const mx = getAssignmentDatesAndStatus(x);
+                    const my = getAssignmentDatesAndStatus(y);
+                    const scoreX = mx.isActive ? 3 : mx.isPendingEntry ? 2 : !mx.isWithdrawnPreStart ? 1 : 0;
+                    const scoreY = my.isActive ? 3 : my.isPendingEntry ? 2 : !my.isWithdrawnPreStart ? 1 : 0;
+                    if (scoreX !== scoreY) return scoreY - scoreX;
+                    return (my.daysWorked || 0) - (mx.daysWorked || 0);
+                });
+                const keepRoots = sortedRoots.slice(0, maxSlots);
+                const extraRoots = sortedRoots.slice(maxSlots);
+                extraRoots.forEach((extra, idx) => {
+                    const target = keepRoots[idx % keepRoots.length];
+                    if (target && target.id !== extra.id) {
+                        parentOf.set(extra.id, target.id);
+                    }
+                });
+            }
         });
 
         function findRootId(id: string): string {
@@ -597,9 +638,6 @@ export const commissionService = {
             slotGroups.set(rootId, arr);
         });
 
-        // Track workers who already generated a commission slot for a seller so relocations (remanejamentos) don't pay €40
-        const workerFirstSlotBySeller = new Map<string, string>(); // key: `${sellerEmail}|${worker_id}` -> rootId
-
         const earliestStartByPedidoId = new Map<string, string>();
         rawAssignments.forEach(a => {
             if (!a.pedido_id) return;
@@ -612,16 +650,71 @@ export const commissionService = {
             }
         });
 
+        // Build cross-pedido history per worker_id so we can see all relocations (remanejamentos) across pedidos
+        const workerCrossPedidosMap = new Map<string, any[]>();
+        rawAssignments.forEach(a => {
+            if (!a.worker_id) return;
+            const m = getAssignmentDatesAndStatus(a);
+            const ped = a.pedido_id ? pedidosMap.get(a.pedido_id) : (m.sol?.pedido_id ? pedidosMap.get(m.sol.pedido_id) : null);
+            const cliId = a.client_id || ped?.client_id || m.sol?.client_id;
+            const cli = cliId ? clientsMap.get(cliId) : null;
+            const arr = workerCrossPedidosMap.get(a.worker_id) || [];
+            arr.push({
+                assignment_id: a.id,
+                pedido_id: ped?.id || a.pedido_id || undefined,
+                pedido_cod: ped?.codigo || m.sol?.codigo || 'S/N',
+                cliente_nombre: cli?.trade_name || cli?.legal_name || 'Cliente',
+                start_date: m.startDateStr,
+                end_date: m.endDateStr,
+                days_worked: m.daysWorked,
+                status: a.status,
+                status_label: m.statusLabel,
+                isWithdrawnPreStart: m.isWithdrawnPreStart,
+                created_at: a.created_at
+            });
+            workerCrossPedidosMap.set(a.worker_id, arr);
+        });
+
+        workerCrossPedidosMap.forEach((arr, wId) => {
+            arr.sort((x, y) => {
+                const dX = x.start_date || String(x.created_at || '');
+                const dY = y.start_date || String(y.created_at || '');
+                return dX.localeCompare(dY);
+            });
+            // Deduplicate same pedido_cod if both cancelled & active exist on same pedido
+            const dedup: any[] = [];
+            arr.forEach(item => {
+                const existingIdx = dedup.findIndex(d => d.pedido_cod === item.pedido_cod);
+                if (existingIdx === -1) {
+                    dedup.push(item);
+                } else if (dedup[existingIdx].isWithdrawnPreStart && !item.isWithdrawnPreStart) {
+                    dedup[existingIdx] = item;
+                }
+            });
+            workerCrossPedidosMap.set(wId, dedup);
+        });
+
+        // Sort slotGroups chronologically so the first real work Pedido of any worker is processed first
+        const sortedSlotEntries = Array.from(slotGroups.entries()).sort(([, chainA], [, chainB]) => {
+            const mA = getAssignmentDatesAndStatus(chainA[0]);
+            const mB = getAssignmentDatesAndStatus(chainB[0]);
+            const dA = mA.startDateStr || String(chainA[0]?.created_at || '');
+            const dB = mB.startDateStr || String(chainB[0]?.created_at || '');
+            return dA.localeCompare(dB);
+        });
+
+        // Track workers who already generated a commission slot for a seller: key sellerEmail|worker_id -> { rootId, pedido_cod, cliente_nombre }
+        const workerFirstSlotBySeller = new Map<string, { rootId: string; pedido_cod: string; cliente_nombre: string }>();
+
         const generatedList: CommissionGenerated[] = [];
         const firstOrderByClient = new Map<string, { pedido: any; client: any; seller: CommissionSeller; firstDate: string; has15Days: boolean }>();
 
-        slotGroups.forEach((chain, rootId) => {
+        sortedSlotEntries.forEach(([rootId, chain]) => {
             // Sort chain chronologically: pre-start cancelled / replaced first, then current active/planned last
             const enrichedChain = chain.map(a => ({
                 raw: a,
                 meta: getAssignmentDatesAndStatus(a)
             })).sort((x, y) => {
-                // Put active/planned after replaced/cancelled if created around the same time
                 const xFinal = x.meta.isActive || x.meta.isPendingEntry ? 1 : 0;
                 const yFinal = y.meta.isActive || y.meta.isPendingEntry ? 1 : 0;
                 const tX = new Date(x.raw.created_at || 0).getTime();
@@ -663,19 +756,43 @@ export const commissionService = {
             const effectiveCarenciaDias = Number(useCustomRule ? (customRule!.carencia_dias ?? settings.carencia_dias ?? 15) : (settings.carencia_dias ?? 15));
             const effectiveExigeFatura = Boolean(useCustomRule ? (customRule!.exigir_fatura_quitada ?? settings.exigir_fatura_quitada ?? true) : (settings.exigir_fatura_quitada ?? true));
 
+            const pedidoCod = matchedPedido?.codigo || currentEntry.meta.sol?.codigo || 'S/N';
+            const clientName = matchedClient?.trade_name || matchedClient?.legal_name || 'Cliente não especificado';
+
             const currentWorkerId = currentEntry.raw.worker_id;
             const workerSellerKey = `${seller.email}|${currentWorkerId}`;
 
-            // Check if this worker is a relocation (remanejamento) of an already commissioned worker
-            const isRemanejamentoDuplicado = currentWorkerId && workerFirstSlotBySeller.has(workerSellerKey) && workerFirstSlotBySeller.get(workerSellerKey) !== rootId;
-            if (currentWorkerId && !workerFirstSlotBySeller.has(workerSellerKey) && !currentEntry.meta.isWithdrawnPreStart) {
-                workerFirstSlotBySeller.set(workerSellerKey, rootId);
+            // Check if this worker was already commissioned on an earlier Pedido (remanejamento entre pedidos)
+            const originSlotInfo = currentWorkerId ? workerFirstSlotBySeller.get(workerSellerKey) : undefined;
+            const isRemanejamentoDuplicado = Boolean(originSlotInfo && originSlotInfo.rootId !== rootId);
+            if (currentWorkerId && !originSlotInfo && !currentEntry.meta.isWithdrawnPreStart) {
+                workerFirstSlotBySeller.set(workerSellerKey, {
+                    rootId,
+                    pedido_cod: pedidoCod,
+                    cliente_nombre: clientName
+                });
             }
 
-            if (isRemanejamentoDuplicado) {
-                // Do not generate a duplicate €20 commission for a relocated worker ("desse remanejado eu não posso pagar 40 e sim só aqueles 20 que é aquela vaga")
-                return;
-            }
+            // Build cross-pedido relocation route for this worker
+            const rawCrossList = (currentWorkerId ? workerCrossPedidosMap.get(currentWorkerId) : []) || [];
+            const realWorkCrossList = rawCrossList.filter(c => !c.isWithdrawnPreStart || c.pedido_cod === pedidoCod);
+            const currentCrossIdx = realWorkCrossList.findIndex(c => c.pedido_cod === pedidoCod);
+            const nextPedidoEntry = currentCrossIdx >= 0 && currentCrossIdx + 1 < realWorkCrossList.length
+                ? realWorkCrossList[currentCrossIdx + 1]
+                : null;
+
+            const historico_remanejamento = realWorkCrossList.map(c => ({
+                assignment_id: c.assignment_id,
+                pedido_id: c.pedido_id,
+                pedido_cod: c.pedido_cod,
+                cliente_nombre: c.cliente_nombre,
+                start_date: c.start_date,
+                end_date: c.end_date,
+                days_worked: c.days_worked,
+                status: c.status,
+                status_label: c.status_label,
+                is_current_slot: c.pedido_cod === pedidoCod
+            }));
 
             const historico_vaga: CommissionSlotHistoryEntry[] = enrichedChain.map((item, idx) => ({
                 assignment_id: item.raw.id,
@@ -684,7 +801,7 @@ export const commissionService = {
                 worker_doc: item.raw.worker?.dni || item.raw.worker?.nif || item.raw.worker?.cod_colab || '-',
                 step_order: idx + 1,
                 is_current: item.raw.id === currentEntry.raw.id,
-                is_relocated: item.meta.isRelocated,
+                is_relocated: item.meta.isRelocated || isRemanejamentoDuplicado,
                 start_date: item.meta.startDateStr,
                 planned_start_date: item.raw.planned_start_date ? String(item.raw.planned_start_date).split('T')[0] : null,
                 end_date: item.meta.endDateStr,
@@ -707,10 +824,9 @@ export const commissionService = {
                 (firstEntry.raw.created_at ? String(firstEntry.raw.created_at).split('T')[0] : todayYMD);
 
             const mesRef = refDateStr.substring(0, 7); // 'YYYY-MM'
-            const clientName = matchedClient?.trade_name || matchedClient?.legal_name || 'Cliente não especificado';
 
             // Track client's first order for the New Client Bonus
-            if (matchedClient?.id) {
+            if (matchedClient?.id && !isRemanejamentoDuplicado) {
                 const existingFirst = firstOrderByClient.get(matchedClient.id);
                 if (!existingFirst || refDateStr < existingFirst.firstDate) {
                     firstOrderByClient.set(matchedClient.id, {
@@ -729,10 +845,12 @@ export const commissionService = {
             const invoiceInfo = checkInvoiceForClientMonth(matchedClient, clientName, mesRef);
 
             const exigeFatura = effectiveExigeFatura;
-            const elegivel = carenciaCumprida && (!exigeFatura || invoiceInfo.fatura_quitada);
+            const elegivel = !isRemanejamentoDuplicado && carenciaCumprida && (!exigeFatura || invoiceInfo.fatura_quitada);
 
             let motivoBloqueio: string | null = null;
-            if (!carenciaCumprida) {
+            if (isRemanejamentoDuplicado && originSlotInfo) {
+                motivoBloqueio = `Remanejado de ${originSlotInfo.pedido_cod} (${originSlotInfo.cliente_nombre}) — comissão mantida no 1º pedido para não duplicar`;
+            } else if (!carenciaCumprida) {
                 if (currentEntry.meta.isPendingEntry) {
                     motivoBloqueio = `Aguardando início do trabalhador (${currentEntry.meta.startDateStr ? new Date(currentEntry.meta.startDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : 'Pendente'})`;
                 } else if (currentEntry.meta.isWithdrawnPreStart || (currentEntry.meta.isTurnover && titularDaysWorked < carenciaMeta)) {
@@ -751,8 +869,9 @@ export const commissionService = {
                 vendedor_id: seller.id,
                 vendedor_nome: seller.name,
                 vendedor_email: seller.email,
-                codpedido: matchedPedido?.codigo || currentEntry.meta.sol?.codigo || 'S/N',
+                codpedido: pedidoCod,
                 pedido_id: matchedPedido?.id || undefined,
+                pedido_vagas_solicitadas: matchedPedido?.id ? (pedidoVagasSolicitadasMap.get(matchedPedido.id) || 0) : 0,
                 pedido_start_date: (matchedPedido?.id && earliestStartByPedidoId.get(matchedPedido.id))
                     || firstEntry.meta.startDateStr
                     || (matchedPedido?.expected_start_date ? String(matchedPedido.expected_start_date).split('T')[0] : null)
@@ -769,7 +888,7 @@ export const commissionService = {
                 cliente_nombre: clientName,
                 cliente_created_at: matchedClient?.created_at ? String(matchedClient.created_at).split('T')[0] : null,
                 tipo: 'contratacao',
-                valor: effectiveComissaoBase,
+                valor: isRemanejamentoDuplicado ? 0 : effectiveComissaoBase,
                 regra_aplicada: useCustomRule ? 'individual' : 'padrao',
                 exigir_fatura_quitada_regra: exigeFatura,
                 data_referencia: refDateStr,
@@ -779,7 +898,12 @@ export const commissionService = {
                 carencia_dias_meta: carenciaMeta,
                 carencia_cumprida: carenciaCumprida,
                 is_pending_start: currentEntry.meta.isPendingEntry,
-                is_remanejado: currentEntry.meta.isRelocated,
+                is_remanejado: isRemanejamentoDuplicado || currentEntry.meta.isRelocated,
+                remanejado_de_pedido: isRemanejamentoDuplicado ? originSlotInfo?.pedido_cod || null : null,
+                remanejado_de_cliente: isRemanejamentoDuplicado ? originSlotInfo?.cliente_nombre || null : null,
+                remanejado_para_pedido: nextPedidoEntry ? nextPedidoEntry.pedido_cod : null,
+                remanejado_para_cliente: nextPedidoEntry ? nextPedidoEntry.cliente_nombre : null,
+                historico_remanejamento: historico_remanejamento.length > 1 ? historico_remanejamento : [],
                 repasses_count: repassesCount,
                 historico_vaga,
                 fatura_quitada: invoiceInfo.fatura_quitada,

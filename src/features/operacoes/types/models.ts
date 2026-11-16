@@ -163,6 +163,19 @@ export interface CommissionSeller {
   estadotrabajador?: string;
 }
 
+export interface WorkerCrossPedidoEntry {
+  assignment_id: string;
+  pedido_id?: string;
+  pedido_cod: string;
+  cliente_nombre: string;
+  start_date: string | null;
+  end_date: string | null;
+  days_worked: number;
+  status: string;
+  status_label: string;
+  is_current_slot: boolean;
+}
+
 export interface CommissionSlotHistoryEntry {
   assignment_id: string;
   worker_id: string;
@@ -213,6 +226,12 @@ export interface CommissionGenerated {
   carencia_cumprida?: boolean;
   is_pending_start?: boolean;
   is_remanejado?: boolean;
+  pedido_vagas_solicitadas?: number;
+  remanejado_de_pedido?: string | null;
+  remanejado_de_cliente?: string | null;
+  remanejado_para_pedido?: string | null;
+  remanejado_para_cliente?: string | null;
+  historico_remanejamento?: WorkerCrossPedidoEntry[];
   repasses_count?: number;
   historico_vaga?: CommissionSlotHistoryEntry[];
   fatura_quitada?: boolean;
