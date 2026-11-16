@@ -96,6 +96,91 @@ async function sendMailViaResend(
   }
 }
 
+async function saveCopyToGraphSentItems(
+  senderEmail: string,
+  senderName: string,
+  targetEmail: string,
+  subject: string,
+  htmlContent: string,
+  attachments: EmailAttachment[] = [],
+  microsoftCredentials?: { tenantId?: string; clientId?: string; clientSecret?: string }
+): Promise<{ success: boolean; error?: string }> {
+  try {
+    const tenantId = microsoftCredentials?.tenantId || Deno.env.get('SHAREPOINT_TENANT_ID');
+    const clientId = microsoftCredentials?.clientId || Deno.env.get('SHAREPOINT_CLIENT_ID');
+    const clientSecret = microsoftCredentials?.clientSecret || Deno.env.get('SHAREPOINT_CLIENT_SECRET');
+
+    if (!tenantId || !clientId || !clientSecret) {
+      return { success: false, error: "Microsoft Graph secrets are missing." };
+    }
+
+    const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
+    const formData = new URLSearchParams();
+    formData.append('client_id', clientId);
+    formData.append('client_secret', clientSecret);
+    formData.append('scope', 'https://graph.microsoft.com/.default');
+    formData.append('grant_type', 'client_credentials');
+
+    const tokenRes = await fetch(tokenUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: formData,
+      signal: AbortSignal.timeout(10000),
+    });
+
+    if (!tokenRes.ok) {
+      return { success: false, error: `Auth Token Error: ${await tokenRes.text()}` };
+    }
+
+    const { access_token } = await tokenRes.json();
+
+    const sendMailUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
+    const mailPayload: any = {
+      message: {
+        subject,
+        body: { contentType: "HTML", content: htmlContent },
+        toRecipients: [
+          {
+            emailAddress: {
+              name: targetEmail,
+              address: senderEmail,
+            },
+          },
+        ],
+      },
+      saveToSentItems: true,
+    };
+
+    if (attachments && attachments.length > 0) {
+      mailPayload.message.attachments = attachments.map((att) => ({
+        "@odata.type": "#microsoft.graph.fileAttachment",
+        name: att.name,
+        contentType: att.contentType,
+        contentBytes: att.contentBytes,
+      }));
+    }
+
+    const res = await fetch(sendMailUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${access_token}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(mailPayload),
+      signal: AbortSignal.timeout(15000),
+    });
+
+    if (res.ok) {
+      return { success: true };
+    } else {
+      const errText = await res.text();
+      return { success: false, error: `Graph sendMail Copy Error (${res.status}): ${errText}` };
+    }
+  } catch (err: any) {
+    return { success: false, error: err.message };
+  }
+}
+
 async function sendMailViaGraph(
   senderEmail: string,
   senderName: string,
@@ -127,7 +212,7 @@ async function sendMailViaGraph(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!tokenRes.ok) {
@@ -140,6 +225,14 @@ async function sendMailViaGraph(
 
     // 2. Montar Payload do E-mail
     const sendMailUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
+    const toRecipients = targetEmail
+      .split(/[;,]/)
+      .map((e) => e.trim())
+      .filter(Boolean)
+      .map((address) => ({
+        emailAddress: { address },
+      }));
+
     const mailPayload: any = {
       message: {
         subject: subject,
@@ -147,15 +240,9 @@ async function sendMailViaGraph(
           contentType: "HTML",
           content: htmlContent,
         },
-        toRecipients: [
-          {
-            emailAddress: {
-              address: targetEmail,
-            },
-          },
-        ],
+        toRecipients,
       },
-      saveToSentItems: "true",
+      saveToSentItems: true,
     };
 
     if (attachments && attachments.length > 0) {
@@ -175,7 +262,7 @@ async function sendMailViaGraph(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(mailPayload),
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (graphRes.ok) {
@@ -211,6 +298,8 @@ serve(async (req) => {
       userId,
       attachments = [],
       materialTitle,
+      saveToSentItemsOnly = false,
+      sentAtIso,
     } = await req.json();
 
     if (!recipientEmail || !subject || !htmlContent) {
@@ -256,10 +345,8 @@ serve(async (req) => {
       fromEmail = "valter@gestaologinpro.com";
     }
 
-    // 2. Disparar e-mail (Microsoft Graph quando houver credencial da empresa, com fallback automático para Resend)
-    let mailResult: { success: boolean; error?: string };
-    if (msCredentials) {
-      mailResult = await sendMailViaGraph(
+    if (saveToSentItemsOnly) {
+      const copyRes = await saveCopyToGraphSentItems(
         fromEmail,
         senderName || "Comercial MCS",
         recipientEmail,
@@ -268,20 +355,31 @@ serve(async (req) => {
         attachments,
         msCredentials
       );
-      if (!mailResult.success) {
-        const resendRes = await sendMailViaResend(
-          fromEmail,
-          senderName || "Comercial MCS",
-          recipientEmail,
-          subject,
-          htmlContent,
-          attachments,
-          resolvedEmpresa
-        );
-        if (resendRes.success) mailResult = resendRes;
-      }
-    } else {
-      mailResult = await sendMailViaResend(
+      return new Response(
+        JSON.stringify(copyRes),
+        { status: copyRes.success ? 200 : 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    // 2. Disparar e-mail SEMPRE priorizando o Microsoft Graph (usa credencial dedicada da empresa ou o tenant global M365)
+    // para garantir que o e-mail saia pela caixa oficial do Outlook 365 e fique gravado em "Itens Enviados" (saveToSentItems: true).
+    // O Resend atua exclusivamente como contingência (fallback) caso o Microsoft 365 esteja fora do ar.
+    let usedProvider = "microsoft_graph";
+    let graphError: string | undefined = undefined;
+    let mailResult = await sendMailViaGraph(
+      fromEmail,
+      senderName || "Comercial MCS",
+      recipientEmail,
+      subject,
+      htmlContent,
+      attachments,
+      msCredentials
+    );
+
+    if (!mailResult.success) {
+      graphError = mailResult.error;
+      console.warn(`[send-commercial-email] Graph falhou (${mailResult.error}). Acionando contingência via Resend...`);
+      const resendRes = await sendMailViaResend(
         fromEmail,
         senderName || "Comercial MCS",
         recipientEmail,
@@ -290,16 +388,9 @@ serve(async (req) => {
         attachments,
         resolvedEmpresa
       );
-      if (!mailResult.success) {
-        mailResult = await sendMailViaGraph(
-          fromEmail,
-          senderName || "Comercial MCS",
-          recipientEmail,
-          subject,
-          htmlContent,
-          attachments,
-          msCredentials
-        );
+      if (resendRes.success) {
+        mailResult = resendRes;
+        usedProvider = "resend_fallback";
       }
     }
 
@@ -374,7 +465,12 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        message: "E-mail enviado com sucesso via Microsoft 365 e gravado nos itens enviados.",
+        provider: usedProvider,
+        graphError,
+        message:
+          usedProvider === "microsoft_graph"
+            ? "E-mail enviado com sucesso via Microsoft 365 e gravado nos itens enviados."
+            : "E-mail enviado via contingência (Resend) devido a falha temporária no Microsoft 365.",
         senderEmail: fromEmail,
         recipientEmail,
       }),

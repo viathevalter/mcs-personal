@@ -244,7 +244,7 @@ async function sendMailViaGraph(
       return { success: false, error: "Microsoft Graph secrets are missing." };
     }
 
-    // 1. Obter Token de Acesso (timeout 6s)
+    // 1. Obter Token de Acesso (timeout 10s)
     const tokenUrl = `https://login.microsoftonline.com/${tenantId}/oauth2/v2.0/token`;
     const formData = new URLSearchParams();
     formData.append('client_id', clientId);
@@ -256,7 +256,7 @@ async function sendMailViaGraph(
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: formData,
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(10000),
     });
 
     if (!tokenRes.ok) {
@@ -267,7 +267,7 @@ async function sendMailViaGraph(
 
     const { access_token } = await tokenRes.json();
 
-    // 2. Disparar email via Microsoft Graph API (timeout 3.5s)
+    // 2. Disparar email via Microsoft Graph API (timeout 15s)
     const sendMailUrl = `https://graph.microsoft.com/v1.0/users/${senderEmail}/sendMail`;
     
     const toRecipients = toEmails.map(email => ({
@@ -309,7 +309,7 @@ async function sendMailViaGraph(
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(mailPayload),
-      signal: AbortSignal.timeout(3500),
+      signal: AbortSignal.timeout(15000),
     });
 
     if (graphRes.ok) {
@@ -1088,42 +1088,24 @@ serve(async (req) => {
 
     const finalSubject = email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`);
 
-    // 8. Enviar email:
-    // Se a empresa possui credenciais próprias do Microsoft Graph (ex.: Stocco, Genio), tenta via Graph (timeout 8s)
-    // e faz fallback automático para Resend em caso de falha/indisponibilidade do Outlook/Exchange.
-    // Se a empresa não possui credenciais próprias de Graph (ex.: Wiseowe, Triangulo, Luminous, Hexagon, Login Pro),
-    // dispara diretamente via Resend (domínios verificados) com Reply-To configurado para o e-mail oficial da empresa.
-    let mailRes: { success: boolean; error?: string };
+    // 8. Enviar email SEMPRE priorizando o Microsoft Graph (usa credenciais dedicadas da empresa ou o tenant global M365)
+    // para que o e-mail saia da caixa oficial do Outlook 365 e fique gravado nos "Itens Enviados" (saveToSentItems: true).
+    // O Resend atua exclusivamente como contingência (fallback) em caso de falha/indisponibilidade do Outlook/Exchange.
+    let usedProvider = "microsoft_graph";
+    let mailRes = await sendMailViaGraph(
+      senderEmail,
+      senderName,
+      parsedToEmails,
+      finalSubject,
+      email_body,
+      attachments,
+      msCredentials,
+      resolvedReplyTo
+    );
 
-    if (msCredentials) {
-      mailRes = await sendMailViaGraph(
-        senderEmail,
-        senderName,
-        parsedToEmails,
-        finalSubject,
-        email_body,
-        attachments,
-        msCredentials,
-        resolvedReplyTo
-      );
-      if (!mailRes.success) {
-        console.warn(`[send-order-notification] Graph falhou (${mailRes.error}). Acionando fallback via Resend...`);
-        const resendFallback = await sendMailViaResend(
-          senderEmail,
-          senderName,
-          parsedToEmails,
-          finalSubject,
-          email_body,
-          attachments,
-          resolvedReplyTo || senderEmail,
-          resolvedEmpresa
-        );
-        if (resendFallback.success) {
-          mailRes = resendFallback;
-        }
-      }
-    } else {
-      mailRes = await sendMailViaResend(
+    if (!mailRes.success) {
+      console.warn(`[send-order-notification] Graph falhou (${mailRes.error}). Acionando contingência via Resend...`);
+      const resendFallback = await sendMailViaResend(
         senderEmail,
         senderName,
         parsedToEmails,
@@ -1133,18 +1115,9 @@ serve(async (req) => {
         resolvedReplyTo || senderEmail,
         resolvedEmpresa
       );
-      if (!mailRes.success) {
-        console.warn(`[send-order-notification] Resend falhou (${mailRes.error}). Tentando fallback via Microsoft Graph...`);
-        mailRes = await sendMailViaGraph(
-          senderEmail,
-          senderName,
-          parsedToEmails,
-          finalSubject,
-          email_body,
-          attachments,
-          msCredentials,
-          resolvedReplyTo
-        );
+      if (resendFallback.success) {
+        mailRes = resendFallback;
+        usedProvider = "resend_fallback";
       }
     }
 
@@ -1156,7 +1129,7 @@ serve(async (req) => {
     }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, provider: usedProvider }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
 
