@@ -517,6 +517,7 @@ export const commissionService = {
         // Link parent assignments (for replacement chains & pre-start cancelled slots)
         const parentOf = new Map<string, string>();
 
+        // Pass 1: Direct explicit replacement links (replacement_of_assignment_id, root_assignment_id, targetToSourceMap)
         rawAssignments.forEach(a => {
             if (a.replacement_of_assignment_id && assignmentById.has(a.replacement_of_assignment_id)) {
                 parentOf.set(a.id, a.replacement_of_assignment_id);
@@ -536,24 +537,19 @@ export const commissionService = {
                 parentOf.set(a.id, sol.target_assignment_id);
                 return;
             }
-            // If linked via solicitud_id of type 'replacement', check solicitudReplacementTargets
+        });
+
+        // Pass 2: Fallback via solicitudReplacementTargets only for unclaimed sources
+        const claimedSources = new Set<string>(parentOf.values());
+        rawAssignments.forEach(a => {
+            if (parentOf.has(a.id)) return;
             if (a.solicitud_id && solicitudReplacementTargets.has(a.solicitud_id)) {
                 const candidates = solicitudReplacementTargets.get(a.solicitud_id)!;
                 for (const cand of candidates) {
-                    if (cand.source_assignment_id && assignmentById.has(cand.source_assignment_id)) {
+                    if (cand.source_assignment_id && assignmentById.has(cand.source_assignment_id) && cand.source_assignment_id !== a.id && !claimedSources.has(cand.source_assignment_id)) {
                         parentOf.set(a.id, cand.source_assignment_id);
+                        claimedSources.add(cand.source_assignment_id);
                         return;
-                    }
-                    if (cand.source_worker_id) {
-                        const prevAssign = rawAssignments.find(
-                            prev => prev.worker_id === cand.source_worker_id &&
-                                (prev.client_id === a.client_id || prev.pedido_id === a.pedido_id) &&
-                                prev.id !== a.id
-                        );
-                        if (prevAssign) {
-                            parentOf.set(a.id, prevAssign.id);
-                            return;
-                        }
                     }
                 }
             }
@@ -580,27 +576,51 @@ export const commissionService = {
             }
         });
 
+        // Track which assignments already have a replacement pointing to them (so they are already a slot root with a substitute!)
+        const hasReplacementChild = new Set<string>(parentOf.values());
+
         byPedidoItem.forEach((list, itemId) => {
-            // 1. Attach any cancelled/withdrawn pre-start worker to an active/completed slot on the same item
-            const unlinkedCancelled = list.filter(a => !parentOf.has(a.id) && (a.status === 'cancelled' || getAssignmentDatesAndStatus(a).isWithdrawnPreStart));
-            const nonCancelled = list.filter(a => !parentOf.has(a.id) && a.status !== 'cancelled' && !getAssignmentDatesAndStatus(a).isWithdrawnPreStart);
-            if (nonCancelled.length > 0) {
-                unlinkedCancelled.forEach((canc, idx) => {
-                    const targetSlot = nonCancelled[idx % nonCancelled.length];
+            // 1. Only attach standalone cancelled pre-start drafts that do NOT have their own replacement child
+            const standaloneCancelled = list.filter(a =>
+                !parentOf.has(a.id) &&
+                !hasReplacementChild.has(a.id) &&
+                (a.status === 'cancelled' || getAssignmentDatesAndStatus(a).isWithdrawnPreStart)
+            );
+            const activeRoots = list.filter(a =>
+                !parentOf.has(a.id) &&
+                (hasReplacementChild.has(a.id) || (a.status !== 'cancelled' && !getAssignmentDatesAndStatus(a).isWithdrawnPreStart))
+            );
+            if (activeRoots.length > 0) {
+                standaloneCancelled.forEach((canc, idx) => {
+                    const targetSlot = activeRoots[idx % activeRoots.length];
                     if (targetSlot && targetSlot.id !== canc.id) {
                         parentOf.set(canc.id, targetSlot.id);
                     }
                 });
             }
 
-            // 2. If remaining unlinked roots on this item still exceed quantity_requested (e.g. worker left and was replaced without replacement_of_assignment_id), group earlier departed workers into the active/latest slots
+            // 2. If remaining roots on this item still exceed quantity_requested (when a worker left and was replaced without replacement_of_assignment_id), group earlier departed roots into the active/latest roots
             const maxSlots = itemQtyMap.get(itemId) || 0;
             const remainingRoots = list.filter(a => !parentOf.has(a.id));
             if (maxSlots > 0 && remainingRoots.length > maxSlots) {
-                // Sort so active/planned/latest stay as titular roots, and earlier completed/replaced attach to them
+                const getChainBestMeta = (rootAssign: any) => {
+                    const chainMembers = list.filter(m => {
+                        let curr = m.id;
+                        const vis = new Set<string>();
+                        while (parentOf.has(curr) && !vis.has(curr)) {
+                            vis.add(curr);
+                            curr = parentOf.get(curr)!;
+                        }
+                        return curr === rootAssign.id;
+                    });
+                    const metas = chainMembers.map(m => getAssignmentDatesAndStatus(m));
+                    const activeOne = metas.find(m => m.isActive) || metas.find(m => m.isPendingEntry) || metas.find(m => !m.isWithdrawnPreStart) || metas[0];
+                    return activeOne;
+                };
+
                 const sortedRoots = [...remainingRoots].sort((x, y) => {
-                    const mx = getAssignmentDatesAndStatus(x);
-                    const my = getAssignmentDatesAndStatus(y);
+                    const mx = getChainBestMeta(x);
+                    const my = getChainBestMeta(y);
                     const scoreX = mx.isActive ? 3 : mx.isPendingEntry ? 2 : !mx.isWithdrawnPreStart ? 1 : 0;
                     const scoreY = my.isActive ? 3 : my.isPendingEntry ? 2 : !my.isWithdrawnPreStart ? 1 : 0;
                     if (scoreX !== scoreY) return scoreY - scoreX;
@@ -710,18 +730,42 @@ export const commissionService = {
         const firstOrderByClient = new Map<string, { pedido: any; client: any; seller: CommissionSeller; firstDate: string; has15Days: boolean }>();
 
         sortedSlotEntries.forEach(([rootId, chain]) => {
-            // Sort chain chronologically: pre-start cancelled / replaced first, then current active/planned last
-            const enrichedChain = chain.map(a => ({
+            // Sort chain chronologically: 1st hired worker first -> replacements in chronological order -> current titular last
+            const rawEnrichedChain = chain.map(a => ({
                 raw: a,
                 meta: getAssignmentDatesAndStatus(a)
             })).sort((x, y) => {
                 const xFinal = x.meta.isActive || x.meta.isPendingEntry ? 1 : 0;
                 const yFinal = y.meta.isActive || y.meta.isPendingEntry ? 1 : 0;
-                const tX = new Date(x.raw.created_at || 0).getTime();
-                const tY = new Date(y.raw.created_at || 0).getTime();
-                if (Math.abs(tX - tY) > 86400000) return tX - tY;
-                return xFinal - yFinal;
+                if (xFinal !== yFinal) return xFinal - yFinal;
+                const dX = x.meta.startDateStr || String(x.raw.created_at || '');
+                const dY = y.meta.startDateStr || String(y.raw.created_at || '');
+                if (dX !== dY) return dX.localeCompare(dY);
+                return new Date(x.raw.created_at || 0).getTime() - new Date(y.raw.created_at || 0).getTime();
             });
+
+            // Deduplicate same worker_id within the same slot (e.g. if HR created a cancelled draft and then an active record for the same person Remberto)
+            const byWorkerInSlot = new Map<string, { raw: any; meta: any }>();
+            rawEnrichedChain.forEach(item => {
+                const wKey = item.raw.worker_id || item.raw.id;
+                const existing = byWorkerInSlot.get(wKey);
+                if (!existing) {
+                    byWorkerInSlot.set(wKey, item);
+                } else {
+                    const scoreNew = item.meta.isActive ? 3 : !item.meta.isWithdrawnPreStart ? 2 : 1;
+                    const scoreOld = existing.meta.isActive ? 3 : !existing.meta.isWithdrawnPreStart ? 2 : 1;
+                    if (scoreNew >= scoreOld) {
+                        byWorkerInSlot.set(wKey, item);
+                    }
+                }
+            });
+
+            const deduplicatedChain = Array.from(byWorkerInSlot.values());
+            // Filter out extra 0-day cancelled drafts of unrelated candidates when the slot already has real workers
+            const realStartedOrRoot = deduplicatedChain.filter(
+                e => !e.meta.isWithdrawnPreStart || e.raw.id === rootId || hasReplacementChild.has(e.raw.id)
+            );
+            const enrichedChain = realStartedOrRoot.length > 0 ? realStartedOrRoot : deduplicatedChain;
 
             // Determine current/titular assignment in the slot (prefer active -> planned -> completed -> last)
             const currentEntry =

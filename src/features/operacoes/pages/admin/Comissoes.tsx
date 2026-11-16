@@ -2217,8 +2217,13 @@ export const Comissoes: React.FC = () => {
                             </button>
                         </div>
 
-                        <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4 text-xs text-blue-900 dark:text-blue-200">
-                            <b>Regra de Vaga Única (€ {Number(historyModalRow.valor).toFixed(2)}):</b> Substituições (reemplazos) ou remanejamentos dentro da mesma vaga não duplicam a comissão. Para desbloquear os € {Number(historyModalRow.valor).toFixed(2)}, o trabalhador alocado na vaga precisa completar <b>{historyModalRow.carencia_dias_meta} dias trabalhados</b> e a fatura do mês (<b>{historyModalRow.mes_referencia_label}</b>) deve estar quitada pelo cliente.
+                        <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4 text-xs text-blue-900 dark:text-blue-200 space-y-1">
+                            <div>
+                                <b>Regra de Vaga Única (€ {Number(historyModalRow.valor).toFixed(2)}):</b> Substituições (reemplazos) dentro da mesma vaga mantêm a comissão única da vaga (não duplicam).
+                            </div>
+                            <div>
+                                <b>Regra dos {historyModalRow.carencia_dias_meta || 15} Dias:</b> Os dias de trabalhadores anteriores que saíram/foram substituídos <b>não contam</b>. Apenas o <b>Titular Atual que ficou na vaga ({historyModalRow.desc})</b> precisa completar os <b>{historyModalRow.carencia_dias_meta || 15} dias trabalhados</b> (atualmente com <b>{historyModalRow.dias_trabalhados} dias</b>).
+                            </div>
                         </div>
 
                         <div className="flex-1 overflow-y-auto space-y-4 pr-1">
@@ -2278,35 +2283,40 @@ export const Comissoes: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Seção 2: Histórico de Trabalhadores nesta Vaga (Repasses / Substituições no Pedido Atual) */}
+                            {/* Seção 2: Histórico Cronológico da Vaga (Do 1º Contratado até quem ficou na vaga) */}
                             <div className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                                Histórico de Trabalhadores nesta Vaga do Pedido {historyModalRow.pedido_cod} ({(historyModalRow.historico_vaga || []).length})
+                                Linha do Tempo desta Vaga no Pedido {historyModalRow.pedido_cod} (Do 1º contratado até o titular atual)
                             </div>
                             {(historyModalRow.historico_vaga || []).map((entry: CommissionSlotHistoryEntry, idx: number) => (
                                 <div
                                     key={entry.assignment_id}
                                     className={`p-3.5 rounded-xl border ${
                                         entry.is_current
-                                            ? 'bg-emerald-50/40 dark:bg-emerald-950/20 border-emerald-300 dark:border-emerald-800'
-                                            : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700'
+                                            ? 'bg-emerald-50/50 dark:bg-emerald-950/25 border-emerald-400 dark:border-emerald-700 ring-1 ring-emerald-400/50'
+                                            : 'bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-700 opacity-85'
                                     }`}
                                 >
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                         <div className="flex items-center gap-2">
-                                            <span className="w-6 h-6 rounded-full bg-slate-800 text-white dark:bg-slate-700 text-xs font-bold flex items-center justify-center">
+                                            <span className={`w-6 h-6 rounded-full text-white text-xs font-bold flex items-center justify-center ${
+                                                entry.is_current ? 'bg-emerald-600' : 'bg-slate-500 dark:bg-slate-600'
+                                            }`}>
                                                 {idx + 1}º
                                             </span>
                                             <div>
-                                                <div className="font-bold text-sm flex items-center gap-2">
+                                                <div className="font-bold text-sm flex items-center gap-2 flex-wrap">
                                                     <span>{entry.worker_name}</span>
-                                                    {entry.is_current && (
-                                                        <span className="px-2 py-0.2 text-[10px] font-bold uppercase rounded bg-emerald-600 text-white">
-                                                            Titular da Vaga
+                                                    {entry.is_current ? (
+                                                        <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-emerald-600 text-white">
+                                                            ★ Titular da Vaga (Ficou na Vaga)
                                                         </span>
-                                                    )}
-                                                    {idx > 0 && (
-                                                        <span className="px-2 py-0.2 text-[10px] font-semibold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
-                                                            {idx}º Repasse / Substituto
+                                                    ) : idx === 0 ? (
+                                                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-300">
+                                                            1º Contratado na Vaga (Saiu / Substituído)
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 text-[10px] font-semibold rounded bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300">
+                                                            {idx}º Substituto (Saiu / Substituído)
                                                         </span>
                                                     )}
                                                 </div>
@@ -2317,13 +2327,19 @@ export const Comissoes: React.FC = () => {
                                         </div>
 
                                         <div className="text-right">
-                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
-                                                entry.days_worked >= (historyModalRow.carencia_dias_meta || 15)
-                                                    ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                                                    : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
-                                            }`}>
-                                                {entry.days_worked} dias trabalhados
-                                            </span>
+                                            {entry.is_current ? (
+                                                <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
+                                                    entry.days_worked >= (historyModalRow.carencia_dias_meta || 15)
+                                                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                                                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300'
+                                                }`}>
+                                                    {entry.days_worked} / {historyModalRow.carencia_dias_meta || 15} dias (Conta p/ Carência)
+                                                </span>
+                                            ) : (
+                                                <span className="px-2 py-0.5 rounded-full text-[11px] font-medium bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                                    Saiu c/ {entry.days_worked}d (Não soma na carência)
+                                                </span>
+                                            )}
                                             <div className="text-[11px] font-medium text-slate-500 mt-0.5">
                                                 {entry.status_label}
                                             </div>
@@ -2335,7 +2351,7 @@ export const Comissoes: React.FC = () => {
                                             <b>Início:</b> {entry.start_date ? new Date(entry.start_date + 'T12:00:00').toLocaleDateString('pt-PT') : 'Não iniciado'}
                                         </div>
                                         <div>
-                                            <b>Saída / Fim:</b> {entry.end_date ? new Date(entry.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : 'Em atividade'}
+                                            <b>Saída / Fim:</b> {entry.end_date ? new Date(entry.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : (entry.is_current ? 'Em atividade' : 'Substituído')}
                                         </div>
                                     </div>
 
