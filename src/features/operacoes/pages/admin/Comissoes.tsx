@@ -6,13 +6,13 @@ import type {
     CommissionLancamento,
     CommissionSettings,
     CommissionSeller,
-    CommissionSlotHistoryEntry
+    CommissionSlotHistoryEntry,
+    SellerCommissionRule
 } from '../../types/models';
 import {
     Filter,
     DollarSign,
     Wallet,
-    ArrowDownCircle,
     Info,
     PlusCircle,
     Download,
@@ -25,15 +25,20 @@ import {
     Settings,
     RefreshCw,
     FileCheck2,
-    AlertCircle,
-    UserCheck,
     ArrowRightLeft,
-    Calendar,
-    Building2,
+    ArrowUpDown,
+    ArrowUp,
+    ArrowDown,
+    Search,
+    User,
+    Users,
     X
 } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { MultiSelect } from '../../components/ui/MultiSelect';
+
+type SortField = 'date' | 'vendedor' | 'cliente' | 'trabalhador' | 'carencia' | 'fatura' | 'valor' | 'status';
+type SortDirection = 'asc' | 'desc';
 
 export const Comissoes: React.FC = () => {
     const { user } = useAuth();
@@ -52,11 +57,14 @@ export const Comissoes: React.FC = () => {
     const [vendedorFilter, setVendedorFilter] = useState<string>('');
     const [mesRefFilter, setMesRefFilter] = useState<string>('');
 
-    // Extra Filters
+    // Extra Filters & Sorting
+    const [searchQuery, setSearchQuery] = useState('');
     const [clienteFilter, setClienteFilter] = useState<string[]>([]);
     const [pedidoFilter, setPedidoFilter] = useState<string[]>([]);
     const [tipoFilter, setTipoFilter] = useState('');
     const [statusFilter, setStatusFilter] = useState('');
+    const [sortField, setSortField] = useState<SortField>('date');
+    const [sortDir, setSortDir] = useState<SortDirection>('desc');
 
     const [loading, setLoading] = useState(false);
     const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -71,15 +79,25 @@ export const Comissoes: React.FC = () => {
         descricao: ''
     });
 
-    // Modal state for Parameters / Rules Configuration
+    // Modal state for Parameters / Rules Configuration (Global + Individual Seller Rules)
     const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
     const [savingSettings, setSavingSettings] = useState(false);
-    const [settingsForm, setSettingsForm] = useState({
+    const [settingsTab, setSettingsTab] = useState<'global' | 'individual'>('global');
+    const [selectedRuleSellerEmail, setSelectedRuleSellerEmail] = useState<string>('');
+    const [settingsForm, setSettingsForm] = useState<{
+        bonus_novo_cliente: string;
+        comissao_base: string;
+        carencia_dias: string;
+        exigir_fatura_quitada: boolean;
+        data_corte_novos_clientes: string;
+        regras_vendedores: Record<string, SellerCommissionRule>;
+    }>({
         bonus_novo_cliente: '30',
         comissao_base: '20',
         carencia_dias: '15',
         exigir_fatura_quitada: true,
-        data_corte_novos_clientes: '2026-07-05'
+        data_corte_novos_clientes: '2026-07-05',
+        regras_vendedores: {}
     });
 
     // Modal state for Vaga Replacement History
@@ -105,7 +123,8 @@ export const Comissoes: React.FC = () => {
                 comissao_base: String(config.comissao_base ?? 20),
                 carencia_dias: String(config.carencia_dias ?? 15),
                 exigir_fatura_quitada: config.exigir_fatura_quitada ?? true,
-                data_corte_novos_clientes: config.data_corte_novos_clientes || '2026-07-05'
+                data_corte_novos_clientes: config.data_corte_novos_clientes || '2026-07-05',
+                regras_vendedores: config.regras_vendedores ? { ...config.regras_vendedores } : {}
             });
 
             const emailToFetch = isSupervisor ? (vendedorFilter || undefined) : user?.email;
@@ -167,6 +186,46 @@ export const Comissoes: React.FC = () => {
         return map;
     }, [allSellers]);
 
+    // Helper to get effective rule for currently filtered seller (or global)
+    const activeRuleSummary = useMemo(() => {
+        const rulesMap = settings?.regras_vendedores || {};
+        const activeCustomCount = Object.values(rulesMap).filter(r => r && r.ativo).length;
+        if (vendedorFilter) {
+            const emailKey = vendedorFilter.toLowerCase().trim();
+            const custom = rulesMap[emailKey];
+            const sellerObj = allSellers.find(s => s.email.toLowerCase() === emailKey);
+            if (custom && custom.ativo) {
+                return {
+                    isCustom: true,
+                    sellerName: sellerObj?.name || custom.vendedor_nome || vendedorFilter,
+                    comissao_base: Number(custom.comissao_base ?? settings?.comissao_base ?? 20),
+                    bonus_novo_cliente: Number(custom.bonus_novo_cliente ?? settings?.bonus_novo_cliente ?? 30),
+                    carencia_dias: Number(custom.carencia_dias ?? settings?.carencia_dias ?? 15),
+                    exigir_fatura_quitada: custom.exigir_fatura_quitada ?? settings?.exigir_fatura_quitada ?? true,
+                    activeCustomCount
+                };
+            }
+            return {
+                isCustom: false,
+                sellerName: sellerObj?.name || vendedorFilter,
+                comissao_base: Number(settings?.comissao_base ?? 20),
+                bonus_novo_cliente: Number(settings?.bonus_novo_cliente ?? 30),
+                carencia_dias: Number(settings?.carencia_dias ?? 15),
+                exigir_fatura_quitada: settings?.exigir_fatura_quitada ?? true,
+                activeCustomCount
+            };
+        }
+        return {
+            isCustom: false,
+            sellerName: null,
+            comissao_base: Number(settings?.comissao_base ?? 20),
+            bonus_novo_cliente: Number(settings?.bonus_novo_cliente ?? 30),
+            carencia_dias: Number(settings?.carencia_dias ?? 15),
+            exigir_fatura_quitada: settings?.exigir_fatura_quitada ?? true,
+            activeCustomCount
+        };
+    }, [settings, vendedorFilter, allSellers]);
+
     // Combine generated commissions + payments + manual invoice releases + adjustments into Conta Corrente rows
     const rows = useMemo(() => {
         const paymentsByRef = new Map<string, CommissionLancamento>();
@@ -181,12 +240,13 @@ export const Comissoes: React.FC = () => {
         });
 
         const combined: any[] = [];
-        const exigeFatura = settings?.exigir_fatura_quitada ?? true;
+        const defaultExigeFatura = settings?.exigir_fatura_quitada ?? true;
 
         geradas.forEach(g => {
             const payment = paymentsByRef.get(g.id);
             const manualRelease = manualReleasesByRef.get(g.id);
 
+            const exigeFatura = g.exigir_fatura_quitada_regra ?? defaultExigeFatura;
             const isFaturaQuitada = Boolean(g.fatura_quitada || manualRelease);
             const isCarenciaOk = Boolean(g.carencia_cumprida);
             const isElegivel = isCarenciaOk && (!exigeFatura || isFaturaQuitada);
@@ -228,6 +288,10 @@ export const Comissoes: React.FC = () => {
                 desc,
                 job_function: g.job_function || '',
                 worker_doc: g.worker_doc || '',
+                start_date: g.start_date || null,
+                end_date: g.end_date || null,
+                worker_status_label: g.worker_status_label || '',
+                regra_aplicada: g.regra_aplicada || 'padrao',
                 dias_trabalhados: g.dias_trabalhados ?? 0,
                 carencia_dias_meta: g.carencia_dias_meta ?? (settings?.carencia_dias || 15),
                 carencia_cumprida: isCarenciaOk,
@@ -273,10 +337,14 @@ export const Comissoes: React.FC = () => {
                 tipo_lancamento: l.tipo,
                 desc:
                     l.tipo === 'pagamento'
-                        ? `PAGAMENTO DE COMISSÃO — ${l.descricao || ''}`
-                        : `${l.tipo === 'ajuste_positivo' ? 'AJUSTE CRÉDITO (+)' : 'AJUSTE DÉBITO (-)'}: ${l.descricao || ''}`,
+                        ? `PAGAMENTO COMISSÃO: ${l.descricao || 'S/ Desc'}`
+                        : `AJUSTE (${l.tipo === 'ajuste_positivo' ? '+' : '-'}): ${l.descricao || ''}`,
                 job_function: '',
                 worker_doc: '',
+                start_date: null,
+                end_date: null,
+                worker_status_label: '',
+                regra_aplicada: 'padrao',
                 dias_trabalhados: 0,
                 carencia_dias_meta: 15,
                 carencia_cumprida: true,
@@ -297,17 +365,17 @@ export const Comissoes: React.FC = () => {
             });
         });
 
-        return combined.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        return combined;
     }, [geradas, lancamentos, settings]);
 
     const clienteOptions = useMemo(() => {
         const unique = Array.from(new Set(rows.map(r => String(r.cliente_nome)).filter(v => !!v && v !== 'undefined' && v !== 'null')));
-        return unique.map(c => ({ label: c, value: c })).sort((a, b) => a.label.localeCompare(b.label));
+        return unique.map(c => ({ label: c, value: c })).sort((a, b) => a.label.localeCompare(b.label, 'pt', { numeric: true }));
     }, [rows]);
 
     const pedidoOptions = useMemo(() => {
         const unique = Array.from(new Set(rows.map(r => String(r.pedido_cod)).filter(v => !!v && v !== 'undefined' && v !== 'null')));
-        return unique.map(p => ({ label: p, value: p })).sort((a, b) => a.label.localeCompare(b.label));
+        return unique.map(p => ({ label: p, value: p })).sort((a, b) => a.label.localeCompare(b.label, 'pt', { numeric: true }));
     }, [rows]);
 
     const mesRefOptions = useMemo(() => {
@@ -322,8 +390,23 @@ export const Comissoes: React.FC = () => {
             .map(([value, label]) => ({ value, label }));
     }, [rows]);
 
+    const handleSort = (field: SortField) => {
+        if (sortField === field) {
+            setSortDir(prev => (prev === 'asc' ? 'desc' : 'asc'));
+        } else {
+            setSortField(field);
+            // Default direction: alphabetical fields A->Z ('asc'), numeric/date fields ('desc' or 'asc')
+            if (field === 'cliente' || field === 'trabalhador' || field === 'vendedor') {
+                setSortDir('asc');
+            } else {
+                setSortDir('desc');
+            }
+        }
+    };
+
     const filteredRows = useMemo(() => {
-        return rows.filter(r => {
+        const q = searchQuery.trim().toLowerCase();
+        const filtered = rows.filter(r => {
             const matchCliente = clienteFilter.length === 0 || clienteFilter.includes(r.cliente_nome);
             const matchPedido = pedidoFilter.length === 0 || pedidoFilter.includes(r.pedido_cod);
             const matchMes = !mesRefFilter || r.mes_referencia === mesRefFilter;
@@ -341,9 +424,83 @@ export const Comissoes: React.FC = () => {
             else if (statusFilter === 'BLOQUEADAS_TODAS') matchStatus = r.status === 'BLOQUEADA_CARENCIA' || r.status === 'BLOQUEADA_FATURA';
             else if (statusFilter === 'PAGO') matchStatus = r.status === 'PAGO';
 
-            return matchCliente && matchPedido && matchMes && matchTipo && matchStatus;
+            let matchSearch = true;
+            if (q) {
+                const haystack = `${r.desc || ''} ${r.cliente_nome || ''} ${r.cliente_cod || ''} ${r.pedido_cod || ''} ${r.vendedor_nome || ''} ${r.worker_doc || ''} ${r.job_function || ''}`.toLowerCase();
+                matchSearch = haystack.includes(q);
+            }
+
+            return matchCliente && matchPedido && matchMes && matchTipo && matchStatus && matchSearch;
         });
-    }, [rows, clienteFilter, pedidoFilter, mesRefFilter, tipoFilter, statusFilter]);
+
+        const dirMultiplier = sortDir === 'asc' ? 1 : -1;
+
+        return [...filtered].sort((a, b) => {
+            let cmp = 0;
+            switch (sortField) {
+                case 'cliente': {
+                    cmp = String(a.cliente_nome || '').localeCompare(String(b.cliente_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    if (cmp === 0) {
+                        cmp = String(a.pedido_cod || '').localeCompare(String(b.pedido_cod || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    if (cmp === 0) {
+                        cmp = String(a.desc || '').localeCompare(String(b.desc || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    break;
+                }
+                case 'trabalhador': {
+                    cmp = String(a.desc || '').localeCompare(String(b.desc || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    if (cmp === 0) {
+                        cmp = String(a.cliente_nome || '').localeCompare(String(b.cliente_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    break;
+                }
+                case 'vendedor': {
+                    cmp = String(a.vendedor_nome || '').localeCompare(String(b.vendedor_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    if (cmp === 0) {
+                        cmp = String(a.cliente_nome || '').localeCompare(String(b.cliente_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    break;
+                }
+                case 'carencia': {
+                    cmp = (Number(a.dias_trabalhados) || 0) - (Number(b.dias_trabalhados) || 0);
+                    if (cmp === 0) {
+                        cmp = String(a.desc || '').localeCompare(String(b.desc || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    break;
+                }
+                case 'fatura': {
+                    const rankA = a.fatura_quitada ? 2 : a.fatura_status === 'FATURA_ABERTA' ? 1 : 0;
+                    const rankB = b.fatura_quitada ? 2 : b.fatura_status === 'FATURA_ABERTA' ? 1 : 0;
+                    cmp = rankA - rankB;
+                    if (cmp === 0) {
+                        cmp = String(a.fatura_status_label || '').localeCompare(String(b.fatura_status_label || ''), 'pt', { numeric: true });
+                    }
+                    break;
+                }
+                case 'valor': {
+                    cmp = (Number(a.valor) || 0) - (Number(b.valor) || 0);
+                    break;
+                }
+                case 'status': {
+                    const order: Record<string, number> = { ELEGIVEL: 4, BLOQUEADA_FATURA: 3, BLOQUEADA_CARENCIA: 2, PAGO: 1, AJUSTE: 0 };
+                    cmp = (order[a.status] ?? 0) - (order[b.status] ?? 0);
+                    break;
+                }
+                case 'date':
+                default: {
+                    const tA = a.date ? new Date(a.date).getTime() : 0;
+                    const tB = b.date ? new Date(b.date).getTime() : 0;
+                    cmp = tA - tB;
+                    if (cmp === 0) {
+                        cmp = String(a.cliente_nome || '').localeCompare(String(b.cliente_nome || ''), 'pt', { sensitivity: 'base', numeric: true });
+                    }
+                    break;
+                }
+            }
+            return cmp * dirMultiplier;
+        });
+    }, [rows, clienteFilter, pedidoFilter, mesRefFilter, tipoFilter, statusFilter, searchQuery, sortField, sortDir]);
 
     // Conta Corrente Financial Calculations
     const calc = useMemo(() => {
@@ -379,11 +536,8 @@ export const Comissoes: React.FC = () => {
             }
         });
 
-        const totalBloqueado = totalBloqueadoCarencia + totalBloqueadoFatura;
-
         return {
             totalBrutoGerado,
-            totalBloqueado,
             totalBloqueadoCarencia,
             totalBloqueadoFatura,
             totalElegivelReceber,
@@ -395,10 +549,10 @@ export const Comissoes: React.FC = () => {
     }, [filteredRows]);
 
     const handleSelectRow = (id: string) => {
-        const newSet = new Set(selectedIds);
-        if (newSet.has(id)) newSet.delete(id);
-        else newSet.add(id);
-        setSelectedIds(newSet);
+        const next = new Set(selectedIds);
+        if (next.has(id)) next.delete(id);
+        else next.add(id);
+        setSelectedIds(next);
     };
 
     const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -509,6 +663,63 @@ export const Comissoes: React.FC = () => {
         }
     };
 
+    const handleOpenSettingsModal = (preselectSellerEmail?: string) => {
+        const targetEmail = (preselectSellerEmail ?? vendedorFilter ?? '').toLowerCase().trim();
+        if (targetEmail) {
+            setSettingsTab('individual');
+            setSelectedRuleSellerEmail(targetEmail);
+        } else {
+            setSettingsTab('global');
+            if (!selectedRuleSellerEmail && activeSellers.length > 0) {
+                setSelectedRuleSellerEmail(activeSellers[0].email.toLowerCase());
+            }
+        }
+        setIsSettingsModalOpen(true);
+    };
+
+    const currentSellerRuleForm = useMemo(() => {
+        const emailKey = (selectedRuleSellerEmail || '').toLowerCase().trim();
+        const existing = emailKey ? settingsForm.regras_vendedores[emailKey] : undefined;
+        return {
+            ativo: Boolean(existing?.ativo),
+            comissao_base: existing?.comissao_base ?? (parseFloat(settingsForm.comissao_base) || 20),
+            bonus_novo_cliente: existing?.bonus_novo_cliente ?? (parseFloat(settingsForm.bonus_novo_cliente) || 30),
+            carencia_dias: existing?.carencia_dias ?? (parseInt(settingsForm.carencia_dias, 10) || 15),
+            exigir_fatura_quitada: existing?.exigir_fatura_quitada ?? settingsForm.exigir_fatura_quitada
+        };
+    }, [selectedRuleSellerEmail, settingsForm]);
+
+    const updateSelectedSellerRule = (patch: Partial<SellerCommissionRule>) => {
+        const emailKey = (selectedRuleSellerEmail || '').toLowerCase().trim();
+        if (!emailKey) return;
+        const sellerObj = allSellers.find(s => s.email.toLowerCase() === emailKey);
+        const prev = settingsForm.regras_vendedores[emailKey] || {
+            vendedor_email: emailKey,
+            vendedor_nome: sellerObj?.name || emailKey,
+            ativo: true,
+            comissao_base: parseFloat(settingsForm.comissao_base) || 20,
+            bonus_novo_cliente: parseFloat(settingsForm.bonus_novo_cliente) || 30,
+            carencia_dias: parseInt(settingsForm.carencia_dias, 10) || 15,
+            exigir_fatura_quitada: settingsForm.exigir_fatura_quitada
+        };
+
+        const updated: SellerCommissionRule = {
+            ...prev,
+            ...patch,
+            vendedor_email: emailKey,
+            vendedor_nome: sellerObj?.name || prev.vendedor_nome || emailKey,
+            updated_at: new Date().toISOString()
+        };
+
+        setSettingsForm(curr => ({
+            ...curr,
+            regras_vendedores: {
+                ...curr.regras_vendedores,
+                [emailKey]: updated
+            }
+        }));
+    };
+
     const handleSaveSettings = async () => {
         setSavingSettings(true);
         try {
@@ -517,7 +728,8 @@ export const Comissoes: React.FC = () => {
                 comissao_base: parseFloat(settingsForm.comissao_base) || 20,
                 carencia_dias: parseInt(settingsForm.carencia_dias, 10) || 15,
                 exigir_fatura_quitada: settingsForm.exigir_fatura_quitada,
-                data_corte_novos_clientes: settingsForm.data_corte_novos_clientes || '2026-07-05'
+                data_corte_novos_clientes: settingsForm.data_corte_novos_clientes || '2026-07-05',
+                regras_vendedores: settingsForm.regras_vendedores
             });
             setIsSettingsModalOpen(false);
             await loadData();
@@ -552,12 +764,16 @@ export const Comissoes: React.FC = () => {
             'Data Referência': r.date ? new Date(r.date + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
             'Mês Faturamento': r.mes_referencia_label || '-',
             'Vendedor': r.vendedor_nome,
+            'Regra Aplicada': r.regra_aplicada === 'individual' ? 'Individual do Vendedor' : 'Padrão Global',
             'Cliente': r.cliente_nome || '-',
             'Cadastro Cliente': r.cliente_created_at ? new Date(r.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
             'Pedido': r.pedido_cod || '-',
             'Tipo': r.tipo_lancamento === 'bonus_cliente_novo' ? 'Bônus Cliente Novo' : r.tipo_lancamento === 'contratacao' ? 'Contratação (Vaga)' : r.tipo_lancamento,
             'Trabalhador Titular / Histórico': r.desc,
+            'Documento': r.worker_doc || '-',
             'Função': r.job_function || '-',
+            'Início Trabalhador': r.start_date ? new Date(r.start_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
+            'Saída Trabalhador': r.end_date ? new Date(r.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : 'Ativo',
             'Repasses na Vaga': r.repasses_count || 0,
             'Dias Trabalhados': r._type === 'generated' && r.tipo_lancamento === 'contratacao' ? `${r.dias_trabalhados}/${r.carencia_dias_meta}` : '-',
             'Fatura do Mês': r.fatura_status_label || '-',
@@ -572,19 +788,33 @@ export const Comissoes: React.FC = () => {
         XLSX.writeFile(workbook, `Conta_Corrente_Comissoes_${startDate}_a_${endDate}.xlsx`);
     };
 
+    const renderSortIcon = (field: SortField) => {
+        if (sortField !== field) {
+            return <ArrowUpDown size={12} className="text-slate-400 opacity-60 group-hover:opacity-100 transition-opacity" />;
+        }
+        return sortDir === 'asc'
+            ? <ArrowUp size={12} className="text-blue-600 dark:text-blue-400" />
+            : <ArrowDown size={12} className="text-blue-600 dark:text-blue-400" />;
+    };
+
     return (
-        <div className="w-full px-1 sm:px-2 py-2 space-y-4 text-slate-800 dark:text-slate-100">
+        <div className="w-full px-1 sm:px-2 py-2 space-y-3.5 text-slate-800 dark:text-slate-100">
             {/* Header & Primary Controls */}
-            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-4 border-b border-slate-200 dark:border-slate-800 pb-4">
+            <div className="flex flex-col xl:flex-row justify-between items-start xl:items-center gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
                 <div>
-                    <div className="flex items-center gap-2.5">
+                    <div className="flex items-center gap-2.5 flex-wrap">
                         <h1 className="text-2xl font-bold tracking-tight">Conta Corrente de Comissões</h1>
                         <span className="px-2.5 py-0.5 text-xs font-semibold rounded-full bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
                             Comercial & Contratações
                         </span>
+                        {activeRuleSummary.isCustom && (
+                            <span className="px-2.5 py-0.5 text-xs font-bold rounded-full bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-300 dark:border-purple-700">
+                                ★ Regra Individual: {activeRuleSummary.sellerName} (€ {activeRuleSummary.comissao_base} vaga / € {activeRuleSummary.bonus_novo_cliente} cliente)
+                            </span>
+                        )}
                     </div>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-0.5">
-                        Controle de bônus de novos clientes (€ {settings?.bonus_novo_cliente ?? 30}), contratações por vaga (€ {settings?.comissao_base ?? 20}), carência de {settings?.carencia_dias ?? 15} dias e liberação por quitação de fatura
+                    <p className="text-slate-500 dark:text-slate-400 text-xs sm:text-sm mt-0.5">
+                        Controle de bônus de novos clientes (€ {activeRuleSummary.bonus_novo_cliente}), contratações por vaga (€ {activeRuleSummary.comissao_base}), carência de {activeRuleSummary.carencia_dias} dias e liberação por quitação de fatura
                     </p>
                 </div>
 
@@ -638,11 +868,15 @@ export const Comissoes: React.FC = () => {
                             >
                                 <option value="">Vendedores Ativos ({activeSellers.length})</option>
                                 <optgroup label={`Vendedores Ativos (${activeSellers.length})`}>
-                                    {activeSellers.map(s => (
-                                        <option key={s.email} value={s.email}>
-                                            {s.name} ({s.email.split('@')[0]})
-                                        </option>
-                                    ))}
+                                    {activeSellers.map(s => {
+                                        const rule = settings?.regras_vendedores?.[s.email.toLowerCase()];
+                                        const ruleTag = rule?.ativo ? ` • [Regra: €${rule.comissao_base}/€${rule.bonus_novo_cliente}]` : '';
+                                        return (
+                                            <option key={s.email} value={s.email}>
+                                                {s.name} ({s.email.split('@')[0]}){ruleTag}
+                                            </option>
+                                        );
+                                    })}
                                 </optgroup>
                                 {(showInactiveSellers || inactiveSellers.some(s => s.email === vendedorFilter)) && inactiveSellers.length > 0 && (
                                     <optgroup label={`Inativos no Sistema (${inactiveSellers.length})`}>
@@ -686,7 +920,7 @@ export const Comissoes: React.FC = () => {
             {/* 5 KPI Summary Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                 {/* 1. Saldo Bruto Gerado */}
-                <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
+                <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700 flex flex-col justify-between shadow-sm">
                     <div className="flex items-center justify-between text-slate-500 dark:text-slate-400 mb-1">
                         <span className="text-[11px] font-bold uppercase tracking-wider">Total Gerado (Conta)</span>
                         <Wallet size={16} className="text-slate-400" />
@@ -695,44 +929,44 @@ export const Comissoes: React.FC = () => {
                         € {calc.totalBrutoGerado.toFixed(2)}
                     </div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center gap-2">
-                        <span><b>{calc.countVagas}</b> vagas (€ {settings?.comissao_base ?? 20})</span>
+                        <span><b>{calc.countVagas}</b> vagas (€ {activeRuleSummary.comissao_base})</span>
                         <span>•</span>
-                        <span><b>{calc.countClientesNovos}</b> clientes novos (€ {settings?.bonus_novo_cliente ?? 30})</span>
+                        <span><b>{calc.countClientesNovos}</b> clientes novos (€ {activeRuleSummary.bonus_novo_cliente})</span>
                     </div>
                 </div>
 
                 {/* 2. Bloqueado (Carência < 15d) */}
                 <div
                     onClick={() => setStatusFilter(statusFilter === 'BLOQUEADA_CARENCIA' ? '' : 'BLOQUEADA_CARENCIA')}
-                    className={`cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between shadow-sm ${
+                    className={`cursor-pointer p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-sm ${
                         statusFilter === 'BLOQUEADA_CARENCIA'
                             ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-400 ring-1 ring-amber-400'
                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-amber-300'
                     }`}
                 >
                     <div className="flex items-center justify-between text-amber-600 dark:text-amber-400 mb-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider">Bloqueado (Carência &lt; {settings?.carencia_dias ?? 15}d)</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider">Bloqueado (Carência &lt; {activeRuleSummary.carencia_dias}d)</span>
                         <Lock size={16} />
                     </div>
                     <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">
                         € {calc.totalBloqueadoCarencia.toFixed(2)}
                     </div>
                     <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
-                        Trabalhadores em início ou &lt; {settings?.carencia_dias ?? 15} dias
+                        Trabalhadores em início ou &lt; {activeRuleSummary.carencia_dias} dias
                     </div>
                 </div>
 
                 {/* 3. Bloqueado (15d OK, Aguardando Fatura) */}
                 <div
                     onClick={() => setStatusFilter(statusFilter === 'BLOQUEADA_FATURA' ? '' : 'BLOQUEADA_FATURA')}
-                    className={`cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between shadow-sm ${
+                    className={`cursor-pointer p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-sm ${
                         statusFilter === 'BLOQUEADA_FATURA'
                             ? 'bg-orange-50/80 dark:bg-orange-950/30 border-orange-400 ring-1 ring-orange-400'
                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-orange-300'
                     }`}
                 >
                     <div className="flex items-center justify-between text-orange-600 dark:text-orange-400 mb-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider">15d OK • Aguard. Fatura</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wider">{activeRuleSummary.carencia_dias}d OK • Aguard. Fatura</span>
                         <Clock size={16} />
                     </div>
                     <div className="text-2xl font-bold text-orange-600 dark:text-orange-400">
@@ -746,7 +980,7 @@ export const Comissoes: React.FC = () => {
                 {/* 4. Elegível / Liberado a Pagar + Pago */}
                 <div
                     onClick={() => setStatusFilter(statusFilter === 'ELEGIVEL' ? '' : 'ELEGIVEL')}
-                    className={`cursor-pointer p-4 rounded-xl border transition-all flex flex-col justify-between shadow-sm ${
+                    className={`cursor-pointer p-3.5 rounded-xl border transition-all flex flex-col justify-between shadow-sm ${
                         statusFilter === 'ELEGIVEL'
                             ? 'bg-emerald-50/80 dark:bg-emerald-950/30 border-emerald-500 ring-1 ring-emerald-500'
                             : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 hover:border-emerald-300'
@@ -767,47 +1001,89 @@ export const Comissoes: React.FC = () => {
                     </div>
                 </div>
 
-                {/* 5. Parâmetros & Regras Vigentes */}
-                <div className="bg-blue-50/90 dark:bg-blue-950/30 p-4 rounded-xl border border-blue-200 dark:border-blue-800/80 flex flex-col justify-between shadow-sm">
-                    <div className="flex items-center justify-between text-blue-700 dark:text-blue-300 mb-1">
-                        <span className="text-[11px] font-bold uppercase tracking-wider flex items-center gap-1">
-                            <Info size={14} /> Parâmetros Vigentes
+                {/* 5. Parâmetros & Regras Vigentes (Global + Individual por Vendedor) */}
+                <div className={`p-3.5 rounded-xl border flex flex-col justify-between shadow-sm ${
+                    activeRuleSummary.isCustom
+                        ? 'bg-purple-50/90 dark:bg-purple-950/30 border-purple-200 dark:border-purple-800/80'
+                        : 'bg-blue-50/90 dark:bg-blue-950/30 border-blue-200 dark:border-blue-800/80'
+                }`}>
+                    <div className="flex items-center justify-between mb-1">
+                        <span className={`text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 truncate ${
+                            activeRuleSummary.isCustom ? 'text-purple-700 dark:text-purple-300' : 'text-blue-700 dark:text-blue-300'
+                        }`}>
+                            <Info size={13} />
+                            {activeRuleSummary.sellerName
+                                ? `Regra: ${activeRuleSummary.sellerName.split(' ')[0]}`
+                                : 'Parâmetros Vigentes'}
                         </span>
                         {isSupervisor && (
                             <button
-                                onClick={() => setIsSettingsModalOpen(true)}
-                                className="px-2 py-0.5 text-[11px] font-semibold bg-blue-600 hover:bg-blue-700 text-white rounded flex items-center gap-1 transition-colors shadow-xs"
+                                onClick={() => handleOpenSettingsModal()}
+                                className={`px-2 py-0.5 text-[11px] font-semibold text-white rounded flex items-center gap-1 transition-colors shadow-xs shrink-0 ${
+                                    activeRuleSummary.isCustom ? 'bg-purple-600 hover:bg-purple-700' : 'bg-blue-600 hover:bg-blue-700'
+                                }`}
+                                title="Configurar regra padrão ou regra individual por vendedor"
                             >
                                 <Settings size={11} /> Configurar
                             </button>
                         )}
                     </div>
-                    <div className="text-xs text-blue-900 dark:text-blue-200 space-y-0.5 leading-snug">
+                    <div className={`text-xs space-y-0.5 leading-snug ${
+                        activeRuleSummary.isCustom ? 'text-purple-900 dark:text-purple-200' : 'text-blue-900 dark:text-blue-200'
+                    }`}>
                         <div className="flex justify-between">
                             <span>Novo Cliente:</span>
-                            <b>€ {Number(settings?.bonus_novo_cliente ?? 30).toFixed(2)}</b>
+                            <b>€ {Number(activeRuleSummary.bonus_novo_cliente).toFixed(2)}</b>
                         </div>
                         <div className="flex justify-between">
                             <span>Contratação (por Vaga):</span>
-                            <b>€ {Number(settings?.comissao_base ?? 20).toFixed(2)}</b>
+                            <b>€ {Number(activeRuleSummary.comissao_base).toFixed(2)}</b>
                         </div>
                         <div className="flex justify-between">
                             <span>Carência Mínima:</span>
-                            <b>{settings?.carencia_dias ?? 15} dias trab.</b>
+                            <b>{activeRuleSummary.carencia_dias} dias trab.</b>
                         </div>
-                        <div className="flex justify-between">
-                            <span>Liberação Fatura:</span>
-                            <b>{settings?.exigir_fatura_quitada !== false ? 'Fatura Quitada' : 'Após Carência'}</b>
+                        <div className="flex justify-between items-center">
+                            <span>Escopo da Regra:</span>
+                            {activeRuleSummary.isCustom ? (
+                                <span className="px-1.5 py-0.2 rounded bg-purple-200/80 dark:bg-purple-800 text-purple-900 dark:text-purple-100 font-bold text-[10px]">
+                                    Individual Vendedor
+                                </span>
+                            ) : (
+                                <span className="font-bold text-[11px]">
+                                    Global {activeRuleSummary.activeCustomCount > 0 ? `(${activeRuleSummary.activeCustomCount} indiv.)` : ''}
+                                </span>
+                            )}
                         </div>
                     </div>
                 </div>
             </div>
 
-            {/* Filters Bar */}
-            <div className="flex flex-wrap gap-2.5 items-center bg-slate-50 dark:bg-slate-800/60 p-3 rounded-xl border border-slate-200 dark:border-slate-700">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-1">Filtros:</span>
+            {/* Filters & Search Bar */}
+            <div className="flex flex-wrap gap-2 items-center bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-700">
+                <span className="text-xs font-bold uppercase tracking-wider text-slate-500 mr-0.5">Filtros:</span>
 
-                <div className="w-full sm:w-60">
+                {/* Quick Search Worker / Client / Order */}
+                <div className="relative w-full sm:w-60">
+                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+                    <input
+                        type="text"
+                        value={searchQuery}
+                        onChange={e => setSearchQuery(e.target.value)}
+                        placeholder="Buscar trabalhador, cliente..."
+                        className="w-full pl-8 pr-7 py-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-xs sm:text-sm outline-none focus:ring-1 focus:ring-blue-500"
+                    />
+                    {searchQuery && (
+                        <button
+                            onClick={() => setSearchQuery('')}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                        >
+                            <X size={13} />
+                        </button>
+                    )}
+                </div>
+
+                <div className="w-full sm:w-56">
                     <MultiSelect
                         options={clienteOptions}
                         selectedValues={clienteFilter}
@@ -817,7 +1093,7 @@ export const Comissoes: React.FC = () => {
                     />
                 </div>
 
-                <div className="w-full sm:w-48">
+                <div className="w-full sm:w-44">
                     <MultiSelect
                         options={pedidoOptions}
                         selectedValues={pedidoFilter}
@@ -830,7 +1106,7 @@ export const Comissoes: React.FC = () => {
                 <select
                     value={mesRefFilter}
                     onChange={e => setMesRefFilter(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs sm:text-sm rounded-lg outline-none text-slate-700 dark:text-slate-300"
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs sm:text-sm rounded-lg outline-none text-slate-700 dark:text-slate-300"
                 >
                     <option value="">Todos os Meses Ref.</option>
                     {mesRefOptions.map(m => (
@@ -841,11 +1117,11 @@ export const Comissoes: React.FC = () => {
                 <select
                     value={tipoFilter}
                     onChange={e => setTipoFilter(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs sm:text-sm rounded-lg outline-none text-slate-700 dark:text-slate-300"
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs sm:text-sm rounded-lg outline-none text-slate-700 dark:text-slate-300"
                 >
                     <option value="">Todos os Tipos</option>
-                    <option value="contratacao">Contratação por Vaga (€ {settings?.comissao_base ?? 20})</option>
-                    <option value="bonus_cliente_novo">Bônus Cliente Novo (€ {settings?.bonus_novo_cliente ?? 30})</option>
+                    <option value="contratacao">Contratação por Vaga (€ {activeRuleSummary.comissao_base})</option>
+                    <option value="bonus_cliente_novo">Bônus Cliente Novo (€ {activeRuleSummary.bonus_novo_cliente})</option>
                     <option value="com_repasses">Vagas com Repasse / Substituição</option>
                     <option value="ajuste">Ajustes Manuais / Pagamentos</option>
                 </select>
@@ -853,19 +1129,20 @@ export const Comissoes: React.FC = () => {
                 <select
                     value={statusFilter}
                     onChange={e => setStatusFilter(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-3 py-2 text-xs sm:text-sm rounded-lg outline-none text-slate-700 dark:text-slate-300"
+                    className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 px-2.5 py-1.5 text-xs sm:text-sm rounded-lg outline-none text-slate-700 dark:text-slate-300"
                 >
                     <option value="">Todos os Status da Conta</option>
                     <option value="ELEGIVEL">✅ Elegível / Liberada para Pagar</option>
-                    <option value="BLOQUEADA_FATURA">⏳ 15d OK — Aguard. Quitação Fatura</option>
-                    <option value="BLOQUEADA_CARENCIA">🔒 Bloqueada (Carência &lt; 15 dias)</option>
+                    <option value="BLOQUEADA_FATURA">⏳ {activeRuleSummary.carencia_dias}d OK — Aguard. Quitação Fatura</option>
+                    <option value="BLOQUEADA_CARENCIA">🔒 Bloqueada (Carência &lt; {activeRuleSummary.carencia_dias} dias)</option>
                     <option value="BLOQUEADAS_TODAS">🔒 Todas as Bloqueadas</option>
                     <option value="PAGO">💰 Pago</option>
                 </select>
 
-                {(clienteFilter.length > 0 || pedidoFilter.length > 0 || mesRefFilter || tipoFilter || statusFilter || vendedorFilter) && (
+                {(searchQuery || clienteFilter.length > 0 || pedidoFilter.length > 0 || mesRefFilter || tipoFilter || statusFilter || vendedorFilter) && (
                     <button
                         onClick={() => {
+                            setSearchQuery('');
                             setClienteFilter([]);
                             setPedidoFilter([]);
                             setMesRefFilter('');
@@ -880,20 +1157,58 @@ export const Comissoes: React.FC = () => {
                 )}
             </div>
 
-            {/* Main Conta Corrente Table */}
-            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm">
-                <div className="p-3.5 border-b border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center gap-3 bg-slate-50 dark:bg-slate-800/50">
-                    <div className="flex items-center gap-2">
-                        <h2 className="font-bold text-sm sm:text-base">Extrato da Conta Corrente ({filteredRows.length} registros)</h2>
-                        {selectedIds.size > 0 && (
-                            <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">
-                                {selectedIds.size} selecionado(s)
-                            </span>
-                        )}
+            {/* Main Conta Corrente Gallery / Table with Internal Scroll & Sticky Sortable Header */}
+            <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden shadow-sm flex flex-col">
+                <div className="p-3 border-b border-slate-200 dark:border-slate-700 flex flex-wrap justify-between items-center gap-3 bg-slate-50 dark:bg-slate-800/50">
+                    <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center gap-2">
+                            <h2 className="font-bold text-sm sm:text-base">Extrato da Conta Corrente ({filteredRows.length} registros)</h2>
+                            {selectedIds.size > 0 && (
+                                <span className="text-xs px-2 py-0.5 rounded bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-medium">
+                                    {selectedIds.size} selecionado(s)
+                                </span>
+                            )}
+                        </div>
+
+                        {/* Quick Sort Pills */}
+                        <div className="flex items-center gap-1 text-[11px] bg-white dark:bg-slate-900 px-2 py-1 rounded-lg border border-slate-200 dark:border-slate-700">
+                            <span className="text-slate-400 font-semibold mr-1">Ordenar:</span>
+                            <button
+                                onClick={() => handleSort('cliente')}
+                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'cliente' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                                Cliente (A-Z)
+                            </button>
+                            <button
+                                onClick={() => handleSort('trabalhador')}
+                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'trabalhador' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                                Trabalhador (A-Z)
+                            </button>
+                            <button
+                                onClick={() => handleSort('date')}
+                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'date' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                                Data
+                            </button>
+                            <button
+                                onClick={() => handleSort('carencia')}
+                                className={`px-2 py-0.5 rounded font-medium transition-colors ${sortField === 'carencia' ? 'bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300 font-bold' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'}`}
+                            >
+                                Dias Trab.
+                            </button>
+                        </div>
                     </div>
 
                     {isSupervisor && (
                         <div className="flex flex-wrap gap-2">
+                            <button
+                                onClick={() => handleOpenSettingsModal()}
+                                className="px-3 py-1.5 text-xs font-medium border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
+                            >
+                                <Settings size={14} /> Regras por Vendedor
+                            </button>
+
                             <button
                                 onClick={exportToExcel}
                                 className="px-3 py-1.5 text-xs font-medium border border-slate-700 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors flex items-center gap-1.5"
@@ -933,30 +1248,103 @@ export const Comissoes: React.FC = () => {
                     )}
                 </div>
 
-                <div className="overflow-x-auto">
+                {/* Internal Scroll Container for the Gallery */}
+                <div className="max-h-[calc(100vh-300px)] min-h-[440px] overflow-y-auto overflow-x-auto relative scroll-smooth">
                     {loading ? (
                         <div className="p-12 text-center text-slate-500 flex flex-col items-center gap-2">
                             <RefreshCw size={24} className="animate-spin text-blue-600" />
                             <span>Sincronizando contratações, histórico de vagas e faturamento...</span>
                         </div>
                     ) : (
-                        <table className="w-full text-left text-xs sm:text-sm">
-                            <thead className="bg-slate-100/80 dark:bg-slate-700/50 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                        <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                            <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 shadow-xs">
                                 <tr>
                                     {isSupervisor && (
-                                        <th className="px-3 py-3 text-center w-10">
+                                        <th className="px-3 py-3 text-center w-10 bg-slate-100 dark:bg-slate-900">
                                             <input type="checkbox" onChange={handleSelectAll} className="rounded" />
                                         </th>
                                     )}
-                                    <th className="px-3 py-3 font-bold">Data / Mês Ref.</th>
-                                    <th className="px-3 py-3 font-bold">Vendedor</th>
-                                    <th className="px-3 py-3 font-bold">Cliente & Pedido</th>
-                                    <th className="px-3 py-3 font-bold">Vaga / Trabalhador & Histórico</th>
-                                    <th className="px-3 py-3 text-center font-bold">Carência ({settings?.carencia_dias ?? 15}d)</th>
-                                    <th className="px-3 py-3 text-center font-bold">Fatura do Mês (Cliente)</th>
-                                    <th className="px-3 py-3 text-right font-bold">Valor (€)</th>
-                                    <th className="px-3 py-3 text-center font-bold">Status Conta Corrente</th>
-                                    <th className="px-3 py-3 text-center font-bold w-24">Ações</th>
+                                    <th
+                                        onClick={() => handleSort('date')}
+                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar por Data / Mês de Referência"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <span>Data / Mês Ref.</span>
+                                            {renderSortIcon('date')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('vendedor')}
+                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar em ordem alfabética por Vendedor"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <span>Vendedor</span>
+                                            {renderSortIcon('vendedor')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('cliente')}
+                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar em ordem alfabética por Cliente e numérica por Pedido"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <span>Cliente & Pedido</span>
+                                            {renderSortIcon('cliente')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('trabalhador')}
+                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar trabalhador por trabalhador (A-Z)"
+                                    >
+                                        <div className="flex items-center gap-1.5">
+                                            <span>Vaga / Trabalhador & Histórico</span>
+                                            {renderSortIcon('trabalhador')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('carencia')}
+                                        className="px-3 py-3 text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar numericamente por Dias Trabalhados"
+                                    >
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <span>Carência ({activeRuleSummary.carencia_dias}d)</span>
+                                            {renderSortIcon('carencia')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('fatura')}
+                                        className="px-3 py-3 text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar pelo status da Fatura do Mês"
+                                    >
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <span>Fatura do Mês (Cliente)</span>
+                                            {renderSortIcon('fatura')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('valor')}
+                                        className="px-3 py-3 text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar numericamente por Valor (€)"
+                                    >
+                                        <div className="flex items-center justify-end gap-1.5">
+                                            <span>Valor (€)</span>
+                                            {renderSortIcon('valor')}
+                                        </div>
+                                    </th>
+                                    <th
+                                        onClick={() => handleSort('status')}
+                                        className="px-3 py-3 text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar pelo Status na Conta Corrente"
+                                    >
+                                        <div className="flex items-center justify-center gap-1.5">
+                                            <span>Status Conta Corrente</span>
+                                            {renderSortIcon('status')}
+                                        </div>
+                                    </th>
+                                    <th className="px-3 py-3 text-center font-bold w-24 bg-slate-100 dark:bg-slate-900">Ações</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/70">
@@ -1008,6 +1396,15 @@ export const Comissoes: React.FC = () => {
                                                         {sellerStatusByEmail.get(String(row.vendedor_email || '').toLowerCase())?.active === false && (
                                                             <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300">
                                                                 Inativo
+                                                            </span>
+                                                        )}
+                                                        {row.regra_aplicada === 'individual' && (
+                                                            <span
+                                                                onClick={() => isSupervisor && handleOpenSettingsModal(row.vendedor_email)}
+                                                                className="cursor-pointer px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
+                                                                title="Regra individual diferenciada aplicada para este vendedor. Clique para editar."
+                                                            >
+                                                                Regra Indiv.
                                                             </span>
                                                         )}
                                                     </div>
@@ -1064,6 +1461,12 @@ export const Comissoes: React.FC = () => {
                                                                 {row.desc}
                                                             </span>
 
+                                                            {row.worker_doc && row.worker_doc !== '-' && row.tipo_lancamento === 'contratacao' && (
+                                                                <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded font-mono">
+                                                                    {row.worker_doc}
+                                                                </span>
+                                                            )}
+
                                                             {row.job_function && row.tipo_lancamento === 'contratacao' && (
                                                                 <span className="text-[11px] text-slate-500 dark:text-slate-400">
                                                                     ({row.job_function})
@@ -1071,9 +1474,16 @@ export const Comissoes: React.FC = () => {
                                                             )}
                                                         </div>
 
-                                                        {/* Repasses / Substituições Badge */}
+                                                        {/* Worker start/end date & Repasses Badge */}
                                                         {row.tipo_lancamento === 'contratacao' && (
-                                                            <div className="flex items-center gap-2 flex-wrap">
+                                                            <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
+                                                                {row.start_date && (
+                                                                    <span>
+                                                                        Início: <b>{new Date(row.start_date + 'T12:00:00').toLocaleDateString('pt-PT')}</b>
+                                                                        {row.end_date ? ` • Saída: ${new Date(row.end_date + 'T12:00:00').toLocaleDateString('pt-PT')}` : ' • Ativo'}
+                                                                    </span>
+                                                                )}
+
                                                                 {row.repasses_count > 0 ? (
                                                                     <button
                                                                         onClick={() => setHistoryModalRow(row)}
@@ -1179,7 +1589,12 @@ export const Comissoes: React.FC = () => {
                                                 <td className={`px-3 py-3 text-right font-bold whitespace-nowrap ${
                                                     row.valor >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                                                 }`}>
-                                                    {row.valor >= 0 ? '+' : ''}€ {row.valor.toFixed(2)}
+                                                    <div>{row.valor >= 0 ? '+' : ''}€ {row.valor.toFixed(2)}</div>
+                                                    {row.regra_aplicada === 'individual' && (
+                                                        <div className="text-[10px] font-medium text-purple-600 dark:text-purple-400">
+                                                            Regra Individual
+                                                        </div>
+                                                    )}
                                                 </td>
 
                                                 {/* Status Conta Corrente */}
@@ -1214,7 +1629,7 @@ export const Comissoes: React.FC = () => {
                                                                 <Lock size={12} /> BLOQUEADA (FATURA)
                                                             </span>
                                                             <span className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5" title={row.motivo_bloqueio || ''}>
-                                                                15d OK • Aguard. Fatura
+                                                                {row.carencia_dias_meta}d OK • Aguard. Fatura
                                                             </span>
                                                         </div>
                                                     )}
@@ -1281,104 +1696,371 @@ export const Comissoes: React.FC = () => {
                 </div>
             </div>
 
-            {/* MODAL 1: Configurar Parâmetros das Regras de Comissões */}
+            {/* MODAL 1: Configurar Parâmetros das Regras de Comissões (Global + Individual por Vendedor) */}
             {isSettingsModalOpen && (
                 <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-lg shadow-2xl border border-slate-200 dark:border-slate-700">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 w-full max-w-2xl shadow-2xl border border-slate-200 dark:border-slate-700 max-h-[92vh] flex flex-col">
                         <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-700 pb-3 mb-4">
                             <div className="flex items-center gap-2">
                                 <Settings className="text-blue-600" size={20} />
-                                <h3 className="text-lg font-bold">Parâmetros das Regras de Comissão</h3>
+                                <div>
+                                    <h3 className="text-lg font-bold">Parâmetros e Regras de Comissionamento</h3>
+                                    <p className="text-xs text-slate-500">Configure a regra geral ou defina valores diferenciados para um comercial específico</p>
+                                </div>
                             </div>
                             <button onClick={() => setIsSettingsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
                                 <X size={18} />
                             </button>
                         </div>
 
-                        <div className="space-y-4 text-sm">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
-                                        Bônus Cliente Novo (€)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.50"
-                                        min="0"
-                                        value={settingsForm.bonus_novo_cliente}
-                                        onChange={e => setSettingsForm({ ...settingsForm, bonus_novo_cliente: e.target.value })}
-                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 font-semibold"
-                                    />
-                                    <p className="text-[11px] text-slate-500 mt-1">Padrão: € 30,00 por novo cliente cadastrado.</p>
-                                </div>
-
-                                <div>
-                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
-                                        Comissão por Contratação / Vaga (€)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="0.50"
-                                        min="0"
-                                        value={settingsForm.comissao_base}
-                                        onChange={e => setSettingsForm({ ...settingsForm, comissao_base: e.target.value })}
-                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 font-semibold"
-                                    />
-                                    <p className="text-[11px] text-slate-500 mt-1">Padrão: € 20,00 por vaga (mantido em repasses).</p>
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
-                                        Carência Mínima Trabalhada (Dias)
-                                    </label>
-                                    <input
-                                        type="number"
-                                        step="1"
-                                        min="1"
-                                        value={settingsForm.carencia_dias}
-                                        onChange={e => setSettingsForm({ ...settingsForm, carencia_dias: e.target.value })}
-                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 font-semibold"
-                                    />
-                                    <p className="text-[11px] text-slate-500 mt-1">Trabalhador precisa cumprir ao menos {settingsForm.carencia_dias || 15} dias.</p>
-                                </div>
-
-                                <div>
-                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
-                                        Data Corte Novos Clientes
-                                    </label>
-                                    <input
-                                        type="date"
-                                        value={settingsForm.data_corte_novos_clientes}
-                                        onChange={e => setSettingsForm({ ...settingsForm, data_corte_novos_clientes: e.target.value })}
-                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900"
-                                    />
-                                    <p className="text-[11px] text-slate-500 mt-1">Clientes cadastrados a partir desta data geram bônus.</p>
-                                </div>
-                            </div>
-
-                            <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700">
-                                <label className="flex items-start gap-3 cursor-pointer">
-                                    <input
-                                        type="checkbox"
-                                        checked={settingsForm.exigir_fatura_quitada}
-                                        onChange={e => setSettingsForm({ ...settingsForm, exigir_fatura_quitada: e.target.checked })}
-                                        className="mt-1 rounded text-blue-600"
-                                    />
-                                    <div>
-                                        <span className="font-semibold block text-slate-800 dark:text-slate-100">
-                                            Desbloquear pagamento somente após Quitação da Fatura do Cliente
-                                        </span>
-                                        <span className="text-xs text-slate-500 dark:text-slate-400">
-                                            A comissão nasce bloqueada na contratação, valida os {settingsForm.carencia_dias || 15} dias trabalhados e só fica Elegível quando a fatura daquele mês for paga pelo cliente no Financeiro.
-                                        </span>
-                                    </div>
-                                </label>
-                            </div>
+                        {/* Tabs: Regra Global vs Regra Individual por Vendedor */}
+                        <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl mb-4 border border-slate-200 dark:border-slate-700">
+                            <button
+                                type="button"
+                                onClick={() => setSettingsTab('global')}
+                                className={`py-2 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                                    settingsTab === 'global'
+                                        ? 'bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                <Users size={15} />
+                                <span>Regra Padrão (Global)</span>
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => {
+                                    setSettingsTab('individual');
+                                    if (!selectedRuleSellerEmail && activeSellers.length > 0) {
+                                        setSelectedRuleSellerEmail(activeSellers[0].email.toLowerCase());
+                                    }
+                                }}
+                                className={`py-2 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-2 transition-all ${
+                                    settingsTab === 'individual'
+                                        ? 'bg-white dark:bg-slate-800 text-purple-600 dark:text-purple-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                <User size={15} />
+                                <span>Regra Individual por Vendedor</span>
+                            </button>
                         </div>
 
-                        <div className="mt-6 flex justify-end gap-2.5">
+                        <div className="flex-1 overflow-y-auto pr-1 space-y-4 text-sm">
+                            {settingsTab === 'global' ? (
+                                <div className="space-y-4">
+                                    <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 text-xs text-blue-900 dark:text-blue-200">
+                                        Esta é a <b>Regra Geral Padrão</b> aplicada automaticamente a todos os vendedores que não possuírem uma regra individual ativa na aba ao lado.
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                Bônus Cliente Novo Padrão (€)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.50"
+                                                min="0"
+                                                value={settingsForm.bonus_novo_cliente}
+                                                onChange={e => setSettingsForm({ ...settingsForm, bonus_novo_cliente: e.target.value })}
+                                                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 font-semibold"
+                                            />
+                                            <p className="text-[11px] text-slate-500 mt-1">Padrão: € 30,00 por novo cliente cadastrado.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                Comissão por Contratação / Vaga Padrão (€)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="0.50"
+                                                min="0"
+                                                value={settingsForm.comissao_base}
+                                                onChange={e => setSettingsForm({ ...settingsForm, comissao_base: e.target.value })}
+                                                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 font-semibold"
+                                            />
+                                            <p className="text-[11px] text-slate-500 mt-1">Padrão: € 20,00 por vaga contratada (mantido em repasses).</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                Carência Mínima Trabalhada (Dias)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                step="1"
+                                                min="1"
+                                                value={settingsForm.carencia_dias}
+                                                onChange={e => setSettingsForm({ ...settingsForm, carencia_dias: e.target.value })}
+                                                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900 font-semibold"
+                                            />
+                                            <p className="text-[11px] text-slate-500 mt-1">Trabalhador precisa cumprir ao menos {settingsForm.carencia_dias || 15} dias.</p>
+                                        </div>
+
+                                        <div>
+                                            <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                Data Corte Novos Clientes
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={settingsForm.data_corte_novos_clientes}
+                                                onChange={e => setSettingsForm({ ...settingsForm, data_corte_novos_clientes: e.target.value })}
+                                                className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-900"
+                                            />
+                                            <p className="text-[11px] text-slate-500 mt-1">Clientes cadastrados a partir desta data geram bônus.</p>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700">
+                                        <label className="flex items-start gap-3 cursor-pointer">
+                                            <input
+                                                type="checkbox"
+                                                checked={settingsForm.exigir_fatura_quitada}
+                                                onChange={e => setSettingsForm({ ...settingsForm, exigir_fatura_quitada: e.target.checked })}
+                                                className="mt-1 rounded text-blue-600"
+                                            />
+                                            <div>
+                                                <span className="font-semibold block text-slate-800 dark:text-slate-100">
+                                                    Desbloquear pagamento somente após Quitação da Fatura do Cliente
+                                                </span>
+                                                <span className="text-xs text-slate-500 dark:text-slate-400">
+                                                    A comissão nasce bloqueada na contratação, valida os {settingsForm.carencia_dias || 15} dias trabalhados e só fica Elegível quando a fatura daquele mês for paga pelo cliente no Financeiro.
+                                                </span>
+                                            </div>
+                                        </label>
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {/* Seleção do Vendedor para Regra Individual */}
+                                    <div className="bg-purple-50/70 dark:bg-purple-950/30 border border-purple-200 dark:border-purple-800 rounded-xl p-3.5 space-y-3">
+                                        <div>
+                                            <label className="block text-xs font-bold uppercase tracking-wider text-purple-800 dark:text-purple-300 mb-1">
+                                                1. Selecione o Vendedor (Comercial)
+                                            </label>
+                                            <select
+                                                value={selectedRuleSellerEmail}
+                                                onChange={e => setSelectedRuleSellerEmail(e.target.value)}
+                                                className="w-full border border-purple-300 dark:border-purple-700 rounded-lg px-3 py-2 bg-white dark:bg-slate-900 font-semibold text-slate-800 dark:text-white"
+                                            >
+                                                <option value="">Selecione um comercial...</option>
+                                                {activeSellers.map(s => {
+                                                    const r = settingsForm.regras_vendedores[s.email.toLowerCase()];
+                                                    return (
+                                                        <option key={s.email} value={s.email.toLowerCase()}>
+                                                            {s.name} ({s.email}) {r?.ativo ? `— ★ Regra Individual: €${r.comissao_base} vaga / €${r.bonus_novo_cliente} cliente` : '— (Usando Regra Global)'}
+                                                        </option>
+                                                    );
+                                                })}
+                                            </select>
+                                        </div>
+
+                                        {selectedRuleSellerEmail && (
+                                            <label className="flex items-center justify-between p-3 rounded-lg bg-white dark:bg-slate-900 border border-purple-200 dark:border-purple-800 cursor-pointer">
+                                                <div>
+                                                    <span className="font-bold text-slate-800 dark:text-slate-100 block">
+                                                        Ativar Regra Individual Diferenciada para este Vendedor
+                                                    </span>
+                                                    <span className="text-xs text-slate-500">
+                                                        {currentSellerRuleForm.ativo
+                                                            ? 'Ativa: As contratações e novos clientes deste comercial usarão os valores abaixo.'
+                                                            : `Inativa: Este comercial está seguindo a Regra Global (€ ${settingsForm.comissao_base} por vaga / € ${settingsForm.bonus_novo_cliente} novo cliente).`}
+                                                    </span>
+                                                </div>
+                                                <input
+                                                    type="checkbox"
+                                                    checked={currentSellerRuleForm.ativo}
+                                                    onChange={e => updateSelectedSellerRule({ ativo: e.target.checked })}
+                                                    className="w-5 h-5 rounded text-purple-600 focus:ring-purple-500"
+                                                />
+                                            </label>
+                                        )}
+                                    </div>
+
+                                    {selectedRuleSellerEmail && (
+                                        <div className={`space-y-4 p-4 rounded-xl border transition-all ${
+                                            currentSellerRuleForm.ativo
+                                                ? 'bg-white dark:bg-slate-900 border-purple-300 dark:border-purple-700'
+                                                : 'bg-slate-50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-700 opacity-75'
+                                        }`}>
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                                <div>
+                                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                        Comissão por Contratação / Vaga (€)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.50"
+                                                        min="0"
+                                                        value={currentSellerRuleForm.comissao_base}
+                                                        onChange={e => updateSelectedSellerRule({
+                                                            ativo: true,
+                                                            comissao_base: parseFloat(e.target.value) || 0
+                                                        })}
+                                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 font-bold text-base"
+                                                    />
+                                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                        <span className="text-[11px] text-slate-400">Atalhos:</span>
+                                                        {[20, 25, 30, 35, 40, 50].map(val => (
+                                                            <button
+                                                                key={val}
+                                                                type="button"
+                                                                onClick={() => updateSelectedSellerRule({ ativo: true, comissao_base: val })}
+                                                                className={`px-2 py-0.5 text-[11px] font-bold rounded border transition-colors ${
+                                                                    Number(currentSellerRuleForm.comissao_base) === val && currentSellerRuleForm.ativo
+                                                                        ? 'bg-purple-600 text-white border-purple-600'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-purple-50'
+                                                                }`}
+                                                            >
+                                                                € {val}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+
+                                                <div>
+                                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                        Bônus por Novo Cliente (€)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="0.50"
+                                                        min="0"
+                                                        value={currentSellerRuleForm.bonus_novo_cliente}
+                                                        onChange={e => updateSelectedSellerRule({
+                                                            ativo: true,
+                                                            bonus_novo_cliente: parseFloat(e.target.value) || 0
+                                                        })}
+                                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 font-bold text-base"
+                                                    />
+                                                    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                                        <span className="text-[11px] text-slate-400">Atalhos:</span>
+                                                        {[20, 30, 40, 50, 60].map(val => (
+                                                            <button
+                                                                key={val}
+                                                                type="button"
+                                                                onClick={() => updateSelectedSellerRule({ ativo: true, bonus_novo_cliente: val })}
+                                                                className={`px-2 py-0.5 text-[11px] font-bold rounded border transition-colors ${
+                                                                    Number(currentSellerRuleForm.bonus_novo_cliente) === val && currentSellerRuleForm.ativo
+                                                                        ? 'bg-purple-600 text-white border-purple-600'
+                                                                        : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-purple-50'
+                                                                }`}
+                                                            >
+                                                                € {val}
+                                                            </button>
+                                                        ))}
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2 border-t border-slate-200 dark:border-slate-700">
+                                                <div>
+                                                    <label className="block font-semibold mb-1 text-slate-700 dark:text-slate-200">
+                                                        Carência Mínima do Vendedor (Dias)
+                                                    </label>
+                                                    <input
+                                                        type="number"
+                                                        step="1"
+                                                        min="1"
+                                                        value={currentSellerRuleForm.carencia_dias}
+                                                        onChange={e => updateSelectedSellerRule({
+                                                            ativo: true,
+                                                            carencia_dias: parseInt(e.target.value, 10) || 15
+                                                        })}
+                                                        className="w-full border border-slate-300 dark:border-slate-600 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 font-semibold"
+                                                    />
+                                                </div>
+
+                                                <div className="flex items-center pt-5">
+                                                    <label className="flex items-center gap-2.5 cursor-pointer">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={currentSellerRuleForm.exigir_fatura_quitada}
+                                                            onChange={e => updateSelectedSellerRule({
+                                                                ativo: true,
+                                                                exigir_fatura_quitada: e.target.checked
+                                                            })}
+                                                            className="rounded text-purple-600 w-4 h-4"
+                                                        />
+                                                        <span className="text-xs font-semibold text-slate-700 dark:text-slate-200">
+                                                            Exigir fatura quitada pelo cliente para liberar
+                                                        </span>
+                                                    </label>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Tabela Resumo de Todos os Vendedores Ativos */}
+                                    <div className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+                                        <div className="bg-slate-100 dark:bg-slate-900 px-3 py-2 text-xs font-bold uppercase tracking-wider text-slate-600 dark:text-slate-300">
+                                            Resumo de Regras por Vendedor Ativo ({activeSellers.length})
+                                        </div>
+                                        <table className="w-full text-left text-xs">
+                                            <thead className="bg-slate-50 dark:bg-slate-800/70 border-b border-slate-200 dark:border-slate-700 text-slate-500">
+                                                <tr>
+                                                    <th className="px-3 py-2">Vendedor</th>
+                                                    <th className="px-3 py-2">Tipo de Regra</th>
+                                                    <th className="px-3 py-2 text-right">Vaga Contratada</th>
+                                                    <th className="px-3 py-2 text-right">Novo Cliente</th>
+                                                    <th className="px-3 py-2 text-center">Carência</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100 dark:divide-slate-700/60">
+                                                {activeSellers.map(s => {
+                                                    const emailKey = s.email.toLowerCase();
+                                                    const r = settingsForm.regras_vendedores[emailKey];
+                                                    const isIndiv = Boolean(r && r.ativo);
+                                                    const vagaVal = isIndiv ? r.comissao_base : (parseFloat(settingsForm.comissao_base) || 20);
+                                                    const cliVal = isIndiv ? r.bonus_novo_cliente : (parseFloat(settingsForm.bonus_novo_cliente) || 30);
+                                                    const carVal = isIndiv ? r.carencia_dias : (parseInt(settingsForm.carencia_dias, 10) || 15);
+
+                                                    return (
+                                                        <tr
+                                                            key={s.email}
+                                                            onClick={() => setSelectedRuleSellerEmail(emailKey)}
+                                                            className={`cursor-pointer transition-colors ${
+                                                                selectedRuleSellerEmail === emailKey
+                                                                    ? 'bg-purple-50/80 dark:bg-purple-900/25 font-semibold'
+                                                                    : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
+                                                            }`}
+                                                        >
+                                                            <td className="px-3 py-2">{s.name}</td>
+                                                            <td className="px-3 py-2">
+                                                                {isIndiv ? (
+                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300">
+                                                                        ★ Individual
+                                                                    </span>
+                                                                ) : (
+                                                                    <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                                                                        Padrão Global
+                                                                    </span>
+                                                                )}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right font-bold text-emerald-600 dark:text-emerald-400">
+                                                                € {Number(vagaVal).toFixed(2)}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-right font-bold text-blue-600 dark:text-blue-400">
+                                                                € {Number(cliVal).toFixed(2)}
+                                                            </td>
+                                                            <td className="px-3 py-2 text-center">
+                                                                {carVal}d
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="mt-5 pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2.5">
                             <button
                                 onClick={() => setIsSettingsModalOpen(false)}
                                 className="px-4 py-2 border border-slate-300 dark:border-slate-600 rounded-lg text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700"
@@ -1390,7 +2072,7 @@ export const Comissoes: React.FC = () => {
                                 disabled={savingSettings}
                                 className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-semibold hover:bg-blue-700 disabled:opacity-50"
                             >
-                                {savingSettings ? 'Salvando...' : 'Salvar Parâmetros'}
+                                {savingSettings ? 'Salvando...' : 'Salvar Regras e Recalcular'}
                             </button>
                         </div>
                     </div>
@@ -1420,7 +2102,7 @@ export const Comissoes: React.FC = () => {
                         </div>
 
                         <div className="bg-blue-50/70 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800 rounded-xl p-3 mb-4 text-xs text-blue-900 dark:text-blue-200">
-                            <b>Regra de Vaga Única (€ {settings?.comissao_base ?? 20}):</b> Substituições (reemplazos) ou remanejamentos dentro da mesma vaga não duplicam a comissão. Para desbloquear os € {settings?.comissao_base ?? 20}, o trabalhador alocado na vaga precisa completar <b>{historyModalRow.carencia_dias_meta} dias trabalhados</b> e a fatura do mês (<b>{historyModalRow.mes_referencia_label}</b>) deve estar quitada pelo cliente.
+                            <b>Regra de Vaga Única (€ {Number(historyModalRow.valor).toFixed(2)}):</b> Substituições (reemplazos) ou remanejamentos dentro da mesma vaga não duplicam a comissão. Para desbloquear os € {Number(historyModalRow.valor).toFixed(2)}, o trabalhador alocado na vaga precisa completar <b>{historyModalRow.carencia_dias_meta} dias trabalhados</b> e a fatura do mês (<b>{historyModalRow.mes_referencia_label}</b>) deve estar quitada pelo cliente.
                         </div>
 
                         <div className="flex-1 overflow-y-auto space-y-3 pr-1">

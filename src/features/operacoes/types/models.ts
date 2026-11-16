@@ -132,6 +132,17 @@ export interface Notification {
 
 // --- COMMISSIONS MODELS ---
 
+export interface SellerCommissionRule {
+  vendedor_email: string;
+  vendedor_nome?: string;
+  ativo: boolean;
+  comissao_base: number;
+  bonus_novo_cliente: number;
+  carencia_dias: number;
+  exigir_fatura_quitada?: boolean;
+  updated_at?: string;
+}
+
 export interface CommissionSettings {
   id: number;
   comissao_base: number;
@@ -139,6 +150,7 @@ export interface CommissionSettings {
   carencia_dias: number;
   exigir_fatura_quitada?: boolean;
   data_corte_novos_clientes?: string;
+  regras_vendedores?: Record<string, SellerCommissionRule>;
   updated_at: string;
 }
 
@@ -182,12 +194,17 @@ export interface CommissionGenerated {
   nome_colab: string;
   worker_doc?: string;
   job_function?: string;
+  start_date?: string | null;
+  end_date?: string | null;
+  worker_status_label?: string;
   cliente_id?: string;
   cliente_cod?: string;
   cliente_nombre: string;
   cliente_created_at?: string | null;
   tipo: CommissionType;
   valor: number;
+  regra_aplicada?: 'individual' | 'padrao';
+  exigir_fatura_quitada_regra?: boolean;
   data_referencia: string;
   mes_referencia: string; // 'YYYY-MM'
   mes_referencia_label?: string; // 'Outubro 2026'

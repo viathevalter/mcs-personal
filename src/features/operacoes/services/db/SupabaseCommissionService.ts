@@ -82,6 +82,7 @@ export const commissionService = {
             carencia_dias: 15,
             exigir_fatura_quitada: true,
             data_corte_novos_clientes: '2026-07-05',
+            regras_vendedores: {},
             updated_at: new Date().toISOString()
         };
 
@@ -107,6 +108,7 @@ export const commissionService = {
             carencia_dias: Number(data.carencia_dias ?? 15),
             exigir_fatura_quitada: data.exigir_fatura_quitada ?? true,
             data_corte_novos_clientes: data.data_corte_novos_clientes || '2026-07-05',
+            regras_vendedores: (data.regras_vendedores && typeof data.regras_vendedores === 'object') ? data.regras_vendedores : {},
             updated_at: data.updated_at || new Date().toISOString()
         };
     },
@@ -119,6 +121,7 @@ export const commissionService = {
             carencia_dias: Number(settings.carencia_dias ?? 15),
             exigir_fatura_quitada: settings.exigir_fatura_quitada ?? true,
             data_corte_novos_clientes: settings.data_corte_novos_clientes || '2026-07-05',
+            regras_vendedores: settings.regras_vendedores ?? {},
             updated_at: new Date().toISOString()
         };
 
@@ -641,6 +644,13 @@ export const commissionService = {
             }
 
             const seller = resolveSellerForOrder(matchedPedido, matchedClient);
+            const sellerEmailKey = (seller.email || '').toLowerCase().trim();
+            const customRule = sellerEmailKey && settings.regras_vendedores ? settings.regras_vendedores[sellerEmailKey] : undefined;
+            const useCustomRule = Boolean(customRule && customRule.ativo);
+            const effectiveComissaoBase = Number(useCustomRule ? (customRule!.comissao_base ?? settings.comissao_base ?? 20) : (settings.comissao_base ?? 20));
+            const effectiveCarenciaDias = Number(useCustomRule ? (customRule!.carencia_dias ?? settings.carencia_dias ?? 15) : (settings.carencia_dias ?? 15));
+            const effectiveExigeFatura = Boolean(useCustomRule ? (customRule!.exigir_fatura_quitada ?? settings.exigir_fatura_quitada ?? true) : (settings.exigir_fatura_quitada ?? true));
+
             const currentWorkerId = currentEntry.raw.worker_id;
             const workerSellerKey = `${seller.email}|${currentWorkerId}`;
 
@@ -673,9 +683,9 @@ export const commissionService = {
                 solicitud_codigo: item.meta.sol?.codigo || null
             }));
 
-            // Days worked for eligibility: the current titular worker's days worked (or max days worked by a non-replaced completed worker in the slot)
+            // Days worked for eligibility: the current titular worker's days worked
             const titularDaysWorked = currentEntry.meta.daysWorked;
-            const carenciaMeta = settings.carencia_dias || 15;
+            const carenciaMeta = effectiveCarenciaDias || 15;
             const carenciaCumprida = titularDaysWorked >= carenciaMeta;
 
             // Reference date: start date of the current worker (or first entry start date / created_at)
@@ -687,7 +697,7 @@ export const commissionService = {
             const mesRef = refDateStr.substring(0, 7); // 'YYYY-MM'
             const clientName = matchedClient?.trade_name || matchedClient?.legal_name || 'Cliente não especificado';
 
-            // Track client's first order for the €30 New Client Bonus
+            // Track client's first order for the New Client Bonus
             if (matchedClient?.id) {
                 const existingFirst = firstOrderByClient.get(matchedClient.id);
                 if (!existingFirst || refDateStr < existingFirst.firstDate) {
@@ -706,7 +716,7 @@ export const commissionService = {
             // Check invoice status for Client + Reference Month
             const invoiceInfo = checkInvoiceForClientMonth(matchedClient, clientName, mesRef);
 
-            const exigeFatura = settings.exigir_fatura_quitada ?? true;
+            const exigeFatura = effectiveExigeFatura;
             const elegivel = carenciaCumprida && (!exigeFatura || invoiceInfo.fatura_quitada);
 
             let motivoBloqueio: string | null = null;
@@ -719,7 +729,7 @@ export const commissionService = {
                     motivoBloqueio = `Em período de carência (${titularDaysWorked}/${carenciaMeta} dias trabalhados)`;
                 }
             } else if (exigeFatura && !invoiceInfo.fatura_quitada) {
-                motivoBloqueio = `15 dias cumpridos (${titularDaysWorked}d) — Aguardando quitação da fatura de ${formatMesReferenciaLabel(mesRef)}`;
+                motivoBloqueio = `${carenciaMeta} dias cumpridos (${titularDaysWorked}d) — Aguardando quitação da fatura de ${formatMesReferenciaLabel(mesRef)}`;
             }
 
             const repassesCount = Math.max(0, enrichedChain.length - 1);
@@ -734,12 +744,17 @@ export const commissionService = {
                 nome_colab: currentEntry.raw.worker?.nome || 'Trabalhador',
                 worker_doc: currentEntry.raw.worker?.dni || currentEntry.raw.worker?.nif || currentEntry.raw.worker?.cod_colab || '-',
                 job_function: currentEntry.raw.job_function_name_snapshot || currentEntry.raw.worker?.funcion || 'Geral',
+                start_date: currentEntry.meta.startDateStr,
+                end_date: currentEntry.meta.endDateStr,
+                worker_status_label: currentEntry.meta.statusLabel,
                 cliente_id: matchedClient?.id || undefined,
                 cliente_cod: matchedClient?.codigo || undefined,
                 cliente_nombre: clientName,
                 cliente_created_at: matchedClient?.created_at ? String(matchedClient.created_at).split('T')[0] : null,
                 tipo: 'contratacao',
-                valor: Number(settings.comissao_base || 20),
+                valor: effectiveComissaoBase,
+                regra_aplicada: useCustomRule ? 'individual' : 'padrao',
+                exigir_fatura_quitada_regra: exigeFatura,
                 data_referencia: refDateStr,
                 mes_referencia: mesRef,
                 mes_referencia_label: formatMesReferenciaLabel(mesRef),
@@ -760,23 +775,29 @@ export const commissionService = {
             });
         });
 
-        // Generate €30 New Client Bonus (bonus_cliente_novo) controlled by client registration date
+        // Generate New Client Bonus (bonus_cliente_novo) controlled by client registration date & seller rule
         const cutoffDate = settings.data_corte_novos_clientes || '2026-07-05';
         firstOrderByClient.forEach(({ pedido, client, seller, firstDate, has15Days }, clientId) => {
             const clientCreatedDate = client?.created_at ? String(client.created_at).split('T')[0] : null;
             if (!clientCreatedDate || clientCreatedDate < cutoffDate) {
                 return;
             }
+            const sellerEmailKey = (seller.email || '').toLowerCase().trim();
+            const customRule = sellerEmailKey && settings.regras_vendedores ? settings.regras_vendedores[sellerEmailKey] : undefined;
+            const useCustomRule = Boolean(customRule && customRule.ativo);
+            const effectiveBonusCliente = Number(useCustomRule ? (customRule!.bonus_novo_cliente ?? settings.bonus_novo_cliente ?? 30) : (settings.bonus_novo_cliente ?? 30));
+            const effectiveCarenciaDias = Number(useCustomRule ? (customRule!.carencia_dias ?? settings.carencia_dias ?? 15) : (settings.carencia_dias ?? 15));
+            const exigeFatura = Boolean(useCustomRule ? (customRule!.exigir_fatura_quitada ?? settings.exigir_fatura_quitada ?? true) : (settings.exigir_fatura_quitada ?? true));
+
             const refDate = clientCreatedDate >= firstDate ? clientCreatedDate : firstDate;
             const mesRef = firstDate.substring(0, 7);
             const clientName = client?.trade_name || client?.legal_name || 'Cliente Novo';
             const invoiceInfo = checkInvoiceForClientMonth(client, clientName, mesRef);
-            const exigeFatura = settings.exigir_fatura_quitada ?? true;
             const elegivel = has15Days && (!exigeFatura || invoiceInfo.fatura_quitada);
 
             let motivoBloqueio: string | null = null;
             if (!has15Days) {
-                motivoBloqueio = `Aguardando trabalhador completar ${settings.carencia_dias || 15} dias no novo cliente`;
+                motivoBloqueio = `Aguardando trabalhador completar ${effectiveCarenciaDias} dias no novo cliente`;
             } else if (exigeFatura && !invoiceInfo.fatura_quitada) {
                 motivoBloqueio = `Aguardando quitação da 1ª fatura (${formatMesReferenciaLabel(mesRef)})`;
             }
@@ -794,12 +815,14 @@ export const commissionService = {
                 cliente_nombre: clientName,
                 cliente_created_at: clientCreatedDate,
                 tipo: 'bonus_cliente_novo',
-                valor: Number(settings.bonus_novo_cliente || 30),
+                valor: effectiveBonusCliente,
+                regra_aplicada: useCustomRule ? 'individual' : 'padrao',
+                exigir_fatura_quitada_regra: exigeFatura,
                 data_referencia: refDate,
                 mes_referencia: mesRef,
                 mes_referencia_label: formatMesReferenciaLabel(mesRef),
-                dias_trabalhados: has15Days ? (settings.carencia_dias || 15) : 0,
-                carencia_dias_meta: settings.carencia_dias || 15,
+                dias_trabalhados: has15Days ? effectiveCarenciaDias : 0,
+                carencia_dias_meta: effectiveCarenciaDias,
                 carencia_cumprida: has15Days,
                 repasses_count: 0,
                 historico_vaga: [],
