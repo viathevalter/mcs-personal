@@ -247,6 +247,9 @@ export const commissionService = {
             supabase
                 .from('contas_receber')
                 .select('id, cod_cliente, cliente, num_doc, periodo_fat, data_emissao, dt_recebimento, valot_total, saldo_a_pagar, status')
+                .or('periodo_fat.ilike.%2026%,periodo_fat.ilike.%2027%,data_emissao.gte.2026-01-01')
+                .order('id', { ascending: false })
+                .limit(5000)
         ]);
 
         const sellerById = new Map<string, CommissionSeller>();
