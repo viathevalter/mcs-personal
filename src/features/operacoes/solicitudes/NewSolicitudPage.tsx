@@ -1785,13 +1785,13 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
 
 
             {/* Layout Principal: Duas Colunas */}
-            <div className="grid grid-cols-1 lg:grid-cols-4 xl:grid-cols-5 gap-3 md:gap-4 flex-1 min-h-0 overflow-hidden">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-3 md:gap-4 flex-1 min-h-0 overflow-hidden">
                 
                 {/* Esquerda: Filtros e Tabela */}
                 <div className={`${
                     (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause') 
-                        ? 'lg:col-span-2 xl:col-span-2' 
-                        : 'lg:col-span-3 xl:col-span-4'
+                        ? 'lg:col-span-6 xl:col-span-6' 
+                        : 'lg:col-span-7 xl:col-span-8'
                 } h-full flex flex-col min-h-0 overflow-hidden`}>
                     <div className="bg-white dark:bg-slate-950 p-4 md:p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800/80 shadow-md flex-1 flex flex-col min-h-0 overflow-hidden space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b shrink-0">
@@ -2287,8 +2287,8 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
                 {/* Direita: Formulário de Solicitação */}
                 <div className={`${
                     (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause') 
-                        ? 'lg:col-span-2 xl:col-span-3' 
-                        : 'lg:col-span-1 xl:col-span-1'
+                        ? 'lg:col-span-6 xl:col-span-6' 
+                        : 'lg:col-span-5 xl:col-span-4'
                 } h-full overflow-y-auto pr-1`}>
                     <div className="bg-white dark:bg-slate-950 p-4 md:p-5 rounded-2xl border border-slate-150/80 dark:border-slate-800/80 shadow-md space-y-4">
                         <div className="flex items-center gap-2 pb-2 border-b">
@@ -2485,19 +2485,19 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
                                 <div className="space-y-4 border-t border-b py-4 my-2 border-slate-100 dark:border-slate-800 animate-fade-in">
                                     {/* Card Obrigatório: Data de Encerramento do(s) Trabalhador(es) Substituído(s) */}
                                     <div className="bg-amber-50/60 dark:bg-amber-950/20 p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/60 space-y-3">
-                                        <div>
-                                            <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center justify-between gap-1.5">
-                                                <span className="flex items-center gap-1.5">
+                                        <div className="space-y-1.5">
+                                            <div className="flex items-start justify-between gap-2 flex-wrap">
+                                                <h3 className="text-xs font-bold text-amber-900 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
                                                     <AlertCircle className="w-4 h-4 text-amber-600 shrink-0" />
-                                                    Encerramento do(s) Substituído(s) <span className="text-rose-600 font-extrabold">*</span>
-                                                </span>
+                                                    <span>Encerramento do(s) Substituído(s) <span className="text-rose-600 font-extrabold">*</span></span>
+                                                </h3>
                                                 {selectedAssignments.length > 0 && (
-                                                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200 border border-amber-300/60 dark:border-amber-700 whitespace-nowrap">
                                                         {selectedAssignments.filter(id => Boolean(workerEndDates[id]?.trim())).length}/{selectedAssignments.length} preenchido(s)
                                                     </span>
                                                 )}
-                                            </h3>
-                                            <p className="text-[11px] text-amber-800/85 dark:text-amber-300/80 mt-1 leading-snug">
+                                            </div>
+                                            <p className="text-[11px] text-amber-800/85 dark:text-amber-300/80 leading-snug">
                                                 Informe <strong>até que dia cada trabalhador substituído vai trabalhar</strong>. Essa data irá para o e-mail, Seguridade Social e Alertas Operacionais.
                                             </p>
                                         </div>
@@ -2509,12 +2509,15 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
                                         ) : (
                                             <div className="space-y-2.5">
                                                 {selectedAssignments.length > 1 && (
-                                                    <div className="flex items-center gap-1.5 p-2 rounded-lg bg-white/80 dark:bg-slate-900/60 border border-amber-200 dark:border-amber-800/60">
+                                                    <div className="flex flex-wrap items-center gap-2 p-2.5 rounded-lg bg-white/85 dark:bg-slate-900/60 border border-amber-200 dark:border-amber-800/60">
+                                                        <span className="text-[11px] font-semibold text-amber-900 dark:text-amber-300 w-full">
+                                                            Mesma data para todos (opcional):
+                                                        </span>
                                                         <Input
                                                             type="date"
                                                             value={bulkWorkerEndDate}
                                                             onChange={e => setBulkWorkerEndDate(e.target.value)}
-                                                            className="h-8 text-xs flex-1 bg-white dark:bg-slate-950"
+                                                            className="h-8 text-xs flex-1 min-w-[140px] bg-white dark:bg-slate-950"
                                                         />
                                                         <Button
                                                             type="button"
@@ -2531,48 +2534,59 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
                                                                     return next;
                                                                 });
                                                             }}
-                                                            className="h-8 px-2.5 text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 shrink-0"
+                                                            className="h-8 px-3 text-[11px] font-bold border-amber-300 text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:text-amber-300 shrink-0"
                                                         >
                                                             Aplicar a todos
                                                         </Button>
                                                     </div>
                                                 )}
 
-                                                <div className="space-y-2 max-h-56 overflow-y-auto pr-0.5">
+                                                <div className="space-y-2.5 max-h-80 overflow-y-auto pr-0.5">
                                                     {selectedAssignments.map(assignId => {
                                                         const a = assignments.find(item => item.id === assignId);
                                                         const wName = a?.worker?.nome || 'Trabalhador';
                                                         const wCod = a?.worker?.cod_colab || '';
                                                         const pCod = a?.pedido?.codigo || '';
+                                                        const siteName = a?.client_site?.name || '';
                                                         const val = workerEndDates[assignId] || '';
                                                         return (
                                                             <div
                                                                 key={assignId}
-                                                                className={`p-2.5 rounded-lg border bg-white dark:bg-slate-950 space-y-1.5 transition-colors ${
+                                                                className={`p-3 rounded-lg border bg-white dark:bg-slate-950 space-y-2 transition-colors shadow-xs ${
                                                                     val
                                                                         ? 'border-emerald-300 dark:border-emerald-800/70'
                                                                         : 'border-rose-300 dark:border-rose-800/70'
                                                                 }`}
                                                             >
-                                                                <div className="flex items-center justify-between gap-1.5">
-                                                                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate" title={wName}>
-                                                                        {wName}
-                                                                    </span>
-                                                                    <div className="flex items-center gap-1 shrink-0">
+                                                                {/* Linha 1: Nome completo do trabalhador (sem cortar) */}
+                                                                <div className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-snug break-words">
+                                                                    {wName}
+                                                                </div>
+
+                                                                {/* Linha 2: Código do trabalhador + Pedido + Obra */}
+                                                                {(wCod || pCod || siteName) && (
+                                                                    <div className="flex flex-wrap items-center gap-1.5">
                                                                         {wCod && (
-                                                                            <span className="text-[10px] font-mono px-1.5 py-0.2 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                                                                {wCod}
+                                                                            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
+                                                                                ID: {wCod}
                                                                             </span>
                                                                         )}
                                                                         {pCod && (
-                                                                            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.2 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
+                                                                            <span className="text-[10px] font-mono font-semibold px-1.5 py-0.5 rounded bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
                                                                                 {pCod}
                                                                             </span>
                                                                         )}
+                                                                        {siteName && (
+                                                                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-slate-50 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border border-slate-200/70 dark:border-slate-800">
+                                                                                {siteName}
+                                                                            </span>
+                                                                        )}
                                                                     </div>
-                                                                </div>
-                                                                <div className="flex items-center justify-between gap-2">
-                                                                    <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-400 whitespace-nowrap">
+                                                                )}
+
+                                                                {/* Linha 3: Campo de data de encerramento */}
+                                                                <div className="flex items-center justify-between gap-2 pt-1 border-t border-slate-100 dark:border-slate-800/80">
+                                                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                                                                         Trabalha até <span className="text-rose-500 font-bold">*</span>
                                                                     </label>
                                                                     <Input
@@ -2584,9 +2598,9 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
                                                                                 [assignId]: e.target.value,
                                                                             }))
                                                                         }
-                                                                        className={`h-8 text-xs max-w-[155px] ${
+                                                                        className={`h-8 text-xs w-[165px] ${
                                                                             val
-                                                                                ? 'border-emerald-300 focus-visible:ring-emerald-500'
+                                                                                ? 'border-emerald-300 focus-visible:ring-emerald-500 font-semibold'
                                                                                 : 'border-rose-300 focus-visible:ring-rose-500 bg-rose-50/20 dark:bg-rose-950/10'
                                                                         }`}
                                                                     />
