@@ -57,7 +57,7 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
         supabase
           .schema('core_comercial')
           .from('pedidos')
-          .select('id, codigo, client_id, client_site_id, expected_start_date, expected_end_date, commercial_status')
+          .select('id, codigo, client_id, client_site_id, expected_start_date, expected_end_date, commercial_status, commercial_owner_id, created_by')
           .in('id', chunk)
       );
       const pedidosMap = new Map(pedidosList.map(p => [p.id, p]));
@@ -136,17 +136,39 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
           supabase
             .schema('core_operacoes')
             .from('solicitud_targets')
-            .select('id, solicitud_id, reason, notes, action_type, source_worker_id, target_worker_id')
+            .select('id, solicitud_id, reason, notes, action_type, source_worker_id, target_worker_id, created_by')
             .in('solicitud_id', chunk)
         )
       ]);
 
       const targetsMap = new Map<string, any>();
+      const targetsCountMap = new Map<string, number>();
       targetsList.forEach(t => {
         if (!targetsMap.has(t.solicitud_id)) {
           targetsMap.set(t.solicitud_id, t);
         }
+        targetsCountMap.set(t.solicitud_id, (targetsCountMap.get(t.solicitud_id) || 0) + 1);
       });
+
+      // 5. Fetch creator user profiles from core_operacoes.mcs_users
+      const userIds = [
+        ...new Set([
+          ...solicitudes.map(s => s.created_by),
+          ...solicitudes.map((s: any) => s.requested_by),
+          ...targetsList.map(t => t.created_by),
+          ...pedidosList.map(p => p.commercial_owner_id),
+          ...pedidosList.map(p => p.created_by),
+        ].filter(Boolean))
+      ];
+
+      const usersData = await fetchInChunks<any>(userIds, chunk =>
+        supabase
+          .schema('core_operacoes')
+          .from('mcs_users')
+          .select('id, display_name, email')
+          .in('id', chunk)
+      );
+      const usersMap = new Map(usersData.map(u => [u.id, u]));
 
       return solicitudes.map(s => {
         const p = s.pedido_id ? pedidosMap.get(s.pedido_id) : null;
@@ -161,6 +183,23 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
         const resolvedEmpresa = empresasMap.get(s.empresa_id) || undefined;
         const target = targetsMap.get(s.id);
         const effectiveReason = s.reason || target?.reason || target?.notes || null;
+
+        // Resolve creator (direct created_by / target created_by first; for automatic new_order, fall back to pedido owner)
+        const directCreatorId = s.created_by || (s as any).requested_by || target?.created_by;
+        const fallbackOrderOwnerId = !directCreatorId ? (p?.commercial_owner_id || p?.created_by) : null;
+        const resolvedUser = directCreatorId
+          ? usersMap.get(directCreatorId)
+          : fallbackOrderOwnerId
+            ? usersMap.get(fallbackOrderOwnerId)
+            : undefined;
+        const resolvedCreator = resolvedUser
+          ? {
+              id: resolvedUser.id,
+              display_name: resolvedUser.display_name,
+              email: resolvedUser.email,
+              is_order_owner_fallback: !directCreatorId && Boolean(fallbackOrderOwnerId),
+            }
+          : undefined;
 
         // Resolve Pedido details (fall back to Estimación details if no Pedido is created yet)
         const resolvedPedido = p ? {
@@ -188,6 +227,8 @@ export function useSolicitudes(filters?: UseSolicitudesFilters) {
           client_site: resolvedSite,
           pedido: resolvedPedido,
           empresa: resolvedEmpresa,
+          creator: resolvedCreator,
+          targets_count: targetsCountMap.get(s.id) || 0,
           has_postponement,
           has_extension
         };

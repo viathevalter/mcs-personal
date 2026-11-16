@@ -104,6 +104,14 @@ export interface SolicitudDetail extends SolicitudOperativa {
     legal_name?: string;
     trade_name?: string;
   };
+  creator?: {
+    id: string;
+    display_name?: string;
+    email?: string;
+    is_order_owner_fallback?: boolean;
+  };
+  targets_count?: number;
+  reason?: string | null;
   has_postponement?: boolean;
   has_extension?: boolean;
 }

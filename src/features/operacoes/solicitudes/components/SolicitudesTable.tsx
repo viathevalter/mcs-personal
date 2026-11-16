@@ -124,6 +124,18 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
     };
   };
 
+  const formatCreatedDateTime = (isoStr?: string) => {
+    if (!isoStr) return { date: 'N/A', time: '' };
+    const d = new Date(isoStr);
+    if (isNaN(d.getTime())) return { date: 'N/A', time: '' };
+    const dd = String(d.getDate()).padStart(2, '0');
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const yyyy = d.getFullYear();
+    const hh = String(d.getHours()).padStart(2, '0');
+    const min = String(d.getMinutes()).padStart(2, '0');
+    return { date: `${dd}/${mm}/${yyyy}`, time: `${hh}:${min}` };
+  };
+
   return (
     <div className="rounded-md border bg-card overflow-y-auto h-full max-h-full">
       <Table>
@@ -133,6 +145,8 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
             <TableHead>{t('torre_controle.table.order')}</TableHead>
             <TableHead>{t('torre_controle.table.internal_company')}</TableHead>
             <TableHead>{t('torre_controle.table.client_site')}</TableHead>
+            <TableHead className="whitespace-nowrap">{t('torre_controle.table.created_at', 'Data Criação')}</TableHead>
+            <TableHead className="whitespace-nowrap">{t('torre_controle.table.created_by', 'Criado por')}</TableHead>
             <TableHead>{activeTab === 'offboarding' ? t('torre_controle.table.offboarding_date') : t('torre_controle.table.start_date')}</TableHead>
             <TableHead>{activeTab === 'offboarding' ? t('torre_controle.table.offboarding_reason') : t('torre_controle.table.work_deadline')}</TableHead>
             <TableHead>{t('torre_controle.table.operational_status')}</TableHead>
@@ -143,6 +157,10 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
         <TableBody>
           {solicitudes.map((solicitud) => {
             const opStatus = getOperationalStatusBadge(solicitud);
+            const createdDt = formatCreatedDateTime(solicitud.created_at);
+            const creatorName =
+              solicitud.creator?.display_name ||
+              (solicitud.creator?.email ? solicitud.creator.email.split('@')[0] : null);
 
             return (
               <TableRow 
@@ -150,21 +168,34 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                 className="cursor-pointer hover:bg-muted/50"
                 onClick={() => navigate(`/operacoes/solicitudes/${solicitud.id}`)}
               >
-                <TableCell className="font-medium text-blue-600 dark:text-blue-400">{solicitud.codigo}</TableCell>
+                <TableCell className="font-medium text-blue-600 dark:text-blue-400 whitespace-nowrap">{solicitud.codigo}</TableCell>
                 <TableCell>
                   <div className="flex flex-col space-y-1.5 align-left items-start">
                     {solicitud.pedido ? (
-                      <span className="font-semibold text-slate-700 dark:text-slate-300">
+                      <span className="font-semibold text-slate-700 dark:text-slate-300 whitespace-nowrap">
                         {solicitud.pedido.codigo}
                       </span>
                     ) : (
                       <span className="text-slate-450 dark:text-slate-500 text-xs">N/A</span>
                     )}
-                    <SolicitudTypeBadge tipo={solicitud.tipo} />
+                    <div className="flex items-center gap-1 flex-wrap">
+                      <SolicitudTypeBadge tipo={solicitud.tipo} />
+                      {(solicitud.targets_count || 0) > 0 && (
+                        <span
+                          className={`text-[10px] font-semibold px-1.5 py-0.5 rounded border whitespace-nowrap ${
+                            (solicitud.targets_count || 0) > 1
+                              ? 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800'
+                              : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
+                          }`}
+                        >
+                          {t('torre_controle.table.workers_count_short', { count: solicitud.targets_count, defaultValue: `${solicitud.targets_count} trab.` })}
+                        </span>
+                      )}
+                    </div>
                   </div>
                 </TableCell>
                 <TableCell>
-                  <span className="text-xs font-semibold text-slate-650 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded">
+                  <span className="text-xs font-semibold text-slate-650 dark:text-slate-400 bg-slate-100 dark:bg-slate-800 px-2 py-1 rounded whitespace-nowrap">
                     {solicitud.empresa?.trade_name || solicitud.empresa?.nome || solicitud.empresa?.legal_name || 'N/A'}
                   </span>
                 </TableCell>
@@ -173,24 +204,57 @@ export function SolicitudesTable({ solicitudes, isLoading, activeTab, onRefresh 
                     {solicitud.tipo === 'relocation' ? (
                       <>
                         <span className="text-[10px] text-blue-600 dark:text-blue-400 font-bold uppercase tracking-wider">{t('torre_controle.table.destination_label')}</span>
-                        <span className="text-sm font-semibold truncate max-w-[200px]" title={solicitud.client?.legal_name}>
+                        <span className="text-sm font-semibold truncate max-w-[180px]" title={solicitud.client?.legal_name}>
                           {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
                         </span>
-                        <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.client_site?.name}>
+                        <span className="text-xs text-muted-foreground truncate max-w-[180px]" title={solicitud.client_site?.name}>
                           {solicitud.client_site?.name || t('torre_controle.table.undefined_location')}
                         </span>
                       </>
                     ) : (
                       <>
-                        <span className="text-sm font-semibold truncate max-w-[200px]" title={solicitud.client?.legal_name}>
+                        <span className="text-sm font-semibold truncate max-w-[180px]" title={solicitud.client?.legal_name}>
                           {solicitud.client?.trade_name || solicitud.client?.legal_name || 'N/A'}
                         </span>
-                        <span className="text-xs text-muted-foreground truncate max-w-[200px]" title={solicitud.client_site?.name}>
+                        <span className="text-xs text-muted-foreground truncate max-w-[180px]" title={solicitud.client_site?.name}>
                           {solicitud.client_site?.name || t('torre_controle.table.undefined_location')}
                         </span>
                       </>
                     )}
                   </div>
+                </TableCell>
+                <TableCell className="whitespace-nowrap">
+                  <div className="flex flex-col">
+                    <span className="text-xs font-mono font-semibold text-slate-700 dark:text-slate-300">
+                      {createdDt.date}
+                    </span>
+                    {createdDt.time && (
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {createdDt.time}
+                      </span>
+                    )}
+                  </div>
+                </TableCell>
+                <TableCell>
+                  {creatorName ? (
+                    <div
+                      className="flex flex-col max-w-[145px]"
+                      title={solicitud.creator?.email ? `${creatorName} (${solicitud.creator.email})` : creatorName}
+                    >
+                      <span className="text-xs font-semibold text-slate-800 dark:text-slate-200 truncate">
+                        {creatorName}
+                      </span>
+                      {solicitud.creator?.email && (
+                        <span className="text-[10px] text-muted-foreground truncate">
+                          {solicitud.creator.email}
+                        </span>
+                      )}
+                    </div>
+                  ) : (
+                    <span className="text-xs text-slate-400 italic">
+                      {t('torre_controle.table.system_auto', 'Automático')}
+                    </span>
+                  )}
                 </TableCell>
                 <TableCell className="text-slate-700 dark:text-slate-350 font-medium font-mono text-xs">
                   {solicitud.tipo === 'offboarding' ? (
