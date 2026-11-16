@@ -1256,37 +1256,37 @@ export const Comissoes: React.FC = () => {
                             <span>Sincronizando contratações, histórico de vagas e faturamento...</span>
                         </div>
                     ) : (
-                        <table className="w-full text-left text-xs sm:text-sm border-collapse">
+                        <table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse min-w-[1060px]">
                             <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 shadow-xs">
                                 <tr>
                                     {isSupervisor && (
-                                        <th className="px-3 py-3 text-center w-10 bg-slate-100 dark:bg-slate-900">
+                                        <th className="px-2 py-2.5 text-center w-[36px] bg-slate-100 dark:bg-slate-900">
                                             <input type="checkbox" onChange={handleSelectAll} className="rounded" />
                                         </th>
                                     )}
                                     <th
                                         onClick={() => handleSort('date')}
-                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
-                                        title="Clique para ordenar por Data / Mês de Referência"
+                                        className="px-2.5 py-2.5 w-[92px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar por Data"
                                     >
-                                        <div className="flex items-center gap-1.5">
-                                            <span>Data / Mês Ref.</span>
+                                        <div className="flex items-center gap-1">
+                                            <span>Data</span>
                                             {renderSortIcon('date')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('vendedor')}
-                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
-                                        title="Clique para ordenar em ordem alfabética por Vendedor"
+                                        className="px-2.5 py-2.5 w-[76px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar por Vendedor"
                                     >
-                                        <div className="flex items-center gap-1.5">
+                                        <div className="flex items-center gap-1">
                                             <span>Vendedor</span>
                                             {renderSortIcon('vendedor')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('cliente')}
-                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-3 py-2.5 w-[27%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar em ordem alfabética por Cliente e numérica por Pedido"
                                     >
                                         <div className="flex items-center gap-1.5">
@@ -1296,55 +1296,55 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('trabalhador')}
-                                        className="px-3 py-3 font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-3 py-2.5 w-[28%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar trabalhador por trabalhador (A-Z)"
                                     >
                                         <div className="flex items-center gap-1.5">
-                                            <span>Vaga / Trabalhador & Histórico</span>
+                                            <span>Trabalhador / Vaga</span>
                                             {renderSortIcon('trabalhador')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('carencia')}
-                                        className="px-3 py-3 text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2.5 py-2.5 w-[108px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar numericamente por Dias Trabalhados"
                                     >
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            <span>Carência ({activeRuleSummary.carencia_dias}d)</span>
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>Carência</span>
                                             {renderSortIcon('carencia')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('fatura')}
-                                        className="px-3 py-3 text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
-                                        title="Clique para ordenar pelo status da Fatura do Mês"
+                                        className="px-2.5 py-2.5 w-[128px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Clique para ordenar pelo status da Fatura"
                                     >
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            <span>Fatura do Mês (Cliente)</span>
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>Fatura</span>
                                             {renderSortIcon('fatura')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('valor')}
-                                        className="px-3 py-3 text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2.5 py-2.5 w-[84px] text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar numericamente por Valor (€)"
                                     >
-                                        <div className="flex items-center justify-end gap-1.5">
-                                            <span>Valor (€)</span>
+                                        <div className="flex items-center justify-end gap-1">
+                                            <span>Valor</span>
                                             {renderSortIcon('valor')}
                                         </div>
                                     </th>
                                     <th
                                         onClick={() => handleSort('status')}
-                                        className="px-3 py-3 text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2.5 py-2.5 w-[126px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar pelo Status na Conta Corrente"
                                     >
-                                        <div className="flex items-center justify-center gap-1.5">
-                                            <span>Status Conta Corrente</span>
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>Status</span>
                                             {renderSortIcon('status')}
                                         </div>
                                     </th>
-                                    <th className="px-3 py-3 text-center font-bold w-24 bg-slate-100 dark:bg-slate-900">Ações</th>
+                                    <th className="px-2 py-2.5 text-center font-bold w-[52px] bg-slate-100 dark:bg-slate-900">Hist.</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/70">
@@ -1358,6 +1358,12 @@ export const Comissoes: React.FC = () => {
                                     filteredRows.map(row => {
                                         const isSelectable = row._type === 'generated' && row.status !== 'PAGO';
                                         const pctCarencia = Math.min(100, Math.round(((row.dias_trabalhados || 0) / (row.carencia_dias_meta || 15)) * 100));
+                                        const firstName = String(row.vendedor_nome || '').trim().split(/\s+/)[0] || '-';
+                                        const shortFaturaLabel = row.fatura_quitada
+                                            ? 'Quitada'
+                                            : row.fatura_status === 'FATURA_ABERTA'
+                                                ? 'Em Aberto'
+                                                : 'Aguard. Fatura';
 
                                         return (
                                             <tr
@@ -1367,7 +1373,7 @@ export const Comissoes: React.FC = () => {
                                                 }`}
                                             >
                                                 {isSupervisor && (
-                                                    <td className="px-3 py-3 text-center">
+                                                    <td className="px-2 py-2.5 text-center">
                                                         {isSelectable && (
                                                             <input
                                                                 type="checkbox"
@@ -1379,150 +1385,85 @@ export const Comissoes: React.FC = () => {
                                                     </td>
                                                 )}
 
-                                                {/* Data / Mês Ref */}
-                                                <td className="px-3 py-3 whitespace-nowrap">
-                                                    <div className="font-semibold text-slate-800 dark:text-slate-100">
+                                                {/* Data */}
+                                                <td className="px-2.5 py-2.5 whitespace-nowrap">
+                                                    <div className="font-semibold text-xs text-slate-800 dark:text-slate-100">
                                                         {row.date ? new Date(row.date + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
                                                     </div>
-                                                    <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                                                        Ref: {row.mes_referencia_label}
-                                                    </div>
                                                 </td>
 
-                                                {/* Vendedor */}
-                                                <td className="px-3 py-3 whitespace-nowrap">
-                                                    <div className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                                                        <span>{row.vendedor_nome}</span>
-                                                        {sellerStatusByEmail.get(String(row.vendedor_email || '').toLowerCase())?.active === false && (
-                                                            <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-yellow-100 text-yellow-800 dark:bg-yellow-900/40 dark:text-yellow-300">
-                                                                Inativo
-                                                            </span>
-                                                        )}
-                                                        {row.regra_aplicada === 'individual' && (
-                                                            <span
-                                                                onClick={() => isSupervisor && handleOpenSettingsModal(row.vendedor_email)}
-                                                                className="cursor-pointer px-1.5 py-0.2 rounded text-[10px] font-bold bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800"
-                                                                title="Regra individual diferenciada aplicada para este vendedor. Clique para editar."
-                                                            >
-                                                                Regra Indiv.
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    <div className="text-[11px] text-slate-400">
-                                                        {row.vendedor_email}
-                                                    </div>
+                                                {/* Vendedor (apenas primeiro nome) */}
+                                                <td className="px-2.5 py-2.5 whitespace-nowrap">
+                                                    <span
+                                                        className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100"
+                                                        title={`${row.vendedor_nome} (${row.vendedor_email})`}
+                                                    >
+                                                        {firstName}
+                                                    </span>
                                                 </td>
 
-                                                {/* Cliente & Pedido */}
-                                                <td className="px-3 py-3">
+                                                {/* Cliente & Pedido (em uma linha, destacado) */}
+                                                <td className="px-3 py-2.5">
                                                     {row.cliente_nome ? (
-                                                        <div>
-                                                            <div className="font-semibold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 flex-wrap">
-                                                                <span>{row.cliente_nome}</span>
-                                                                {row.cliente_cod && (
-                                                                    <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded font-mono">
-                                                                        {row.cliente_cod}
-                                                                    </span>
-                                                                )}
-                                                            </div>
-                                                            <div className="flex items-center gap-2 mt-0.5 text-[11px] text-slate-500">
-                                                                {row.pedido_cod && (
-                                                                    <span className="font-mono font-medium text-blue-600 dark:text-blue-400">
-                                                                        {row.pedido_cod}
-                                                                    </span>
-                                                                )}
-                                                                {row.cliente_created_at && (
-                                                                    <span title="Data de cadastro do cliente no sistema">
-                                                                        • Cad. Cliente: {new Date(row.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT')}
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                        <div
+                                                            className="flex items-center gap-2 min-w-0"
+                                                            title={`${row.cliente_nome} ${row.pedido_cod ? '• ' + row.pedido_cod : ''} ${row.cliente_created_at ? '• Cad: ' + new Date(row.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
+                                                        >
+                                                            <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
+                                                                {row.cliente_nome}
+                                                            </span>
+                                                            {row.pedido_cod && (
+                                                                <span className="shrink-0 font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800">
+                                                                    {row.pedido_cod}
+                                                                </span>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         <span className="text-slate-400">-</span>
                                                     )}
                                                 </td>
 
-                                                {/* Vaga / Trabalhador & Histórico de Repasses */}
-                                                <td className="px-3 py-3">
-                                                    <div className="flex flex-col gap-1">
-                                                        <div className="flex items-center gap-1.5 flex-wrap">
-                                                            {row.tipo_lancamento === 'bonus_cliente_novo' ? (
-                                                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
-                                                                    ★ Bônus Novo Cliente
-                                                                </span>
-                                                            ) : row.tipo_lancamento === 'contratacao' ? (
-                                                                <span className="px-2 py-0.5 text-[10px] font-bold uppercase rounded bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300 border border-blue-200 dark:border-blue-800">
-                                                                    Vaga Contratação
-                                                                </span>
-                                                            ) : null}
-
-                                                            <span className="font-semibold text-slate-800 dark:text-slate-100">
-                                                                {row.desc}
+                                                {/* Trabalhador / Vaga (em uma linha, destacado) */}
+                                                <td className="px-3 py-2.5">
+                                                    <div
+                                                        className="flex items-center gap-2 min-w-0"
+                                                        title={`${row.desc} ${row.job_function ? '(' + row.job_function + ')' : ''} ${row.worker_doc && row.worker_doc !== '-' ? '• Doc: ' + row.worker_doc : ''}`}
+                                                    >
+                                                        {row.tipo_lancamento === 'bonus_cliente_novo' && (
+                                                            <span className="shrink-0 px-1.5 py-0.5 text-[10px] font-bold uppercase rounded bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                                                                Novo Cliente
                                                             </span>
+                                                        )}
 
-                                                            {row.worker_doc && row.worker_doc !== '-' && row.tipo_lancamento === 'contratacao' && (
-                                                                <span className="text-[10px] px-1.5 py-0.2 bg-slate-100 dark:bg-slate-700 text-slate-500 dark:text-slate-300 rounded font-mono">
-                                                                    {row.worker_doc}
-                                                                </span>
-                                                            )}
+                                                        <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
+                                                            {row.desc}
+                                                        </span>
 
-                                                            {row.job_function && row.tipo_lancamento === 'contratacao' && (
-                                                                <span className="text-[11px] text-slate-500 dark:text-slate-400">
-                                                                    ({row.job_function})
-                                                                </span>
-                                                            )}
-                                                        </div>
-
-                                                        {/* Worker start/end date & Repasses Badge */}
-                                                        {row.tipo_lancamento === 'contratacao' && (
-                                                            <div className="flex items-center gap-2 flex-wrap text-[11px] text-slate-500 dark:text-slate-400">
-                                                                {row.start_date && (
-                                                                    <span>
-                                                                        Início: <b>{new Date(row.start_date + 'T12:00:00').toLocaleDateString('pt-PT')}</b>
-                                                                        {row.end_date ? ` • Saída: ${new Date(row.end_date + 'T12:00:00').toLocaleDateString('pt-PT')}` : ' • Ativo'}
-                                                                    </span>
-                                                                )}
-
-                                                                {row.repasses_count > 0 ? (
-                                                                    <button
-                                                                        onClick={() => setHistoryModalRow(row)}
-                                                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold bg-amber-100/90 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition-colors"
-                                                                    >
-                                                                        <ArrowRightLeft size={11} />
-                                                                        {row.repasses_count} {row.repasses_count === 1 ? 'Repasse / Substituição' : 'Repasses / Substituições'} na Vaga (Ver Histórico)
-                                                                    </button>
-                                                                ) : (
-                                                                    <button
-                                                                        onClick={() => setHistoryModalRow(row)}
-                                                                        className="inline-flex items-center gap-1 text-[11px] text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 transition-colors"
-                                                                    >
-                                                                        <History size={11} /> Ver histórico da vaga
-                                                                    </button>
-                                                                )}
-
-                                                                {row.is_remanejado && (
-                                                                    <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300">
-                                                                        Remanejado (Vaga Única)
-                                                                    </span>
-                                                                )}
-                                                            </div>
+                                                        {row.tipo_lancamento === 'contratacao' && row.repasses_count > 0 && (
+                                                            <button
+                                                                onClick={() => setHistoryModalRow(row)}
+                                                                className="shrink-0 inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-100 hover:bg-amber-200 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300 border border-amber-300 dark:border-amber-700 transition-colors"
+                                                                title="Clique para ver o histórico de substituições/repasses desta vaga"
+                                                            >
+                                                                <ArrowRightLeft size={10} />
+                                                                {row.repasses_count} {row.repasses_count === 1 ? 'repasse' : 'repasses'}
+                                                            </button>
                                                         )}
                                                     </div>
                                                 </td>
 
-                                                {/* Carência 15 Dias */}
-                                                <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                {/* Carência (15d) */}
+                                                <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
                                                     {row._type === 'generated' ? (
-                                                        <div className="flex flex-col items-center gap-1 min-w-[110px]">
-                                                            <div className="flex items-center justify-between w-full text-[11px] font-semibold">
+                                                        <div className="flex flex-col items-center gap-1">
+                                                            <div className="flex items-center justify-between w-full text-[11px] font-bold">
                                                                 <span className={row.carencia_cumprida ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}>
-                                                                    {row.dias_trabalhados} / {row.carencia_dias_meta} dias
+                                                                    {row.dias_trabalhados}/{row.carencia_dias_meta}d
                                                                 </span>
                                                                 {row.carencia_cumprida ? (
-                                                                    <CheckCircle2 size={13} className="text-emerald-600 dark:text-emerald-400" />
+                                                                    <CheckCircle2 size={12} className="text-emerald-600 dark:text-emerald-400" />
                                                                 ) : (
-                                                                    <Lock size={12} className="text-amber-500" />
+                                                                    <Lock size={11} className="text-amber-500" />
                                                                 )}
                                                             </div>
                                                             <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-700 rounded-full overflow-hidden">
@@ -1533,23 +1474,18 @@ export const Comissoes: React.FC = () => {
                                                                     style={{ width: `${pctCarencia}%` }}
                                                                 />
                                                             </div>
-                                                            {row.is_pending_start && (
-                                                                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium">
-                                                                    Pendente Início
-                                                                </span>
-                                                            )}
                                                         </div>
                                                     ) : (
                                                         <span className="text-slate-400">-</span>
                                                     )}
                                                 </td>
 
-                                                {/* Fatura do Mês (Cliente) */}
-                                                <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                {/* Fatura (compacta) */}
+                                                <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
                                                     {row._type === 'generated' ? (
-                                                        <div className="flex flex-col items-center gap-1">
+                                                        <div className="flex flex-col items-center gap-0.5" title={row.fatura_status_label}>
                                                             <span
-                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${
+                                                                className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border ${
                                                                     row.fatura_quitada
                                                                         ? 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300 dark:border-emerald-800'
                                                                         : row.fatura_status === 'FATURA_ABERTA'
@@ -1557,17 +1493,17 @@ export const Comissoes: React.FC = () => {
                                                                             : 'bg-slate-100 text-slate-600 border-slate-200 dark:bg-slate-700/60 dark:text-slate-300 dark:border-slate-600'
                                                                 }`}
                                                             >
-                                                                {row.fatura_quitada ? <CheckCircle2 size={11} /> : <Clock size={11} />}
-                                                                {row.fatura_status_label}
+                                                                {row.fatura_quitada ? <CheckCircle2 size={10} /> : <Clock size={10} />}
+                                                                {shortFaturaLabel}
                                                             </span>
 
                                                             {isSupervisor && !row.fatura_quitada && row.status !== 'PAGO' && (
                                                                 <button
                                                                     onClick={() => handleReleaseInvoiceForRows([row])}
-                                                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-0.5"
+                                                                    className="text-[10px] font-semibold text-blue-600 dark:text-blue-400 hover:underline"
                                                                     title="Confirmar manualmente que a fatura deste mês foi paga pelo cliente"
                                                                 >
-                                                                    <Unlock size={10} /> Confirmar Quitação
+                                                                    Confirmar
                                                                 </button>
                                                             )}
 
@@ -1576,112 +1512,85 @@ export const Comissoes: React.FC = () => {
                                                                     onClick={() => handleRevertLancamento(row.manualReleaseInfo.id, 'desbloqueio manual de fatura')}
                                                                     className="text-[10px] text-slate-400 hover:text-red-500 hover:underline"
                                                                 >
-                                                                    Reverter liberação
+                                                                    Reverter
                                                                 </button>
                                                             )}
                                                         </div>
                                                     ) : (
-                                                        <span className="text-slate-400 text-xs">{row.fatura_status_label}</span>
+                                                        <span className="text-slate-400 text-[11px]">Manual</span>
                                                     )}
                                                 </td>
 
                                                 {/* Valor (€) */}
-                                                <td className={`px-3 py-3 text-right font-bold whitespace-nowrap ${
+                                                <td className={`px-2.5 py-2.5 text-right font-bold whitespace-nowrap ${
                                                     row.valor >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                                                 }`}>
-                                                    <div>{row.valor >= 0 ? '+' : ''}€ {row.valor.toFixed(2)}</div>
-                                                    {row.regra_aplicada === 'individual' && (
-                                                        <div className="text-[10px] font-medium text-purple-600 dark:text-purple-400">
-                                                            Regra Individual
-                                                        </div>
-                                                    )}
+                                                    <span>{row.valor >= 0 ? '+' : ''}€ {row.valor.toFixed(2)}</span>
                                                 </td>
 
-                                                {/* Status Conta Corrente */}
-                                                <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                {/* Status Conta Corrente (compacto) */}
+                                                <td className="px-2.5 py-2.5 text-center whitespace-nowrap" title={row.motivo_bloqueio || ''}>
                                                     {row.status === 'PAGO' && (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300 dark:border-emerald-700">
-                                                                <CheckCircle2 size={12} /> PAGO
-                                                            </span>
-                                                            {row.paymentInfo && (
-                                                                <span className="text-[10px] text-slate-400 mt-0.5">
-                                                                    Pago em {new Date(row.paymentInfo.created_at).toLocaleDateString('pt-PT')}
-                                                                </span>
-                                                            )}
-                                                        </div>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300">
+                                                            <CheckCircle2 size={11} /> PAGO
+                                                        </span>
                                                     )}
 
                                                     {row.status === 'ELEGIVEL' && (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-300 dark:border-blue-700">
-                                                                <Unlock size={12} /> ELEGÍVEL / LIBERADA
-                                                            </span>
-                                                            <span className="text-[10px] text-emerald-600 dark:text-emerald-400 font-medium mt-0.5">
-                                                                Pronta para pagamento
-                                                            </span>
-                                                        </div>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/40 dark:text-blue-300">
+                                                            <Unlock size={11} /> LIBERADA
+                                                        </span>
                                                     )}
 
                                                     {row.status === 'BLOQUEADA_FATURA' && (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-900/40 dark:text-orange-300 dark:border-orange-700">
-                                                                <Lock size={12} /> BLOQUEADA (FATURA)
-                                                            </span>
-                                                            <span className="text-[10px] text-orange-600 dark:text-orange-400 mt-0.5" title={row.motivo_bloqueio || ''}>
-                                                                {row.carencia_dias_meta}d OK • Aguard. Fatura
-                                                            </span>
-                                                        </div>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-300 dark:bg-orange-900/40 dark:text-orange-300">
+                                                            <Lock size={11} /> AG. FATURA
+                                                        </span>
                                                     )}
 
                                                     {row.status === 'BLOQUEADA_CARENCIA' && (
-                                                        <div className="flex flex-col items-center">
-                                                            <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-300 dark:border-amber-700">
-                                                                <Lock size={12} /> BLOQUEADA ({row.dias_trabalhados}/{row.carencia_dias_meta}d)
-                                                            </span>
-                                                            <span className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 max-w-[160px] truncate" title={row.motivo_bloqueio || ''}>
-                                                                {row.motivo_bloqueio}
-                                                            </span>
-                                                        </div>
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 border border-amber-300 dark:bg-amber-900/40 dark:text-amber-300">
+                                                            <Lock size={11} /> CARÊNCIA
+                                                        </span>
                                                     )}
 
                                                     {row.status === 'AJUSTE' && (
-                                                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-300">
-                                                            AJUSTE CONTA
+                                                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-800 border border-purple-300 dark:bg-purple-900/40 dark:text-purple-300">
+                                                            AJUSTE
                                                         </span>
                                                     )}
                                                 </td>
 
-                                                {/* Ações */}
-                                                <td className="px-3 py-3 text-center whitespace-nowrap">
+                                                {/* Ações / Histórico */}
+                                                <td className="px-2 py-2.5 text-center whitespace-nowrap">
                                                     <div className="flex items-center justify-center gap-1">
                                                         {row.tipo_lancamento === 'contratacao' && (
                                                             <button
                                                                 onClick={() => setHistoryModalRow(row)}
-                                                                className="p-1.5 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded-md hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                                                                className="p-1 text-slate-500 hover:text-blue-600 dark:text-slate-400 dark:hover:text-blue-400 rounded hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                                                                 title="Ver Histórico de Trabalhadores e Repasses da Vaga"
                                                             >
-                                                                <History size={16} />
+                                                                <History size={15} />
                                                             </button>
                                                         )}
 
                                                         {isSupervisor && (row._type === 'payment_record' || row._type === 'adjustment') && (
                                                             <button
                                                                 onClick={() => handleRevertLancamento(row._id, 'lançamento')}
-                                                                className="p-1.5 text-slate-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                                                 title="Excluir Lançamento"
                                                             >
-                                                                <Trash2 size={15} />
+                                                                <Trash2 size={14} />
                                                             </button>
                                                         )}
 
                                                         {isSupervisor && row._type === 'generated' && row.status === 'PAGO' && row.paymentInfo && (
                                                             <button
                                                                 onClick={() => handleRevertLancamento(row.paymentInfo.id, 'pagamento')}
-                                                                className="p-1.5 text-slate-400 hover:text-red-500 rounded-md hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                                                                className="p-1 text-slate-400 hover:text-red-500 rounded hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
                                                                 title="Estornar Pagamento"
                                                             >
-                                                                <Trash2 size={15} />
+                                                                <Trash2 size={14} />
                                                             </button>
                                                         )}
                                                     </div>
