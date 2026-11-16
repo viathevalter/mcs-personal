@@ -3,10 +3,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { Box, FileText, History, ArrowLeft, Menu, LayoutDashboard, Activity } from 'lucide-react';
 import { useLanguage } from '../../operacoes/i18n';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export const Sidebar: React.FC = () => {
   const { t } = useLanguage();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
+  const { canViewFeature } = useRole();
   const navigate = useNavigate();
 
   const NavItem = ({ to, icon: Icon, label }: any) => (
@@ -68,10 +70,10 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 px-3 py-2">
         <SectionLabel label="Gestão" />
         <div className="space-y-1">
-          <NavItem to="/faturamento/dashboard" icon={LayoutDashboard} label="Painel" />
-          <NavItem to="/faturamento/pendentes" icon={FileText} label="Operacional" />
-          <NavItem to="/faturamento/tracking" icon={Activity} label="Tracking" />
-          <NavItem to="/faturamento/historico" icon={History} label="Histórico" />
+          {canViewFeature('faturamento.dashboard', true) && <NavItem to="/faturamento/dashboard" icon={LayoutDashboard} label="Painel" />}
+          {canViewFeature('faturamento.pendentes', true) && <NavItem to="/faturamento/pendentes" icon={FileText} label="Operacional" />}
+          {canViewFeature('faturamento.tracking', true) && <NavItem to="/faturamento/tracking" icon={Activity} label="Tracking" />}
+          {canViewFeature('faturamento.historico', true) && <NavItem to="/faturamento/historico" icon={History} label="Histórico" />}
         </div>
       </div>
     </aside>

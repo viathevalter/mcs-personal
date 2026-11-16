@@ -175,9 +175,13 @@ export function GlobalHubPage() {
     };
 
     // Lógica para verificar acesso do usuário
-    const hasAccess = (allowedRoles: string[]) => {
+    const hasAccess = (moduleId: string, allowedRoles: string[]) => {
         if (!userRole) return false;
         if (userRole === 'super_admin') return true; // super_admin tem acesso global
+        if (blockedModules.includes(moduleId)) return false;
+        if (blockedModules.includes(`mod_view:${moduleId}`) || blockedModules.includes(`mod_allow:${moduleId}`)) {
+            return true;
+        }
         if (allowedRoles.includes('all')) return true;
         
         // Permite acesso direto se a role do app coincidir
@@ -201,7 +205,7 @@ export function GlobalHubPage() {
     };
 
     const handleModuleClick = async (module: ModuleDef) => {
-        if (!hasAccess(module.allowedRoles)) return;
+        if (!hasAccess(module.id, module.allowedRoles)) return;
 
         if (module.id === 'chat') {
             const { data: { session } } = await supabase.auth.getSession();
@@ -271,7 +275,7 @@ export function GlobalHubPage() {
                 {/* Grid de Aplicativos */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 w-full">
                     {MODULES.filter(m => !blockedModules.includes(m.id)).map((module) => {
-                        const canAccess = hasAccess(module.allowedRoles);
+                        const canAccess = hasAccess(module.id, module.allowedRoles);
                         const Icon = module.icon;
 
                         return (

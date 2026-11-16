@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../../services/supabaseClient';
 import { useAuth } from '../../contexts/AuthContext';
+import { useRole } from '@/app/providers/RoleProvider';
+import { UserPermissionsMatrix } from '@/shared/rbac/UserPermissionsMatrix';
 import { Edit, Save, UserPlus, X, Search, Filter, Shield, Building2, CheckCircle2 } from 'lucide-react';
 
 interface MCSUser {
@@ -29,6 +31,7 @@ interface Company {
 
 export const UserManagement: React.FC = () => {
     const { user, refreshProfile } = useAuth();
+    const { refreshRole } = useRole();
     const [users, setUsers] = useState<MCSUser[]>([]);
     const [employees, setEmployees] = useState<DepartmentMember[]>([]);
     const [companies, setCompanies] = useState<Company[]>([]);
@@ -264,6 +267,7 @@ export const UserManagement: React.FC = () => {
             // If editing own profile, refresh session
             if (user?.id === userId) {
                 await refreshProfile();
+                await refreshRole();
             }
         } catch (error: any) {
             console.error('Error saving:', error);
@@ -373,6 +377,11 @@ export const UserManagement: React.FC = () => {
                                                     {u.managed_departments.join(', ')}
                                                 </div>
                                             )}
+                                            {u.blocked_modules && u.blocked_modules.length > 0 && (
+                                                <div className="text-[11px] font-medium text-amber-600 dark:text-amber-400 mt-1">
+                                                    🔒 {u.blocked_modules.length} regra(s) de acesso ativa(s)
+                                                </div>
+                                            )}
                                         </div>
                                     </td>
                                     <td className="px-6 py-4 text-slate-600 dark:text-slate-300">
@@ -410,7 +419,7 @@ export const UserManagement: React.FC = () => {
             {/* Unified Edit Modal */}
             {isModalOpen && selectedUser && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-sm p-4 overflow-y-auto">
-                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200">
+                    <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 w-full max-w-4xl max-h-[90vh] flex flex-col shadow-2xl animate-in fade-in-50 zoom-in-95 duration-200">
                         {/* Header */}
                         <div className="p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center bg-slate-50/50 dark:bg-slate-800/50 rounded-t-2xl">
                             <div>
@@ -516,43 +525,12 @@ export const UserManagement: React.FC = () => {
                                 </div>
                             )}
 
-                            {/* Blocked Modules */}
+                            {/* Granular Permissions Matrix (Modules, Menus & Critical Keys) */}
                             <div className="border-t border-slate-100 dark:border-slate-700 pt-6">
-                                <label className="block text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Bloquear Acesso a Módulos</label>
-                                <p className="text-[11px] text-slate-400 mb-3">Marque os módulos que este usuário NÃO deve visualizar ou acessar (mesmo que seja administrador).</p>
-                                <div className="grid grid-cols-2 gap-2 bg-slate-50 dark:bg-slate-900 p-3 rounded-lg border dark:border-slate-700 max-h-40 overflow-y-auto">
-                                    {[
-                                        { id: 'cadastro', label: 'MCS Registro General' },
-                                        { id: 'comercial', label: 'MCS Comercial' },
-                                        { id: 'facturacion', label: 'MCS Facturacion' },
-                                        { id: 'financeiro', label: 'MCS Financeiro' },
-                                        { id: 'chat', label: 'MCS Chat' },
-                                        { id: 'logistica', label: 'MCS Logistica' },
-                                        { id: 'almacen', label: 'MCS Almacen' },
-                                        { id: 'cierre_horas', label: 'MCS CentralCars' },
-                                        { id: 'operacoes', label: 'MCS Operacoes' },
-                                        { id: 'rrhh', label: 'MCS RRHH' }
-                                    ].map(mod => (
-                                        <label key={mod.id} className="flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300 cursor-pointer">
-                                            <input
-                                                type="checkbox"
-                                                className="rounded border-slate-300 dark:border-slate-600 text-red-600 focus:ring-red-500"
-                                                checked={formData.blocked_modules?.includes(mod.id) || false}
-                                                onChange={(e) => {
-                                                    const current = formData.blocked_modules || [];
-                                                    if (e.target.checked) {
-                                                        setFormData({ ...formData, blocked_modules: [...current, mod.id] });
-                                                    } else {
-                                                        setFormData({ ...formData, blocked_modules: current.filter(id => id !== mod.id) });
-                                                    }
-                                                }}
-                                            />
-                                            <span className={formData.blocked_modules?.includes(mod.id) ? "text-red-500 font-semibold" : ""}>
-                                                {mod.label}
-                                            </span>
-                                        </label>
-                                    ))}
-                                </div>
+                                <UserPermissionsMatrix
+                                    tokens={formData.blocked_modules || []}
+                                    onChange={(newTokens) => setFormData({ ...formData, blocked_modules: newTokens })}
+                                />
                             </div>
 
                             {/* Company / Filiais Memberships */}

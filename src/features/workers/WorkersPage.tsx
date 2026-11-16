@@ -65,7 +65,10 @@ export function WorkersPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { selectedEmpresaId } = useEmpresa();
     const { t } = useTranslation();
-    const { role: globalRole } = useRole();
+    const { role: globalRole, canEditFeature, canViewFeature } = useRole();
+
+    const canEditStatus = globalRole !== 'visualizador' && canEditFeature('rh.workers.edit_status', 'rrhh') && canEditFeature('rh.workers', 'rrhh');
+    const canEditTariffs = globalRole !== 'visualizador' && canViewFeature('rh.tariffs', true) && canEditFeature('rh.tariffs', 'rrhh');
 
     const search = searchParams.get('search') || '';
     const clienteNombre = searchParams.get('clienteNombre')?.split('||').filter(Boolean) || [];
@@ -291,7 +294,7 @@ export function WorkersPage() {
                             periodYear: onlyNovos ? periodYear : undefined
                         }}
                     />
-                    {globalRole !== 'visualizador' && (
+                    {canEditTariffs && (
                         <ImportTarifasDialog trigger={
                             <Button variant="outline" size="sm" className="h-8 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 text-xs">
                                 <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
@@ -660,7 +663,7 @@ export function WorkersPage() {
                                 <TableHead className="font-semibold text-foreground cursor-pointer hover:bg-muted/50 transition-colors text-center" onClick={() => handleSort('status_seguridad')}>
                                     <div className="flex items-center justify-center">{t('workersPage.table.security')} {renderSortIcon('status_seguridad')}</div>
                                 </TableHead>
-                                {globalRole !== 'visualizador' && (
+                                {canEditStatus && (
                                     <TableHead className="font-semibold text-foreground text-right pr-4">
                                         Ação Rápida
                                     </TableHead>
@@ -876,7 +879,7 @@ export function WorkersPage() {
                                                 <span className="text-xs text-muted-foreground">-</span>
                                             )}
                                         </TableCell>
-                                        {globalRole !== 'visualizador' && (
+                                        {canEditStatus && (
                                             <TableCell className="text-right pr-3">
                                                 <WorkerStatusManagerDialog
                                                     workerId={worker.id}

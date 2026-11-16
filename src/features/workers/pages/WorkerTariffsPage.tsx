@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useTranslation } from 'react-i18next';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
@@ -106,7 +107,11 @@ function formatDateClean(dateStr: string | null | undefined): string {
 export function WorkerTariffsPage() {
     const [searchParams, setSearchParams] = useSearchParams();
     const { selectedEmpresaId, setSelectedEmpresaId, empresas } = useEmpresa();
+    const { role: globalRole, canViewFeature, canEditFeature } = useRole();
+    const navigate = useNavigate();
     const { t } = useTranslation();
+    const canViewTariffs = canViewFeature('rh.tariffs', true);
+    const canEditTariffs = globalRole !== 'visualizador' && canEditFeature('rh.tariffs', 'rrhh');
 
     // Query params & pagination
     const search = searchParams.get('search') || '';
@@ -451,6 +456,21 @@ export function WorkerTariffsPage() {
         ...funciones.sort((a, b) => a.localeCompare(b)).map(f => ({ value: f, label: f }))
     ];
 
+    if (!canViewTariffs) {
+        return (
+            <div className="p-8 max-w-xl mx-auto mt-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <ShieldAlert className="w-12 h-12 text-rose-500 mx-auto" />
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Acesso Restrito</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Seu perfil não possui permissão para acessar a Gestão de Tarifas.
+                </p>
+                <Button variant="outline" onClick={() => navigate('/workers')}>
+                    Voltar para Trabalhadores
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="h-[calc(100vh-100px)] w-full flex flex-col space-y-3 p-6 overflow-hidden">
             {portalNode && createPortal(
@@ -475,23 +495,25 @@ export function WorkerTariffsPage() {
 
                 <div className="flex items-center gap-2">
                     <TariffAuditLogDialog />
-                    <Button 
-                        variant="outline"
-                        size="sm"
-                        className="h-9 text-xs font-semibold border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 gap-1.5"
-                        onClick={() => {
-                            const selected = sortedWorkers.filter(w => selectedWorkerIds.has(w.id));
-                            if (selected.length === 0) {
-                                toast.info("Selecione um ou mais colaboradores na tabela para gerar o termo de autorização.");
-                                return;
-                            }
-                            setAuthModalWorkers(selected);
-                            setAuthModalOpen(true);
-                        }}
-                    >
-                        <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
-                        Solicitar Termo ({selectedWorkerIds.size})
-                    </Button>
+                    {canEditTariffs && (
+                        <Button 
+                            variant="outline"
+                            size="sm"
+                            className="h-9 text-xs font-semibold border-indigo-200 text-indigo-700 bg-indigo-50/50 hover:bg-indigo-100 dark:bg-indigo-950 dark:text-indigo-300 gap-1.5"
+                            onClick={() => {
+                                const selected = sortedWorkers.filter(w => selectedWorkerIds.has(w.id));
+                                if (selected.length === 0) {
+                                    toast.info("Selecione um ou mais colaboradores na tabela para gerar o termo de autorização.");
+                                    return;
+                                }
+                                setAuthModalWorkers(selected);
+                                setAuthModalOpen(true);
+                            }}
+                        >
+                            <ShieldAlert className="w-3.5 h-3.5 text-indigo-600" />
+                            Solicitar Termo ({selectedWorkerIds.size})
+                        </Button>
+                    )}
                     <ExportTarifasDialog
                         trigger={
                             <Button 
@@ -518,14 +540,16 @@ export function WorkerTariffsPage() {
                         selectedWorkerIds={selectedWorkerIds}
                         totalFilteredCount={totalCount}
                     />
-                    <ImportTarifasDialog 
-                        trigger={
-                            <Button className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs font-medium">
-                                <DownloadCloud className="w-4 h-4 mr-2" />
-                                Importar Tarifas (Excel)
-                            </Button>
-                        }
-                    />
+                    {canEditTariffs && (
+                        <ImportTarifasDialog 
+                            trigger={
+                                <Button className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs font-medium">
+                                    <DownloadCloud className="w-4 h-4 mr-2" />
+                                    Importar Tarifas (Excel)
+                                </Button>
+                            }
+                        />
+                    )}
                     <Badge variant="secondary" className="px-3 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50">
                         {totalCount} Trabalhador(es)
                     </Badge>
@@ -920,14 +944,16 @@ export function WorkerTariffsPage() {
                                                     )}
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                    <Button
-                                                        variant="ghost"
-                                                        size="sm"
-                                                        className="h-7 w-7 p-0"
-                                                        onClick={() => openEditDialog(worker)}
-                                                    >
-                                                        <Edit2 className="h-3.5 w-3.5 text-muted-foreground hover:text-indigo-600" />
-                                                    </Button>
+                                                    {canEditTariffs && (
+                                                        <Button
+                                                            variant="ghost"
+                                                            size="sm"
+                                                            className="h-7 w-7 p-0"
+                                                            onClick={() => openEditDialog(worker)}
+                                                        >
+                                                            <Edit2 className="h-3.5 w-3.5 text-muted-foreground hover:text-indigo-600" />
+                                                        </Button>
+                                                    )}
                                                 </TableCell>
                                             </TableRow>
 
@@ -974,17 +1000,19 @@ export function WorkerTariffsPage() {
                                                                             <Tags className="h-4 w-4 text-emerald-500" />
                                                                             Configurações da Remuneração
                                                                         </span>
-                                                                        <Button
-                                                                            size="sm"
-                                                                            variant="outline"
-                                                                            className="h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
-                                                                            onClick={(e) => {
-                                                                                e.stopPropagation();
-                                                                                openEditDialog(worker);
-                                                                            }}
-                                                                        >
-                                                                            <Edit2 className="h-3 w-3 mr-1 text-indigo-500" /> Editar Valores
-                                                                        </Button>
+                                                                        {canEditTariffs && (
+                                                                            <Button
+                                                                                size="sm"
+                                                                                variant="outline"
+                                                                                className="h-7 text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200"
+                                                                                onClick={(e) => {
+                                                                                    e.stopPropagation();
+                                                                                    openEditDialog(worker);
+                                                                                }}
+                                                                            >
+                                                                                <Edit2 className="h-3 w-3 mr-1 text-indigo-500" /> Editar Valores
+                                                                            </Button>
+                                                                        )}
                                                                     </div>
                                                                     <div className="grid grid-cols-2 gap-2 text-xs pt-1">
                                                                         <div>

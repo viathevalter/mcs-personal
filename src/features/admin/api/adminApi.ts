@@ -11,6 +11,7 @@ export interface UserProfile {
     department_id: string | null;
     empresa_contratante_id: number | null;
     empresa_servicos_id: number | null;
+    blocked_modules?: string[];
     created_at: string;
 }
 
@@ -33,23 +34,30 @@ export async function getUsers(): Promise<UserProfile[]> {
 
     if (error) throw mapSupabaseError(error);
 
-    // Fetch new RBAC roles
+    // Fetch new RBAC roles and blocked_modules
     const { data: rolesData } = await supabase.from('user_roles').select('user_id, role, email');
     const rolesMap = new Map(rolesData?.map(r => [r.user_id, r.role]) || []);
 
+    const { data: mcsUsersData } = await supabase.from('mcs_users').select('id, role, blocked_modules');
+    const mcsUsersMap = new Map(mcsUsersData?.map(u => [u.id, u]) || []);
+
     // Map backend data to UserProfile interface
-    return members.map((m: any) => ({
-        id: m.id,
-        user_id: m.user_id,
-        email: m.correoempresarial || m.usuario || '',
-        display_name: m.nombrecompleto || 'Sem Nome',
-        role: (m.user_id && rolesMap.get(m.user_id)) ? rolesMap.get(m.user_id) : 'visualizador',
-        active: m.active ?? true,
-        department_id: m.department_id,
-        empresa_contratante_id: m.empresa_contratante_id,
-        empresa_servicos_id: m.empresa_servicos_id,
-        created_at: m.created_at,
-    }));
+    return members.map((m: any) => {
+        const mcsU = m.user_id ? mcsUsersMap.get(m.user_id) : undefined;
+        return {
+            id: m.id,
+            user_id: m.user_id,
+            email: m.correoempresarial || m.usuario || '',
+            display_name: m.nombrecompleto || 'Sem Nome',
+            role: (m.user_id && rolesMap.get(m.user_id)) ? rolesMap.get(m.user_id) : (mcsU?.role || 'visualizador'),
+            active: m.active ?? true,
+            department_id: m.department_id,
+            empresa_contratante_id: m.empresa_contratante_id,
+            empresa_servicos_id: m.empresa_servicos_id,
+            blocked_modules: mcsU?.blocked_modules || [],
+            created_at: m.created_at,
+        };
+    });
 }
 
 export async function getPublicEmpresas(): Promise<PublicEmpresa[]> {
@@ -102,13 +110,17 @@ export async function updateDepartmentMember(id: string, updates: Partial<any>):
 }
 
 export async function updateMcsUser(userId: string, updates: Partial<any>): Promise<void> {
+    const payload: Record<string, any> = {
+        active: updates.active,
+        display_name: updates.display_name,
+        department_id: updates.department_id,
+    };
+    if (updates.blocked_modules !== undefined) {
+        payload.blocked_modules = updates.blocked_modules;
+    }
     const { error } = await supabase
         .from('mcs_users')
-        .update({
-            active: updates.active,
-            display_name: updates.display_name,
-            department_id: updates.department_id,
-        })
+        .update(payload)
         .eq('id', userId);
 
     if (error) throw mapSupabaseError(error);

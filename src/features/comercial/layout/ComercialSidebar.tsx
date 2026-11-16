@@ -31,6 +31,7 @@ type SidebarLink = {
     label: string;
     icon: React.ElementType;
     roles: AppRole[];
+    featureKey: string;
     badge?: number;
 };
 
@@ -76,12 +77,14 @@ export function ComercialSidebar() {
                     label: tr('Orçamentos / Estimativa', 'Presupuestos / Estimaciones', 'Devis / Estimations'),
                     icon: Briefcase,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.estimaciones',
                 },
                 {
                     to: '/comercial/aprovacoes',
                     label: tr('Mesa de Aprovações', 'Mesa de Aprobaciones', 'Table d\'Approbations'),
                     icon: ShieldCheck,
                     roles: ['admin'],
+                    featureKey: 'comercial.aprovacoes',
                     badge: pendingCount,
                 },
                 {
@@ -89,12 +92,14 @@ export function ComercialSidebar() {
                     label: tr('Portfólio & Referências', 'Portafolio y Referencias', 'Portfolio & Références'),
                     icon: Award,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.portfolio',
                 },
                 {
                     to: '/comercial/tarefas',
                     label: tr('Tarefas', 'Tareas', 'Tâches'),
                     icon: CheckSquare,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.tarefas',
                 },
             ]
         },
@@ -107,24 +112,28 @@ export function ComercialSidebar() {
                     label: tr('Leads de Marketing', 'Leads de Marketing', 'Leads Marketing'),
                     icon: Users,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.leads',
                 },
                 {
                     to: '/comercial/prospector',
                     label: tr('Máquina de Leads (IA)', 'Máquina de Leads (IA)', 'Machine à Leads (IA)'),
                     icon: Zap,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.prospector',
                 },
                 {
                     to: '/comercial/kanban',
                     label: tr('Funil de Vendas', 'Embudo de Ventas', 'Entonnoir de Ventes'),
                     icon: Kanban,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.kanban',
                 },
                 {
                     to: '/comercial/campanhas',
                     label: tr('Campanhas de Marketing', 'Campañas de Marketing', 'Campagnes Marketing'),
                     icon: Mail,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.campanhas',
                 },
             ]
         },
@@ -137,30 +146,35 @@ export function ComercialSidebar() {
                     label: tr('Cockpit Discador', 'Cockpit Discador', 'Cockpit d\'Appels'),
                     icon: PhoneCall,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.discador',
                 },
                 {
                     to: '/comercial/discador/agenda',
                     label: tr('Agenda & Retornos', 'Agenda y Retornos', 'Agenda & Rappels'),
                     icon: CalendarDays,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.discador',
                 },
                 {
                     to: '/comercial/discador/trabalhos',
                     label: tr('Trabalhos & Filas', 'Trabajos y Colas', 'Travaux & Files'),
                     icon: Layers,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.discador',
                 },
                 {
                     to: '/comercial/discador/supervisao',
                     label: tr('Supervisão & KPIs', 'Supervisión y KPIs', 'Supervision & KPIs'),
                     icon: BarChart3,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.discador_supervisao',
                 },
                 {
                     to: '/comercial/discador/operadores',
                     label: tr('Operadores & Scripts', 'Operadores y Scripts', 'Opérateurs & Scripts'),
                     icon: Users,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.discador_supervisao',
                 },
             ]
         },
@@ -173,6 +187,7 @@ export function ComercialSidebar() {
                     label: tr('Análises & Simulações', 'Análisis y Simulaciones', 'Analyses et Simulations'),
                     icon: BarChart3,
                     roles: ['admin', 'commercial', 'rh'],
+                    featureKey: 'comercial.analises',
                 },
             ]
         },
@@ -185,6 +200,7 @@ export function ComercialSidebar() {
                     label: tr('Configurações', 'Configuración', 'Paramètres'),
                     icon: Sliders,
                     roles: ['admin', 'rh'],
+                    featureKey: 'comercial.configuracion',
                 },
             ]
         }
@@ -230,8 +246,8 @@ export function ComercialSidebar() {
                                 <div className="mx-4 my-2 border-t border-slate-800/80" />
                             )}
                             <nav className="grid items-start px-2 text-sm font-medium gap-1">
-                                {section.links.map(({ to, label, icon: Icon, roles, badge }) => (
-                                    <RoleGate key={to} allow={roles}>
+                                {section.links.map(({ to, label, icon: Icon, roles, featureKey, badge }) => (
+                                    <RoleGate key={to} allow={roles} featureKey={featureKey}>
                                         <NavLink
                                             to={to}
                                             title={!isExpanded ? label : undefined}

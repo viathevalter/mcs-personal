@@ -27,9 +27,15 @@ export function WorkerDetailsPage() {
     const { id } = useParams<{ id: string }>();
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
-    const { role: globalRole } = useRole();
+    const { role: globalRole, canEditFeature, canViewFeature } = useRole();
     const { selectedEmpresaId } = useEmpresa();
     const [timelineOpen, setTimelineOpen] = useState(false);
+
+    const canEditStatus = globalRole !== 'visualizador' && canEditFeature('rh.workers.edit_status', 'rrhh') && canEditFeature('rh.workers', 'rrhh');
+    const canEditCadastro = globalRole !== 'visualizador' && canEditFeature('rh.workers.edit_cadastro', 'rrhh') && canEditFeature('rh.workers', 'rrhh');
+    const canViewBankTab = canViewFeature('rh.bank_accounts', true);
+    const canViewBenefitsTab = canViewFeature('rh.benefits', true);
+    const canViewDiscountsTab = canViewFeature('rh.discounts', true);
 
 
     const tabParam = searchParams.get('tab');
@@ -136,17 +142,17 @@ export function WorkerDetailsPage() {
                         <History className="h-4 w-4 text-primary" /> Timeline de Observações
                     </Button>
 
-                    {globalRole !== 'visualizador' && (
-                        <>
-                            <WorkerStatusManagerDialog 
-                                workerId={worker.id} 
-                                currentTrabalhoStatus={worker.status_trabajador} 
-                                currentSeguridadeStatus={worker.status_seguridad} 
-                                workerName={worker.nome}
-                                codColab={worker.cod_colab}
-                            />
-                            <EditWorkerDialog worker={worker} />
-                        </>
+                    {canEditStatus && (
+                        <WorkerStatusManagerDialog 
+                            workerId={worker.id} 
+                            currentTrabalhoStatus={worker.status_trabajador} 
+                            currentSeguridadeStatus={worker.status_seguridad} 
+                            workerName={worker.nome}
+                            codColab={worker.cod_colab}
+                        />
+                    )}
+                    {canEditCadastro && (
+                        <EditWorkerDialog worker={worker} />
                     )}
 
 
@@ -183,9 +189,9 @@ export function WorkerDetailsPage() {
                     <TabsTrigger value="overview" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.overview')}</TabsTrigger>
                     <TabsTrigger value="vida_laboral" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.vidaLaboral')}</TabsTrigger>
                     <TabsTrigger value="alocacoes" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.allocations')}</TabsTrigger>
-                    <TabsTrigger value="benefits" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.benefits')}</TabsTrigger>
-                    <TabsTrigger value="discounts" className="flex-1 whitespace-nowrap">Descontos</TabsTrigger>
-                    <TabsTrigger value="bank_accounts" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.bankAccounts')}</TabsTrigger>
+                    {canViewBenefitsTab && <TabsTrigger value="benefits" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.benefits')}</TabsTrigger>}
+                    {canViewDiscountsTab && <TabsTrigger value="discounts" className="flex-1 whitespace-nowrap">Descontos</TabsTrigger>}
+                    {canViewBankTab && <TabsTrigger value="bank_accounts" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.bankAccounts')}</TabsTrigger>}
                     <TabsTrigger value="ledger" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.ledger')}</TabsTrigger>
                     <TabsTrigger value="documents" className="flex-1 whitespace-nowrap">{t('workerDetails.tabs.documents')}</TabsTrigger>
                 </TabsList>

@@ -1,10 +1,10 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Users, UserCog, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History, ArrowLeft, ShieldCheck, FileSpreadsheet, PackageCheck, Receipt } from 'lucide-react';
+import { Users, LayoutDashboard, Gift, FileText, ShieldAlert, ChevronLeft, ChevronRight, Clock, Wallet, BadgeDollarSign, Calculator, Tags, History, ArrowLeft, ShieldCheck, FileSpreadsheet, Receipt } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { RoleGate } from '../rbac/RoleGate';
-import type { AppRole } from '../rbac/roles';
+import { isRoleAllowed, type AppRole } from '../rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
 import { useRole } from '@/app/providers/RoleProvider';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { useTranslation } from 'react-i18next';
 
 type SidebarLink = {
@@ -12,39 +12,78 @@ type SidebarLink = {
     tKey: string;
     icon: React.ElementType;
     roles: AppRole[];
+    featureKey: string;
+};
+
+type SidebarSection = {
+    key: string;
+    title: string;
+    links: SidebarLink[];
 };
 
 export function Sidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const { t } = useTranslation();
-    const { role: globalRole } = useRole();
+    const { role: globalRole, canViewFeature } = useRole();
+    const { role: memberRole } = useEmpresa();
     const navigate = useNavigate();
 
-    const links: SidebarLink[] = [
-        { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'] },
-        { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'] },
-        { to: '/workers/history', tKey: 'navigation.activityHistory', icon: History, roles: ['admin', 'rh'] },
-        { to: '/workers/salary-report', tKey: 'navigation.salaryReport', icon: FileSpreadsheet, roles: ['admin', 'rh', 'finance'] },
-        { to: '/workers/tariffs', tKey: 'navigation.workerRates', icon: Tags, roles: ['admin', 'rh', 'finance'] },
-        { to: '/personal/ordens-pagamento', tKey: 'navigation.paymentOrders', icon: Receipt, roles: ['admin', 'rh', 'finance'] },
-        { to: '/documentacion/tarefas', tKey: 'navigation.documentsAndContracts', icon: FileText, roles: ['admin', 'rh'] },
-        { to: '/hours-control', tKey: 'navigation.hoursControl', icon: Clock, roles: ['admin', 'rh', 'commercial'] },
-        { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'] },
-        { to: '/holerites', tKey: 'navigation.holerites', icon: FileText, roles: ['admin', 'rh', 'finance'] },
-        { to: '/benefits', tKey: 'navigation.benefits', icon: Gift, roles: ['admin', 'rh'] },
-        { to: '/discounts', tKey: 'navigation.discounts', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'] },
-        { to: '/taxes', tKey: 'navigation.taxes', icon: Calculator, roles: ['admin', 'finance'] },
-        { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'] },
-        { to: '/documents', tKey: 'navigation.caeCompliance', icon: ShieldCheck, roles: ['cae_compliance'] },
+    const sections: SidebarSection[] = [
+        {
+            key: 'operacional',
+            title: t('navigation.sectionOperational', 'Operação & Efetivo'),
+            links: [
+                { to: '/dashboard', tKey: 'navigation.dashboard', icon: LayoutDashboard, roles: ['admin', 'rh', 'finance', 'commercial', 'user'], featureKey: 'rh.dashboard' },
+                { to: '/workers', tKey: 'navigation.workers', icon: Users, roles: ['admin', 'rh', 'commercial', 'user'], featureKey: 'rh.workers' },
+                { to: '/workers/history', tKey: 'navigation.activityHistory', icon: History, roles: ['admin', 'rh'], featureKey: 'rh.history' },
+                { to: '/hours-control', tKey: 'navigation.hoursControl', icon: Clock, roles: ['admin', 'rh', 'commercial'], featureKey: 'rh.hours_control' },
+            ]
+        },
+        {
+            key: 'documentacao',
+            title: t('navigation.sectionDocs', 'Documentação & Legal'),
+            links: [
+                { to: '/documentacion/tarefas', tKey: 'navigation.documentsAndContracts', icon: FileText, roles: ['admin', 'rh'], featureKey: 'rh.documents_tasks' },
+                { to: '/seguridade', tKey: 'navigation.socialSecurity', icon: ShieldAlert, roles: ['admin', 'rh'], featureKey: 'rh.seguridade' },
+                { to: '/documents', tKey: 'navigation.caeCompliance', icon: ShieldCheck, roles: ['cae_compliance'], featureKey: 'rh.cae' },
+            ]
+        },
+        {
+            key: 'folha',
+            title: t('navigation.sectionPayroll', 'Folha & Benefícios'),
+            links: [
+                { to: '/holerites', tKey: 'navigation.holerites', icon: FileText, roles: ['admin', 'rh', 'finance'], featureKey: 'rh.holerites' },
+                { to: '/workers/salary-report', tKey: 'navigation.salaryReport', icon: FileSpreadsheet, roles: ['admin', 'rh', 'finance'], featureKey: 'rh.salary_report' },
+                { to: '/benefits', tKey: 'navigation.benefits', icon: Gift, roles: ['admin', 'rh'], featureKey: 'rh.benefits' },
+                { to: '/discounts', tKey: 'navigation.discounts', icon: BadgeDollarSign, roles: ['admin', 'rh', 'finance'], featureKey: 'rh.discounts' },
+            ]
+        },
+        {
+            key: 'tesouraria',
+            title: t('navigation.sectionTreasury', 'Tesouraria & Restrito'),
+            links: [
+                { to: '/workers/tariffs', tKey: 'navigation.workerRates', icon: Tags, roles: ['admin', 'rh', 'finance'], featureKey: 'rh.tariffs' },
+                { to: '/bank-accounts', tKey: 'navigation.bankAccounts', icon: Wallet, roles: ['admin', 'rh', 'finance'], featureKey: 'rh.bank_accounts' },
+                { to: '/personal/ordens-pagamento', tKey: 'navigation.paymentOrders', icon: Receipt, roles: ['admin', 'rh', 'finance'], featureKey: 'rh.payment_orders' },
+                { to: '/taxes', tKey: 'navigation.taxes', icon: Calculator, roles: ['admin', 'finance'], featureKey: 'rh.taxes' },
+            ]
+        }
     ];
 
-    // Ocultar menus específicos caso o usuário seja apenas visualizador global
-    const filteredLinks = links.filter(link => {
-        if (globalRole === 'visualizador') {
-            return link.to === '/dashboard' || link.to === '/workers';
-        }
-        return true;
-    });
+    const isLinkVisible = (link: SidebarLink) => {
+        if (globalRole === 'super_admin') return true;
+        const defaultByVisualizador = globalRole === 'visualizador'
+            ? (link.to === '/dashboard' || link.to === '/workers')
+            : isRoleAllowed(memberRole || undefined, link.roles);
+        return canViewFeature(link.featureKey, defaultByVisualizador);
+    };
+
+    const visibleSections = sections
+        .map(section => ({
+            ...section,
+            links: section.links.filter(isLinkVisible)
+        }))
+        .filter(section => section.links.length > 0);
 
     return (
         <aside className={cn(
@@ -84,34 +123,39 @@ export function Sidebar() {
             </div>
             
             <div className="flex-1 pb-6 pt-2 flex flex-col justify-between overflow-y-auto overflow-x-hidden">
-                <div>
-                    {isExpanded && (
-                        <div className="px-4 mb-2 text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                            {t('navigation.mainMenu')}
+                <div className="space-y-4">
+                    {visibleSections.map((section, sectionIdx) => (
+                        <div key={section.key} className={cn(sectionIdx > 0 && "pt-2 border-t border-slate-200 dark:border-slate-800/60")}>
+                            {isExpanded ? (
+                                <div className="px-4 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                                    {section.title}
+                                </div>
+                            ) : sectionIdx > 0 && (
+                                <div className="mx-4 my-2 border-t border-slate-200 dark:border-slate-800/80" />
+                            )}
+                            <nav className="grid items-start px-2 text-sm font-medium gap-1">
+                                {section.links.map(({ to, tKey, icon: Icon }) => (
+                                    <NavLink
+                                        key={to}
+                                        to={to}
+                                        title={!isExpanded ? t(tKey) : undefined}
+                                        className={({ isActive }) =>
+                                            cn(
+                                                'flex items-center rounded-md transition-all outline-none',
+                                                isExpanded ? 'gap-3 px-3 py-2.5' : 'justify-center p-3 mb-1 mx-auto w-12',
+                                                isActive
+                                                    ? 'bg-primary/10 text-primary font-semibold'
+                                                    : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
+                                            )
+                                        }
+                                    >
+                                        <Icon className="h-[18px] w-[18px] shrink-0" />
+                                        {isExpanded && <span>{t(tKey)}</span>}
+                                    </NavLink>
+                                ))}
+                            </nav>
                         </div>
-                    )}
-                    <nav className="grid items-start px-2 text-sm font-medium gap-1">
-                        {filteredLinks.map(({ to, tKey, icon: Icon, roles }) => (
-                            <RoleGate key={to} allow={roles}>
-                                <NavLink
-                                    to={to}
-                                    title={!isExpanded ? t(tKey) : undefined}
-                                    className={({ isActive }) =>
-                                        cn(
-                                            'flex items-center rounded-md transition-all outline-none',
-                                            isExpanded ? 'gap-3 px-3 py-2.5' : 'justify-center p-3 mb-1 mx-auto w-12',
-                                            isActive
-                                                ? 'bg-primary/10 text-primary font-semibold'
-                                                : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100'
-                                        )
-                                    }
-                                >
-                                    <Icon className="h-[18px] w-[18px] shrink-0" />
-                                    {isExpanded && <span>{t(tKey)}</span>}
-                                </NavLink>
-                            </RoleGate>
-                        ))}
-                    </nav>
+                    ))}
                 </div>
 
                 <div className="p-4 mt-auto">

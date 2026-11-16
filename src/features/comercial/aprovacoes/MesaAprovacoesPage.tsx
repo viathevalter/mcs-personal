@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useEstimacionMutations } from '../estimaciones/hooks/useEstimacionMutations';
 import {
   Card,
@@ -126,6 +127,7 @@ function parseAnyDate(dateStr?: string | null): Date | null {
 export function MesaAprovacoesPage() {
   const navigate = useNavigate();
   const { selectedEmpresaId, role, empresas = [] } = useEmpresa();
+  const { role: globalRole, canViewFeature } = useRole();
   const { decidirAprovacaoGerente, reabrirAnaliseGerente } = useEstimacionMutations();
 
   const [statusTab, setStatusTab] = useState<'pending' | 'rejected' | 'approved' | 'all_resolved'>('pending');
@@ -462,7 +464,7 @@ export function MesaAprovacoesPage() {
     );
   };
 
-  const isAdminOrManager = role === 'admin' || role === 'super_admin';
+  const isAdminOrManager = canViewFeature('comercial.aprovacoes', role === 'admin' || globalRole === 'super_admin' || globalRole === 'admin');
 
   if (!isAdminOrManager) {
     return (

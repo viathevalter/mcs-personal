@@ -22,7 +22,8 @@ interface BankTabProfileProps {
 export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
     // @ts-ignore
     const _empresa = empresaId; // Keeping it for future use.
-    const { role: globalRole } = useRole();
+    const { role: globalRole, canEditFeature } = useRole();
+    const canEditIban = globalRole !== 'visualizador' && canEditFeature('rh.bank_accounts', 'rrhh');
     
     const { data: ibans, isLoading, isError } = useWorkerIbans(workerId);
     const [isAddOpen, setIsAddOpen] = useState(false);
@@ -101,7 +102,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                         Histórico de contas correntes e documentos de autorização
                     </p>
                 </div>
-                {globalRole !== 'visualizador' && (
+                {canEditIban && (
                     <Button onClick={() => setIsAddOpen(true)}>
                         <Plus className="w-4 h-4 mr-2" />
                         Adicionar Nova Conta
@@ -119,7 +120,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                     <CheckCircle2 className="w-5 h-5 text-emerald-600 dark:text-emerald-400" />
                                     <CardTitle className="text-emerald-900 dark:text-emerald-100">Conta Ativa</CardTitle>
                                 </div>
-                                {activeIban && globalRole !== 'visualizador' && (
+                                {activeIban && canEditIban && (
                                     <Button
                                         variant="outline"
                                         size="sm"
@@ -143,7 +144,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                         <p className="text-sm font-medium text-emerald-800/70 dark:text-emerald-300">IBAN</p>
                                         <div className="flex items-center gap-2">
                                             <p className="text-lg font-mono font-semibold">{activeIban.iban}</p>
-                                            {globalRole !== 'visualizador' && (
+                                            {canEditIban && (
                                                 <button
                                                     type="button"
                                                     onClick={() => setIsEditOpen(true)}
@@ -168,7 +169,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                     <Download className="w-4 h-4 mr-2" /> Ver Autorização
                                                 </a>
                                             </Button>
-                                        ) : globalRole !== 'visualizador' ? (
+                                        ) : canEditIban ? (
                                             <div>
                                                 <input 
                                                     type="file" 
@@ -230,7 +231,7 @@ export function BankTabProfile({ workerId, empresaId }: BankTabProfileProps) {
                                                     <Download className="w-4 h-4 mr-2" /> Autorização
                                                 </a>
                                             </Button>
-                                        ) : globalRole !== 'visualizador' ? (
+                                        ) : canEditIban ? (
                                             <div className="flex-shrink-0">
                                                 <input 
                                                     type="file" 

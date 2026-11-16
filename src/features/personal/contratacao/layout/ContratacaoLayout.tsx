@@ -16,10 +16,12 @@ import {
 import { Header } from '@/features/operacoes/components/Header';
 import { SidebarProvider, useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 import { AuthProvider } from '@/features/operacoes/contexts/AuthContext';
+import { useRole } from '@/app/providers/RoleProvider';
 import { contratacaoRecruitmentService } from '../services/contratacaoRecruitmentService';
 
 const ContratacaoSidebar: React.FC = () => {
   const { isSidebarOpen, toggleSidebar } = useSidebar();
+  const { canViewFeature } = useRole();
   const navigate = useNavigate();
 
   // Buscar contagem de Novas Baixas do RH para exibir no badge do menu lateral
@@ -126,38 +128,46 @@ const ContratacaoSidebar: React.FC = () => {
       <div className="flex-1 px-3 py-2">
         <SectionLabel label="Operação de Vagas" />
         <div className="space-y-1">
-          <NavItem to="/contratacao/vagas" icon={Briefcase} label="Contratação Inicial" />
-          <NavItem to="/contratacao/entrevistas" icon={Sparkles} label="Controle de Entrevistas" />
-          <NavItem
-            to="/contratacao/baixas-radar"
-            icon={Bell}
-            label="Radar de Baixas & Na Manga"
-            badgeCount={newBaixasCount}
-          />
+          {canViewFeature('contratacao.vagas', true) && <NavItem to="/contratacao/vagas" icon={Briefcase} label="Contratação Inicial" />}
+          {canViewFeature('contratacao.entrevistas', true) && <NavItem to="/contratacao/entrevistas" icon={Sparkles} label="Controle de Entrevistas" />}
+          {canViewFeature('contratacao.baixas_radar', true) && (
+            <NavItem
+              to="/contratacao/baixas-radar"
+              icon={Bell}
+              label="Radar de Baixas & Na Manga"
+              badgeCount={newBaixasCount}
+            />
+          )}
         </div>
 
         <SectionLabel label="Captação & Divulgação" />
         <div className="space-y-1">
-          <NavItem
-            to="/contratacao/curriculos"
-            icon={FileText}
-            label="Banco de Currículos (+4.444)"
-          />
-          <NavItem
-            to="/contratacao/divulgacao"
-            icon={Megaphone}
-            label="Divulgar Vagas (WA / FB)"
-          />
+          {canViewFeature('contratacao.curriculos', true) && (
+            <NavItem
+              to="/contratacao/curriculos"
+              icon={FileText}
+              label="Banco de Currículos (+4.444)"
+            />
+          )}
+          {canViewFeature('contratacao.divulgacao', true) && (
+            <NavItem
+              to="/contratacao/divulgacao"
+              icon={Megaphone}
+              label="Divulgar Vagas (WA / FB)"
+            />
+          )}
         </div>
 
         <SectionLabel label="Gestão & Histórico" />
         <div className="space-y-1">
-          <NavItem to="/contratacao/alocados" icon={Users} label="Trabalhadores Alocados" />
-          <NavItem
-            to="/contratacao/relatorio"
-            icon={FileSpreadsheet}
-            label="Controle de Contratações"
-          />
+          {canViewFeature('contratacao.alocados', true) && <NavItem to="/contratacao/alocados" icon={Users} label="Trabalhadores Alocados" />}
+          {canViewFeature('contratacao.relatorio', true) && (
+            <NavItem
+              to="/contratacao/relatorio"
+              icon={FileSpreadsheet}
+              label="Controle de Contratações"
+            />
+          )}
         </div>
       </div>
     </aside>

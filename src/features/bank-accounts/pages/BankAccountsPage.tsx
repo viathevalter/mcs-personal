@@ -19,8 +19,9 @@ import { CreateIbanRequestDialog } from '../components/CreateIbanRequestDialog';
 import { ReviewIbanRequestDialog } from '../components/ReviewIbanRequestDialog';
 import { EditIbanDialog } from '@/features/workers/components/EditIbanDialog';
 import type { IbanDocType } from '../api/ibanDocumentsApi';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { Combobox } from '@/components/ui/combobox';
 import { Label } from '@/components/ui/label';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -30,6 +31,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 export function BankAccountsPage() {
     const { selectedEmpresaId } = useEmpresa();
+    const { role: globalRole, canViewFeature, canEditFeature } = useRole();
+    const navigate = useNavigate();
+    const canViewIbanPage = canViewFeature('rh.bank_accounts', true);
+    const canEditIban = globalRole !== 'visualizador' && canEditFeature('rh.bank_accounts', 'rrhh');
 
     const [activeTab, setActiveTab] = useState<string>('accounts');
     const [searchTerm, setSearchTerm] = useState('');
@@ -257,6 +262,21 @@ export function BankAccountsPage() {
         setCreateRequestOpen(true);
     };
 
+    if (!canViewIbanPage) {
+        return (
+            <div className="p-8 max-w-xl mx-auto mt-12 text-center bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-4">
+                <AlertCircle className="w-12 h-12 text-rose-500 mx-auto" />
+                <h2 className="text-xl font-bold text-slate-900 dark:text-white">Acesso Restrito</h2>
+                <p className="text-sm text-slate-500 dark:text-slate-400">
+                    Seu perfil não possui permissão para acessar a Gestão de Contas Bancárias (IBAN).
+                </p>
+                <Button variant="outline" onClick={() => navigate('/workers')}>
+                    Voltar para Trabalhadores
+                </Button>
+            </div>
+        );
+    }
+
     return (
         <div className="p-4 sm:p-6 w-full flex flex-col h-full bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-200">
             {/* Header Section */}
@@ -272,12 +292,14 @@ export function BankAccountsPage() {
                 </div>
 
                 <div className="flex gap-2.5">
-                    <ImportBankAccountsDialog trigger={
-                        <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border-0 h-10 font-medium px-4">
-                            <UploadCloud className="w-4 h-4 mr-2" />
-                            Importar Planilhas
-                        </Button>
-                    } />
+                    {canEditIban && (
+                        <ImportBankAccountsDialog trigger={
+                            <Button className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm border-0 h-10 font-medium px-4">
+                                <UploadCloud className="w-4 h-4 mr-2" />
+                                Importar Planilhas
+                            </Button>
+                        } />
+                    )}
                     <ExportBankAccountsDialog 
                         bankAccounts={bankAccounts} 
                         isLoading={isLoading} 
@@ -678,24 +700,26 @@ export function BankAccountsPage() {
                                                                     >
                                                                         {isRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
                                                                     </button>
-                                                                    <button
-                                                                        type="button"
-                                                                        onClick={(e) => {
-                                                                            e.preventDefault();
-                                                                            e.stopPropagation();
-                                                                            setEditIbanData({
-                                                                                workerId: account.worker_id,
-                                                                                workerName: account.worker_nome,
-                                                                                iban: account.iban || '',
-                                                                                banco: account.banco || ''
-                                                                            });
-                                                                            setEditIbanOpen(true);
-                                                                        }}
-                                                                        className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
-                                                                        title="Corrigir número do IBAN / Banco"
-                                                                    >
-                                                                        <Pencil className="w-3.5 h-3.5" />
-                                                                    </button>
+                                                                    {canEditIban && (
+                                                                        <button
+                                                                            type="button"
+                                                                            onClick={(e) => {
+                                                                                e.preventDefault();
+                                                                                e.stopPropagation();
+                                                                                setEditIbanData({
+                                                                                    workerId: account.worker_id,
+                                                                                    workerName: account.worker_nome,
+                                                                                    iban: account.iban || '',
+                                                                                    banco: account.banco || ''
+                                                                                });
+                                                                                setEditIbanOpen(true);
+                                                                            }}
+                                                                            className="p-1.5 text-slate-400 dark:text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-white dark:hover:bg-slate-800 rounded-md transition-colors"
+                                                                            title="Corrigir número do IBAN / Banco"
+                                                                        >
+                                                                            <Pencil className="w-3.5 h-3.5" />
+                                                                        </button>
+                                                                    )}
                                                                 </div>
                                                             )}
                                                         </div>
@@ -715,7 +739,7 @@ export function BankAccountsPage() {
                                                                 }}>
                                                                 <FileText className="h-3.5 w-3.5" />
                                                             </Button>
-                                                        ) : (
+                                                        ) : canEditIban ? (
                                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 border border-transparent rounded-md transition-all" title="Anexar Certificado"
                                                                 onClick={() => {
                                                                     setUploadModalData({ workerId: account.worker_id, workerName: account.worker_nome, docType: 'certificado', currentUrl: null });
@@ -723,7 +747,7 @@ export function BankAccountsPage() {
                                                                 }}>
                                                                 <UploadCloud className="h-4 w-4" />
                                                             </Button>
-                                                        )}
+                                                        ) : <span className="text-xs text-slate-300">-</span>}
                                                     </TableCell>
                                                     
                                                     {/* AUTORIZAÇÃO */}
@@ -736,7 +760,7 @@ export function BankAccountsPage() {
                                                                 }}>
                                                                 <FileText className="h-3.5 w-3.5" />
                                                             </Button>
-                                                        ) : (
+                                                        ) : canEditIban ? (
                                                             <Button variant="ghost" size="sm" className="h-7 w-7 p-0 text-slate-300 hover:text-indigo-500 hover:bg-indigo-50 border border-transparent rounded-md transition-all" title="Anexar Autorização de Mudança"
                                                                 onClick={() => {
                                                                     setUploadModalData({ workerId: account.worker_id, workerName: account.worker_nome, docType: 'autorizacao', currentUrl: null });
@@ -744,12 +768,14 @@ export function BankAccountsPage() {
                                                                 }}>
                                                                 <UploadCloud className="h-4 w-4" />
                                                             </Button>
-                                                        )}
+                                                        ) : <span className="text-xs text-slate-300">-</span>}
                                                     </TableCell>
                                                     
                                                     {/* ACTIONS */}
                                                     <TableCell className="text-center">
-                                                        {pendingRequest ? (
+                                                        {!canEditIban ? (
+                                                            <span className="text-xs text-slate-400">Somente Leitura</span>
+                                                        ) : pendingRequest ? (
                                                             <Button 
                                                                 size="sm" 
                                                                 className="h-7 px-2.5 text-xs bg-indigo-600 hover:bg-indigo-700 text-white font-semibold shadow-sm border-0 flex items-center justify-center mx-auto"

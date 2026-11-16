@@ -1,13 +1,17 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { supabase } from '../../shared/supabase/client';
 
-type AppRole = 'super_admin' | 'admin_rh' | 'operador' | 'visualizador';
+type AppRole = 'super_admin' | 'admin' | 'admin_rh' | 'manager' | 'operador' | 'visualizador' | 'user';
 
 interface RoleContextType {
     role: AppRole | null;
     loadingRole: boolean;
     blockedModules: string[];
     refreshRole: () => Promise<void>;
+    canViewModule: (moduleId: string, defaultAllowed?: boolean) => boolean;
+    canEditModule: (moduleId: string, defaultCanEdit?: boolean) => boolean;
+    canViewFeature: (featureKey: string, defaultAllowed?: boolean) => boolean;
+    canEditFeature: (featureKey: string, moduleId?: string) => boolean;
 }
 
 const RoleContext = createContext<RoleContextType | undefined>(undefined);
@@ -101,8 +105,60 @@ export function RoleProvider({ children }: { children: React.ReactNode }) {
         };
     }, []);
 
+    const canViewModule = React.useCallback((moduleId: string, defaultAllowed = true): boolean => {
+        if (role === 'super_admin') return true;
+        if (blockedModules.includes(moduleId)) return false;
+        if (blockedModules.includes(`mod_view:${moduleId}`) || blockedModules.includes(`mod_allow:${moduleId}`)) {
+            return true;
+        }
+        return defaultAllowed;
+    }, [role, blockedModules]);
+
+    const canEditModule = React.useCallback((moduleId: string, defaultCanEdit = true): boolean => {
+        if (role === 'super_admin') return true;
+        if (blockedModules.includes(moduleId) || blockedModules.includes(`mod_view:${moduleId}`)) {
+            return false;
+        }
+        if (blockedModules.includes(`mod_allow:${moduleId}`)) {
+            return true;
+        }
+        return role !== 'visualizador' && defaultCanEdit;
+    }, [role, blockedModules]);
+
+    const canViewFeature = React.useCallback((featureKey: string, defaultAllowed = true): boolean => {
+        if (role === 'super_admin') return true;
+        if (blockedModules.includes(`hide:${featureKey}`)) return false;
+        if (blockedModules.includes(`view:${featureKey}`) || blockedModules.includes(`edit:${featureKey}`)) {
+            return true;
+        }
+        return defaultAllowed;
+    }, [role, blockedModules]);
+
+    const canEditFeature = React.useCallback((featureKey: string, moduleId?: string): boolean => {
+        if (role === 'super_admin') return true;
+        if (blockedModules.includes(`hide:${featureKey}`) || blockedModules.includes(`view:${featureKey}`)) {
+            return false;
+        }
+        if (blockedModules.includes(`edit:${featureKey}`)) {
+            return true;
+        }
+        if (moduleId && (blockedModules.includes(moduleId) || blockedModules.includes(`mod_view:${moduleId}`))) {
+            return false;
+        }
+        return role !== 'visualizador';
+    }, [role, blockedModules]);
+
     return (
-        <RoleContext.Provider value={{ role, loadingRole, blockedModules, refreshRole: fetchRole }}>
+        <RoleContext.Provider value={{
+            role,
+            loadingRole,
+            blockedModules,
+            refreshRole: fetchRole,
+            canViewModule,
+            canEditModule,
+            canViewFeature,
+            canEditFeature
+        }}>
             {children}
         </RoleContext.Provider>
     );

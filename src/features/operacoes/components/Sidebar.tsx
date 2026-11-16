@@ -9,7 +9,7 @@ export const Sidebar: React.FC = () => {
   const { t } = useLanguage();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
   const navigate = useNavigate();
-  const { role } = useRole();
+  const { role, canViewFeature } = useRole();
 
   const isSystemAdmin = role === 'super_admin' || role === 'admin';
   const isRH = role === 'super_admin' || role === 'admin' || role === 'admin_rh';
@@ -74,14 +74,14 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 px-3 py-2">
         <SectionLabel label={t('menu.main_menu')} />
         <div className="space-y-1">
-          <NavItem to="/operacoes/dashboard" icon={LayoutDashboard} label={t('menu.dashboard')} />
-          {(isSystemAdmin || isRH) && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
-          {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
-          {(isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/solicitudes" icon={Activity} label={t('menu.torre_controle')} />}
-          {(isSystemAdmin || isRH) && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
+          {canViewFeature('operacoes.dashboard', true) && <NavItem to="/operacoes/dashboard" icon={LayoutDashboard} label={t('menu.dashboard')} />}
+          {canViewFeature('operacoes.estimaciones', isSystemAdmin || isRH) && <NavItem to="/operacoes/estimaciones" icon={FileText} label={t('menu.estimaciones')} />}
+          {canViewFeature('operacoes.pedidos', isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/pedidos" icon={ShoppingCart} label={t('menu.pedidos')} />}
+          {canViewFeature('operacoes.torre', isSystemAdmin || isOps || isRH) && <NavItem to="/operacoes/solicitudes" icon={Activity} label={t('menu.torre_controle')} />}
+          {canViewFeature('operacoes.clientes', isSystemAdmin || isRH) && <NavItem to="/operacoes/clientes" icon={Users} label={t('menu.clientes')} />}
         </div>
 
-        {(isSystemAdmin || isRH || isOps) && (
+        {canViewFeature('operacoes.documentos', isSystemAdmin || isRH || isOps) && (
           <>
             <SectionLabel label={t('menu.rh_docs_section')} />
             <div className="space-y-1">
@@ -90,7 +90,7 @@ export const Sidebar: React.FC = () => {
           </>
         )}
 
-        {(isSystemAdmin || isRH || isOps) && (
+        {canViewFeature('operacoes.gestao_diaria', isSystemAdmin || isRH || isOps) && (
           <>
             <SectionLabel label={t('menu.daily_mgmt')} />
             <div className="space-y-1">
@@ -101,7 +101,7 @@ export const Sidebar: React.FC = () => {
           </>
         )}
 
-        {isSystemAdmin && (
+        {canViewFeature('operacoes.admin', isSystemAdmin) && (
           <>
             <SectionLabel label={t('menu.admin')} />
             <div className="space-y-1">

@@ -3,10 +3,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { Box, DollarSign, FileText, PieChart, LayoutDashboard, ArrowLeft, Menu, Settings as SettingsIcon, ShieldAlert, Wallet } from 'lucide-react';
 import { useLanguage } from '../../operacoes/i18n';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export const Sidebar: React.FC = () => {
   const { t } = useLanguage();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
+  const { canViewFeature } = useRole();
   const navigate = useNavigate();
 
   const NavItem = ({ to, icon: Icon, label }: any) => (
@@ -75,19 +77,23 @@ export const Sidebar: React.FC = () => {
       <div className="flex-1 px-3 py-2">
         <SectionLabel label={t('financeiro.sidebar.section_management', 'Gestão Financeira')} />
         <div className="space-y-1">
-          <NavItem to="/financeiro/dashboard" icon={LayoutDashboard} label={t('financeiro.sidebar.dashboard', 'Painel Diretoria')} />
-          <NavItem to="/financeiro/titulos" icon={FileText} label={t('financeiro.sidebar.payment_orders', 'Ordens de Pagamento')} />
-          <NavItem to="/financeiro/pagos" icon={FileText} label={t('financeiro.sidebar.accounts_payable', 'Pagos / Contas a Pagar')} />
-          <NavItem to="/financeiro/fundo-caixa" icon={Wallet} label={t('financeiro.sidebar.fundo_caixa', 'Fundo de Caixa')} />
-          <NavItem to="/financeiro/cobros" icon={FileText} label={t('financeiro.menu_cobros') || "Cobros / Recebimentos"} />
-          <NavItem to="/financeiro/cobranca" icon={ShieldAlert} label={t('financeiro.menu_cobranca') || "Cobrança / Inadimplência"} />
-          <NavItem to="/financeiro/comissoes" icon={DollarSign} label={t('menu.comissoes') || "Gestão de Comissões"} />
-          <NavItem to="/financeiro/analises" icon={PieChart} label={t('financeiro.sidebar.analytics', 'Análises')} />
+          {canViewFeature('financeiro.dashboard', true) && <NavItem to="/financeiro/dashboard" icon={LayoutDashboard} label={t('financeiro.sidebar.dashboard', 'Painel Diretoria')} />}
+          {canViewFeature('financeiro.titulos', true) && <NavItem to="/financeiro/titulos" icon={FileText} label={t('financeiro.sidebar.payment_orders', 'Ordens de Pagamento')} />}
+          {canViewFeature('financeiro.pagos', true) && <NavItem to="/financeiro/pagos" icon={FileText} label={t('financeiro.sidebar.accounts_payable', 'Pagos / Contas a Pagar')} />}
+          {canViewFeature('financeiro.fundo_caixa', true) && <NavItem to="/financeiro/fundo-caixa" icon={Wallet} label={t('financeiro.sidebar.fundo_caixa', 'Fundo de Caixa')} />}
+          {canViewFeature('financeiro.cobros', true) && <NavItem to="/financeiro/cobros" icon={FileText} label={t('financeiro.menu_cobros') || "Cobros / Recebimentos"} />}
+          {canViewFeature('financeiro.cobranca', true) && <NavItem to="/financeiro/cobranca" icon={ShieldAlert} label={t('financeiro.menu_cobranca') || "Cobrança / Inadimplência"} />}
+          {canViewFeature('financeiro.comissoes', true) && <NavItem to="/financeiro/comissoes" icon={DollarSign} label={t('menu.comissoes') || "Gestão de Comissões"} />}
+          {canViewFeature('financeiro.analises', true) && <NavItem to="/financeiro/analises" icon={PieChart} label={t('financeiro.sidebar.analytics', 'Análises')} />}
         </div>
-        <SectionLabel label={t('financeiro.sidebar.section_admin', 'Administração')} />
-        <div className="space-y-1">
-          <NavItem to="/financeiro/settings" icon={SettingsIcon} label={t('financeiro.sidebar.settings', 'Configurações')} />
-        </div>
+        {canViewFeature('financeiro.settings', true) && (
+          <>
+            <SectionLabel label={t('financeiro.sidebar.section_admin', 'Administração')} />
+            <div className="space-y-1">
+              <NavItem to="/financeiro/settings" icon={SettingsIcon} label={t('financeiro.sidebar.settings', 'Configurações')} />
+            </div>
+          </>
+        )}
       </div>
     </aside>
   );

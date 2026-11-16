@@ -6,20 +6,24 @@ import type { AppRole } from './roles';
 
 interface RoleGateProps {
     allow: AppRole[];
+    featureKey?: string;
     fallback?: ReactNode;
     children: ReactNode;
 }
 
-export function RoleGate({ allow, fallback = null, children }: RoleGateProps) {
+export function RoleGate({ allow, featureKey, fallback = null, children }: RoleGateProps) {
     const { role: memberRole } = useEmpresa();
-    const { role: globalRole } = useRole();
+    const { role: globalRole, canViewFeature } = useRole();
 
     // Se é o Dono do sistema, fura a fila e vê o menu
     if (globalRole === 'super_admin') {
         return <>{children}</>;
     }
 
-    if (!isRoleAllowed(memberRole || undefined, allow)) {
+    const roleAllowed = isRoleAllowed(memberRole || undefined, allow);
+    const allowed = featureKey ? canViewFeature(featureKey, roleAllowed) : roleAllowed;
+
+    if (!allowed) {
         return <>{fallback}</>;
     }
 

@@ -7,6 +7,7 @@ import type { ColumnDef } from '@tanstack/react-table';
 import { Card, CardContent } from '@/components/ui/card';
 import { getUsers, getDepartments, getPublicEmpresas, updateDepartmentMember, createDepartmentMember, updateMcsUser, updateUserRole, getUserMemberships, saveUserMembership, type UserProfile } from './api/adminApi';
 import { useEmpresas } from '@/shared/hooks/useEmpresas';
+import { UserPermissionsMatrix } from '@/shared/rbac/UserPermissionsMatrix';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
@@ -82,6 +83,7 @@ export default function UsersPage() {
                     active: editForm.active,
                     display_name: editForm.display_name,
                     department_id: editForm.department_id,
+                    blocked_modules: editForm.blocked_modules || [],
                 });
 
                 // Update RBAC role
@@ -127,6 +129,7 @@ export default function UsersPage() {
             active: user.active ?? true,
             empresa_contratante_id: user.empresa_contratante_id || null,
             empresa_servicos_id: user.empresa_servicos_id || null,
+            blocked_modules: user.blocked_modules || [],
         });
         setIsDialogOpen(true);
     };
@@ -229,7 +232,7 @@ export default function UsersPage() {
             </Card>
 
             <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-                <DialogContent className="sm:max-w-[700px] max-h-[90vh] overflow-y-auto">
+                <DialogContent className="sm:max-w-[850px] max-h-[90vh] overflow-y-auto">
                     <DialogHeader>
                         <DialogTitle>{isCreating ? 'Adicionar Novo Usuário' : 'Editar Acessos do Usuário'}</DialogTitle>
                         <DialogDescription>
@@ -356,6 +359,13 @@ export default function UsersPage() {
                                                 <p className="text-[10px] text-muted-foreground mt-1">O Super Admin tem acesso integral ao sistema. Os outros perfis limitam acessos sensíveis como exclusão ou upload.</p>
                                             </div>
                                         </div>
+                                    </div>
+
+                                    <div className="border rounded-lg p-4">
+                                        <UserPermissionsMatrix
+                                            tokens={editForm.blocked_modules || []}
+                                            onChange={(newTokens) => setEditForm(prev => ({ ...prev, blocked_modules: newTokens }))}
+                                        />
                                     </div>
 
                                     {/* --- EMPRESAS / FILIAIS --- */}

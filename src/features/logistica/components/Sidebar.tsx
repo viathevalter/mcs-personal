@@ -3,10 +3,12 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { Box, Home, Calendar, ArrowLeft, Menu, Users, FileText, DollarSign, Layers, Zap } from 'lucide-react';
 import { useLanguage } from '../../operacoes/i18n';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export const Sidebar: React.FC = () => {
   const { t } = useLanguage();
   const { isSidebarOpen, toggleSidebar } = useSidebar();
+  const { canViewFeature } = useRole();
   const navigate = useNavigate();
 
   const NavItem = ({ to, icon: Icon, label }: any) => (
@@ -67,29 +69,35 @@ export const Sidebar: React.FC = () => {
       </div>
 
       <div className="flex-1 px-3 py-2 space-y-4">
-        <div>
-          <SectionLabel label="Gestión & Asignación" />
-          <div className="space-y-1">
-            <NavItem to="/logistica/dashboard" icon={Calendar} label="Ocupación (Gantt)" />
-            <NavItem to="/logistica/demandas" icon={Users} label="Demandas de Asignación" />
+        {canViewFeature('logistica.dashboard', true) && (
+          <div>
+            <SectionLabel label="Gestión & Asignación" />
+            <div className="space-y-1">
+              <NavItem to="/logistica/dashboard" icon={Calendar} label="Ocupación (Gantt)" />
+              <NavItem to="/logistica/demandas" icon={Users} label="Demandas de Asignación" />
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <SectionLabel label="Registros" />
-          <div className="space-y-1">
-            <NavItem to="/logistica/registros/alojamentos" icon={Home} label="Alojamientos & Proveedores" />
+        {canViewFeature('logistica.alojamentos', true) && (
+          <div>
+            <SectionLabel label="Registros" />
+            <div className="space-y-1">
+              <NavItem to="/logistica/registros/alojamentos" icon={Home} label="Alojamientos & Proveedores" />
+            </div>
           </div>
-        </div>
+        )}
 
-        <div>
-          <SectionLabel label="Financiero" />
-          <div className="space-y-1">
-            <NavItem to="/logistica/contratos" icon={FileText} label="Contratos & Fianzas" />
-            <NavItem to="/logistica/suministros" icon={Zap} label="Gestión de Suministros" />
-            <NavItem to="/logistica/financeiro" icon={DollarSign} label="Órdenes de Pago" />
+        {canViewFeature('logistica.financeiro', true) && (
+          <div>
+            <SectionLabel label="Financiero" />
+            <div className="space-y-1">
+              <NavItem to="/logistica/contratos" icon={FileText} label="Contratos & Fianzas" />
+              <NavItem to="/logistica/suministros" icon={Zap} label="Gestión de Suministros" />
+              <NavItem to="/logistica/financeiro" icon={DollarSign} label="Órdenes de Pago" />
+            </div>
           </div>
-        </div>
+        )}
       </div>
     </aside>
   );
