@@ -600,6 +600,18 @@ export const commissionService = {
         // Track workers who already generated a commission slot for a seller so relocations (remanejamentos) don't pay €40
         const workerFirstSlotBySeller = new Map<string, string>(); // key: `${sellerEmail}|${worker_id}` -> rootId
 
+        const earliestStartByPedidoId = new Map<string, string>();
+        rawAssignments.forEach(a => {
+            if (!a.pedido_id) return;
+            const m = getAssignmentDatesAndStatus(a);
+            if (m.startDateStr && !m.isWithdrawnPreStart) {
+                const cur = earliestStartByPedidoId.get(a.pedido_id);
+                if (!cur || m.startDateStr < cur) {
+                    earliestStartByPedidoId.set(a.pedido_id, m.startDateStr);
+                }
+            }
+        });
+
         const generatedList: CommissionGenerated[] = [];
         const firstOrderByClient = new Map<string, { pedido: any; client: any; seller: CommissionSeller; firstDate: string; has15Days: boolean }>();
 
@@ -741,9 +753,10 @@ export const commissionService = {
                 vendedor_email: seller.email,
                 codpedido: matchedPedido?.codigo || currentEntry.meta.sol?.codigo || 'S/N',
                 pedido_id: matchedPedido?.id || undefined,
-                pedido_start_date: matchedPedido?.expected_start_date
-                    ? String(matchedPedido.expected_start_date).split('T')[0]
-                    : (firstEntry.meta.startDateStr || (matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : refDateStr)),
+                pedido_start_date: (matchedPedido?.id && earliestStartByPedidoId.get(matchedPedido.id))
+                    || firstEntry.meta.startDateStr
+                    || (matchedPedido?.expected_start_date ? String(matchedPedido.expected_start_date).split('T')[0] : null)
+                    || (matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : refDateStr),
                 pedido_created_at: matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : null,
                 nome_colab: currentEntry.raw.worker?.nome || 'Trabalhador',
                 worker_doc: currentEntry.raw.worker?.dni || currentEntry.raw.worker?.nif || currentEntry.raw.worker?.cod_colab || '-',

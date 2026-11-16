@@ -37,7 +37,7 @@ import {
 import * as XLSX from 'xlsx';
 import { MultiSelect } from '../../components/ui/MultiSelect';
 
-type SortField = 'date' | 'vendedor' | 'cliente' | 'trabalhador' | 'carencia' | 'fatura' | 'valor' | 'status';
+type SortField = 'date' | 'inicio_trab' | 'vendedor' | 'cliente' | 'trabalhador' | 'carencia' | 'fatura' | 'valor' | 'status';
 type SortDirection = 'asc' | 'desc';
 
 export const Comissoes: React.FC = () => {
@@ -489,6 +489,12 @@ export const Comissoes: React.FC = () => {
                 case 'status': {
                     const order: Record<string, number> = { ELEGIVEL: 4, BLOQUEADA_FATURA: 3, BLOQUEADA_CARENCIA: 2, PAGO: 1, AJUSTE: 0 };
                     cmp = (order[a.status] ?? 0) - (order[b.status] ?? 0);
+                    break;
+                }
+                case 'inicio_trab': {
+                    const wA = a.start_date || a.date;
+                    const wB = b.start_date || b.date;
+                    cmp = (wA ? new Date(wA).getTime() : 0) - (wB ? new Date(wB).getTime() : 0);
                     break;
                 }
                 case 'date':
@@ -1237,26 +1243,6 @@ export const Comissoes: React.FC = () => {
 
                     {isSupervisor && (
                         <div className="flex flex-wrap gap-2">
-                            <button
-                                onClick={() => handleOpenSettingsModal()}
-                                className="px-3 py-1.5 text-xs font-medium border border-blue-200 dark:border-blue-800 rounded-lg bg-blue-50 dark:bg-blue-950/40 text-blue-700 dark:text-blue-300 hover:bg-blue-100 transition-colors flex items-center gap-1.5"
-                            >
-                                <Settings size={14} /> Regras por Vendedor
-                            </button>
-
-                            <button
-                                onClick={exportToExcel}
-                                className="px-3 py-1.5 text-xs font-medium border border-slate-700 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors flex items-center gap-1.5"
-                            >
-                                <Download size={14} /> Exportar Excel
-                            </button>
-
-                            <button
-                                onClick={() => setIsAdjustmentModalOpen(true)}
-                                className="px-3 py-1.5 text-xs font-medium border border-slate-300 dark:border-slate-600 rounded-lg bg-white dark:bg-slate-700 hover:bg-slate-50 dark:hover:bg-slate-600 transition-colors flex items-center gap-1.5"
-                            >
-                                <PlusCircle size={14} /> Lançamento / Ajuste Extra
-                            </button>
 
                             {selectedPendingInvoiceRows.length > 0 && (
                                 <button
@@ -1291,27 +1277,17 @@ export const Comissoes: React.FC = () => {
                             <span>Sincronizando contratações, histórico de vagas e faturamento...</span>
                         </div>
                     ) : (
-                        <table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse min-w-[1060px]">
+                        <table className="w-full table-fixed text-left text-xs sm:text-sm border-collapse min-w-[1120px]">
                             <thead className="sticky top-0 z-20 bg-slate-100 dark:bg-slate-900 border-b border-slate-200 dark:border-slate-700 text-[11px] uppercase tracking-wider text-slate-600 dark:text-slate-300 shadow-xs">
                                 <tr>
                                     {isSupervisor && (
-                                        <th className="px-2 py-2.5 text-center w-[36px] bg-slate-100 dark:bg-slate-900">
+                                        <th className="px-2 py-2.5 text-center w-[34px] bg-slate-100 dark:bg-slate-900">
                                             <input type="checkbox" onChange={handleSelectAll} className="rounded" />
                                         </th>
                                     )}
                                     <th
-                                        onClick={() => handleSort('date')}
-                                        className="px-2.5 py-2.5 w-[92px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
-                                        title="Clique para ordenar por Data"
-                                    >
-                                        <div className="flex items-center gap-1">
-                                            <span>Data</span>
-                                            {renderSortIcon('date')}
-                                        </div>
-                                    </th>
-                                    <th
                                         onClick={() => handleSort('vendedor')}
-                                        className="px-2.5 py-2.5 w-[76px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[68px] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar por Vendedor"
                                     >
                                         <div className="flex items-center gap-1">
@@ -1321,7 +1297,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('cliente')}
-                                        className="px-3 py-2.5 w-[27%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2.5 py-2.5 w-[24%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar em ordem alfabética por Cliente e numérica por Pedido"
                                     >
                                         <div className="flex items-center gap-1.5">
@@ -1330,8 +1306,18 @@ export const Comissoes: React.FC = () => {
                                         </div>
                                     </th>
                                     <th
+                                        onClick={() => handleSort('date')}
+                                        className="px-2 py-2.5 w-[94px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Data em que o Pedido iniciou (Clique para ordenar)"
+                                    >
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>Início Pedido</span>
+                                            {renderSortIcon('date')}
+                                        </div>
+                                    </th>
+                                    <th
                                         onClick={() => handleSort('trabalhador')}
-                                        className="px-3 py-2.5 w-[28%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2.5 py-2.5 w-[24%] font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar trabalhador por trabalhador (A-Z)"
                                     >
                                         <div className="flex items-center gap-1.5">
@@ -1340,8 +1326,18 @@ export const Comissoes: React.FC = () => {
                                         </div>
                                     </th>
                                     <th
+                                        onClick={() => handleSort('inicio_trab')}
+                                        className="px-2 py-2.5 w-[94px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        title="Data em que o Trabalhador iniciou na vaga (Clique para ordenar)"
+                                    >
+                                        <div className="flex items-center justify-center gap-1">
+                                            <span>Início Trab.</span>
+                                            {renderSortIcon('inicio_trab')}
+                                        </div>
+                                    </th>
+                                    <th
                                         onClick={() => handleSort('carencia')}
-                                        className="px-2.5 py-2.5 w-[108px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[96px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar numericamente por Dias Trabalhados"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1351,7 +1347,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('fatura')}
-                                        className="px-2.5 py-2.5 w-[128px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[112px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar pelo status da Fatura"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1361,7 +1357,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('valor')}
-                                        className="px-2.5 py-2.5 w-[84px] text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[78px] text-right font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar numericamente por Valor (€)"
                                     >
                                         <div className="flex items-center justify-end gap-1">
@@ -1371,7 +1367,7 @@ export const Comissoes: React.FC = () => {
                                     </th>
                                     <th
                                         onClick={() => handleSort('status')}
-                                        className="px-2.5 py-2.5 w-[126px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
+                                        className="px-2 py-2.5 w-[110px] text-center font-bold cursor-pointer select-none group hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors bg-slate-100 dark:bg-slate-900"
                                         title="Clique para ordenar pelo Status na Conta Corrente"
                                     >
                                         <div className="flex items-center justify-center gap-1">
@@ -1379,13 +1375,13 @@ export const Comissoes: React.FC = () => {
                                             {renderSortIcon('status')}
                                         </div>
                                     </th>
-                                    <th className="px-2 py-2.5 text-center font-bold w-[52px] bg-slate-100 dark:bg-slate-900">Hist.</th>
+                                    <th className="px-1.5 py-2.5 text-center font-bold w-[44px] bg-slate-100 dark:bg-slate-900">Hist.</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-slate-100 dark:divide-slate-700/70">
                                 {filteredRows.length === 0 ? (
                                     <tr>
-                                        <td colSpan={10} className="px-4 py-10 text-center text-slate-400 italic">
+                                        <td colSpan={11} className="px-4 py-10 text-center text-slate-400 italic">
                                             Nenhum registro encontrado para os filtros selecionados.
                                         </td>
                                     </tr>
@@ -1399,6 +1395,9 @@ export const Comissoes: React.FC = () => {
                                             : row.fatura_status === 'FATURA_ABERTA'
                                                 ? 'Em Aberto'
                                                 : 'Aguard. Fatura';
+
+                                        const pedidoDateStr = row.pedido_start_date || row.date;
+                                        const workerDateStr = row.start_date || row.date;
 
                                         return (
                                             <tr
@@ -1420,15 +1419,8 @@ export const Comissoes: React.FC = () => {
                                                     </td>
                                                 )}
 
-                                                {/* Data */}
-                                                <td className="px-2.5 py-2.5 whitespace-nowrap">
-                                                    <div className="font-semibold text-xs text-slate-800 dark:text-slate-100">
-                                                        {row.date ? new Date(row.date + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
-                                                    </div>
-                                                </td>
-
                                                 {/* Vendedor (apenas primeiro nome) */}
-                                                <td className="px-2.5 py-2.5 whitespace-nowrap">
+                                                <td className="px-2 py-2.5 whitespace-nowrap">
                                                     <span
                                                         className="font-bold text-xs sm:text-sm text-slate-800 dark:text-slate-100"
                                                         title={`${row.vendedor_nome} (${row.vendedor_email})`}
@@ -1438,17 +1430,17 @@ export const Comissoes: React.FC = () => {
                                                 </td>
 
                                                 {/* Cliente & Pedido (em uma linha, destacado) */}
-                                                <td className="px-3 py-2.5">
+                                                <td className="px-2.5 py-2.5">
                                                     {row.cliente_nome ? (
                                                         <div
-                                                            className="flex items-center gap-2 min-w-0"
-                                                            title={`${row.cliente_nome} ${row.pedido_cod ? '• ' + row.pedido_cod : ''} ${row.cliente_created_at ? '• Cad: ' + new Date(row.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
+                                                            className="flex items-center gap-1.5 min-w-0"
+                                                            title={`${row.cliente_nome} ${row.pedido_cod ? '• ' + row.pedido_cod : ''} ${row.cliente_created_at ? '• Cad. Cliente: ' + new Date(row.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
                                                         >
                                                             <span className="font-bold text-slate-900 dark:text-white truncate text-xs sm:text-[13px]">
                                                                 {row.cliente_nome}
                                                             </span>
                                                             {row.pedido_cod && (
-                                                                <span className="shrink-0 font-mono text-[11px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800">
+                                                                <span className="shrink-0 font-mono text-[10px] font-semibold px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/70 dark:border-blue-800">
                                                                     {row.pedido_cod}
                                                                 </span>
                                                             )}
@@ -1458,10 +1450,20 @@ export const Comissoes: React.FC = () => {
                                                     )}
                                                 </td>
 
+                                                {/* Data Início do Pedido */}
+                                                <td
+                                                    className="px-2 py-2.5 text-center whitespace-nowrap"
+                                                    title={`Data de Início do Pedido: ${pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}${row.pedido_created_at ? ' • Abertura do Pedido: ' + new Date(row.pedido_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : ''}`}
+                                                >
+                                                    <span className="font-semibold text-xs text-slate-700 dark:text-slate-200">
+                                                        {pedidoDateStr ? new Date(pedidoDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}
+                                                    </span>
+                                                </td>
+
                                                 {/* Trabalhador / Vaga (em uma linha, destacado) */}
-                                                <td className="px-3 py-2.5">
+                                                <td className="px-2.5 py-2.5">
                                                     <div
-                                                        className="flex items-center gap-2 min-w-0"
+                                                        className="flex items-center gap-1.5 min-w-0"
                                                         title={`${row.desc} ${row.job_function ? '(' + row.job_function + ')' : ''} ${row.worker_doc && row.worker_doc !== '-' ? '• Doc: ' + row.worker_doc : ''}`}
                                                     >
                                                         {row.tipo_lancamento === 'bonus_cliente_novo' && (
@@ -1487,8 +1489,20 @@ export const Comissoes: React.FC = () => {
                                                     </div>
                                                 </td>
 
+                                                {/* Data Início do Trabalhador */}
+                                                <td
+                                                    className="px-2 py-2.5 text-center whitespace-nowrap"
+                                                    title={`Data de Início do Trabalhador na vaga: ${workerDateStr ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-'}${row.end_date ? ' • Saída: ' + new Date(row.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : ' • Em atividade'}`}
+                                                >
+                                                    <span className="font-semibold text-xs text-blue-700 dark:text-blue-300">
+                                                        {row.tipo_lancamento === 'contratacao' && workerDateStr
+                                                            ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT')
+                                                            : (workerDateStr ? new Date(workerDateStr + 'T12:00:00').toLocaleDateString('pt-PT') : '-')}
+                                                    </span>
+                                                </td>
+
                                                 {/* Carência (15d) */}
-                                                <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
+                                                <td className="px-2 py-2.5 text-center whitespace-nowrap">
                                                     {row._type === 'generated' ? (
                                                         <div className="flex flex-col items-center gap-1">
                                                             <div className="flex items-center justify-between w-full text-[11px] font-bold">
@@ -1516,7 +1530,7 @@ export const Comissoes: React.FC = () => {
                                                 </td>
 
                                                 {/* Fatura (compacta) */}
-                                                <td className="px-2.5 py-2.5 text-center whitespace-nowrap">
+                                                <td className="px-2 py-2.5 text-center whitespace-nowrap">
                                                     {row._type === 'generated' ? (
                                                         <div className="flex flex-col items-center gap-0.5" title={row.fatura_status_label}>
                                                             <span
@@ -1557,14 +1571,14 @@ export const Comissoes: React.FC = () => {
                                                 </td>
 
                                                 {/* Valor (€) */}
-                                                <td className={`px-2.5 py-2.5 text-right font-bold whitespace-nowrap ${
+                                                <td className={`px-2 py-2.5 text-right font-bold whitespace-nowrap ${
                                                     row.valor >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'
                                                 }`}>
                                                     <span>{row.valor >= 0 ? '+' : ''}€ {row.valor.toFixed(2)}</span>
                                                 </td>
 
                                                 {/* Status Conta Corrente (compacto) */}
-                                                <td className="px-2.5 py-2.5 text-center whitespace-nowrap" title={row.motivo_bloqueio || ''}>
+                                                <td className="px-2 py-2.5 text-center whitespace-nowrap" title={row.motivo_bloqueio || ''}>
                                                     {row.status === 'PAGO' && (
                                                         <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 dark:bg-emerald-900/40 dark:text-emerald-300">
                                                             <CheckCircle2 size={11} /> PAGO
@@ -1597,7 +1611,7 @@ export const Comissoes: React.FC = () => {
                                                 </td>
 
                                                 {/* Ações / Histórico */}
-                                                <td className="px-2 py-2.5 text-center whitespace-nowrap">
+                                                <td className="px-1.5 py-2.5 text-center whitespace-nowrap">
                                                     <div className="flex items-center justify-center gap-1">
                                                         {row.tipo_lancamento === 'contratacao' && (
                                                             <button
