@@ -1093,6 +1093,18 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'BUSCA DE CLIENTES CATALUNYA - Ayslan',
+      'Sin Correo - BUSCA DE CLIENTES CATALUNYA - Ayslan',
+      'Sem E-mail - BUSCA DE CLIENTES CATALUNYA - Ayslan',
+      'CATALUNYA - Ayslan',
+      'ZARAGOZA - Ayslan',
+      'Barcelona - Ayslan',
+      'Tarragona - Ayslan',
+      'Zaragoza - Ayslan',
+      'Mailing Ayslan - Catalunya & Zaragoza 2026',
+      'Mailing Ayslan Inéditos - Catalunya & Zaragoza 2026',
+      'Sin Correo - Ayslan',
+      'Sem E-mail - Ayslan',
       'Cataluña - Liseth',
       'Sin Correo - Cataluña - Liseth',
       'Sem E-mail - Cataluña - Liseth',

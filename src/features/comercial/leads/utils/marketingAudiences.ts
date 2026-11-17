@@ -181,6 +181,80 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
     },
   },
   // ==========================================
+  // AYSLAN (ESPANHA - GÉNIO MONTAGENS)
+  // ==========================================
+  {
+    id: 'aud_ayslan_ineditos_catalunya_zaragoza_2026',
+    name: '🚀 🇪🇸 Ayslan (Génio Montagens) - Inéditos Catalunya & Zaragoza (24 leads)',
+    leadCount: 24,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Ayslan Inéditos - Catalunya & Zaragoza 2026',
+    },
+  },
+  {
+    id: 'aud_ayslan_catalunya_zaragoza_completo_2026',
+    name: '🎯 🇪🇸 Ayslan (Génio Montagens) - Planilha Completa [Tag: BUSCA DE CLIENTES CATALUNYA - Ayslan] (50 leads)',
+    leadCount: 50,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['BUSCA DE CLIENTES CATALUNYA - Ayslan'],
+      tagKeyword: 'BUSCA DE CLIENTES CATALUNYA - Ayslan',
+    },
+  },
+  {
+    id: 'aud_ayslan_sin_correo_catalunya_2026',
+    name: '📞 🇪🇸 Ayslan (Génio Montagens) - Sin Correo p/ Marcador [Tag: Sin Correo - BUSCA DE CLIENTES CATALUNYA - Ayslan] (20 leads)',
+    leadCount: 20,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Sin Correo - BUSCA DE CLIENTES CATALUNYA - Ayslan'],
+      tagKeyword: 'Sin Correo - BUSCA DE CLIENTES CATALUNYA - Ayslan',
+    },
+  },
+  {
+    id: 'aud_ayslan_barcelona_2026',
+    name: '📍 🇪🇸 Ayslan (Génio Montagens) - Barcelona [Tag: Barcelona - Ayslan] (39 leads)',
+    leadCount: 39,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Barcelona - Ayslan'],
+      tagKeyword: 'Barcelona - Ayslan',
+    },
+  },
+  {
+    id: 'aud_ayslan_tarragona_2026',
+    name: '📍 🇪🇸 Ayslan (Génio Montagens) - Tarragona [Tag: Tarragona - Ayslan] (10 leads)',
+    leadCount: 10,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Tarragona - Ayslan'],
+      tagKeyword: 'Tarragona - Ayslan',
+    },
+  },
+  {
+    id: 'aud_ayslan_zaragoza_2026',
+    name: '📍 🇪🇸 Ayslan (Génio Montagens) - Zaragoza [Tag: Zaragoza - Ayslan] (1 lead)',
+    leadCount: 1,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Zaragoza - Ayslan'],
+      tagKeyword: 'Zaragoza - Ayslan',
+    },
+  },
+  // ==========================================
   // LISETH (ESPANHA - WISEOWE)
   // ==========================================
   {
