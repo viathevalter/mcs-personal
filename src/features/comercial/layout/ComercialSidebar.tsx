@@ -19,9 +19,10 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RoleGate } from '@/shared/rbac/RoleGate';
-import type { AppRole } from '@/shared/rbac/roles';
+import { isRoleAllowed, type AppRole } from '@/shared/rbac/roles';
 import { useSidebar } from '@/app/providers/SidebarProvider';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useComercialLanguage } from '../leads/utils/comercialI18n';
@@ -45,7 +46,8 @@ export function ComercialSidebar() {
     const { isExpanded, toggleSidebar } = useSidebar();
     const navigate = useNavigate();
     const { t, tr } = useComercialLanguage();
-    const { selectedEmpresaId } = useEmpresa();
+    const { selectedEmpresaId, role: memberRole } = useEmpresa();
+    const { role: globalRole, canViewFeature } = useRole();
 
     const { data: pendingCount = 0 } = useQuery({
         queryKey: ['aprovacoes-pendentes-count', selectedEmpresaId],
@@ -206,6 +208,16 @@ export function ComercialSidebar() {
         }
     ];
 
+    const isLinkVisible = (link: SidebarLink) => {
+        if (globalRole === 'super_admin') return true;
+        const roleAllowed = isRoleAllowed(memberRole || undefined, link.roles);
+        return canViewFeature(link.featureKey, roleAllowed);
+    };
+
+    const visibleSections = sections
+        .map(s => ({ ...s, links: s.links.filter(isLinkVisible) }))
+        .filter(s => s.links.length > 0);
+
     return (
         <aside className={cn(
             "fixed inset-y-0 left-0 z-10 hidden flex-col bg-slate-900 text-slate-300 border-r border-slate-800 sm:flex transition-all duration-300",
@@ -236,7 +248,7 @@ export function ComercialSidebar() {
             
             <div className="flex-1 pb-6 pt-2 flex flex-col justify-between overflow-y-auto overflow-x-hidden">
                 <div className="space-y-4">
-                    {sections.map((section, sectionIdx) => (
+                    {visibleSections.map((section, sectionIdx) => (
                         <div key={section.key} className={cn(sectionIdx > 0 && "pt-2 border-t border-slate-800/60")}>
                             {isExpanded ? (
                                 <div className="px-4 mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400">

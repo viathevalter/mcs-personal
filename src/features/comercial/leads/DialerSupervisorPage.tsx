@@ -2,19 +2,39 @@ import { useNavigate } from 'react-router-dom';
 import { 
   BarChart3, 
   PhoneCall, 
-  Layers
+  Layers,
+  ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { DialerSupervisorView } from './components/DialerSupervisorView';
 import { useCommercialScope } from './hooks/useLeads';
 import { useComercialLanguage, type SupportedComercialLang } from './utils/comercialI18n';
+import { useRole } from '@/app/providers/RoleProvider';
 
 export function DialerSupervisorPage() {
   const { activeProfile } = useCommercialScope();
   const operatorLangOverride = (activeProfile?.language as SupportedComercialLang | undefined) || null;
   const { tr } = useComercialLanguage(operatorLangOverride);
   const navigate = useNavigate();
+  const { canViewFeature } = useRole();
+
+  if (!canViewFeature('comercial.discador_supervisao', true)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] text-center p-6 space-y-4">
+        <div className="h-14 w-14 rounded-full bg-red-100 dark:bg-red-950/40 text-red-600 flex items-center justify-center">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Acesso Restrito à Supervisão</h2>
+        <p className="text-sm text-muted-foreground max-w-md">
+          Seu perfil não possui permissão para acessar a tela de Supervisão & KPIs do Power Dialer.
+        </p>
+        <Button onClick={() => navigate('/comercial/discador')}>
+          Ir para o Cockpit Discador
+        </Button>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col space-y-6 p-4 lg:p-6 max-w-[1920px] mx-auto w-full">
