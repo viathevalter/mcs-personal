@@ -25,6 +25,9 @@ import {
     Settings,
     RefreshCw,
     FileCheck2,
+    FileSpreadsheet,
+    FileText,
+    ChevronDown,
     ArrowRightLeft,
     ArrowUpDown,
     ArrowUp,
@@ -34,8 +37,8 @@ import {
     Users,
     X
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
 import { MultiSelect } from '../../components/ui/MultiSelect';
+import { exportCommissionsToExcel, exportCommissionsToPDF } from '../../utils/commissionExportUtils';
 
 type SortField = 'pedido' | 'date' | 'inicio_trab' | 'vendedor' | 'cliente' | 'trabalhador' | 'carencia' | 'fatura' | 'valor' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -54,6 +57,8 @@ export const Comissoes: React.FC = () => {
 
     const [startDate, setStartDate] = useState(defaultStart);
     const [endDate, setEndDate] = useState(nextMonthEnd);
+    const [includePendingPrevious, setIncludePendingPrevious] = useState<boolean>(true);
+    const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
     const [vendedorFilter, setVendedorFilter] = useState<string>('');
     const [mesRefFilter, setMesRefFilter] = useState<string>('');
 
@@ -274,11 +279,30 @@ export const Comissoes: React.FC = () => {
                 desc = `${g.nome_colab}`;
             }
 
+            const isBeforeStart = Boolean(startDate && g.data_referencia < startDate);
+            const isValidatedInPeriod = Boolean(
+                isBeforeStart &&
+                g.data_fim_carencia &&
+                g.data_fim_carencia >= startDate &&
+                (!endDate || g.data_fim_carencia <= endDate)
+            );
+            const isRetroactiveOpen = Boolean(
+                isBeforeStart &&
+                !isValidatedInPeriod &&
+                statusConta !== 'PAGO' &&
+                statusConta !== 'REMANEJADO' &&
+                g.valor > 0
+            );
+
             combined.push({
                 _id: g.id,
                 _type: 'generated',
                 raw: g,
                 date: g.data_referencia,
+                data_fim_carencia: g.data_fim_carencia || null,
+                isBeforeStart,
+                isValidatedInPeriod,
+                isRetroactiveOpen,
                 mes_referencia: g.mes_referencia,
                 mes_referencia_label: g.mes_referencia_label || g.mes_referencia,
                 vendedor_nome: g.vendedor_nome,
@@ -337,6 +361,10 @@ export const Comissoes: React.FC = () => {
                 _type: l.tipo === 'pagamento' ? 'payment_record' : 'adjustment',
                 raw: l,
                 date: l.created_at ? l.created_at.split('T')[0] : '',
+                data_fim_carencia: null,
+                isBeforeStart: false,
+                isValidatedInPeriod: false,
+                isRetroactiveOpen: false,
                 mes_referencia: l.mes_referencia || '',
                 mes_referencia_label: l.mes_referencia || '-',
                 vendedor_nome: l.vendedor_nome,
@@ -379,7 +407,11 @@ export const Comissoes: React.FC = () => {
         });
 
         return combined;
-    }, [geradas, lancamentos, settings]);
+    }, [geradas, lancamentos, settings, startDate, endDate]);
+
+    const retroactiveCarryCount = useMemo(() => {
+        return rows.filter(r => r.isValidatedInPeriod || r.isRetroactiveOpen).length;
+    }, [rows]);
 
     const clienteOptions = useMemo(() => {
         const unique = Array.from(new Set(rows.map(r => String(r.cliente_nome)).filter(v => !!v && v !== 'undefined' && v !== 'null')));
@@ -420,6 +452,14 @@ export const Comissoes: React.FC = () => {
     const filteredRows = useMemo(() => {
         const q = searchQuery.trim().toLowerCase();
         const filtered = rows.filter(r => {
+            // Period & Conta Corrente Carry-Over Logic:
+            // - If r.date >= startDate: initiated in the selected period
+            // - If r.date < startDate: included when includePendingPrevious is ON and the item either validated its 15 days in the period OR is still unpaid (Em Aberto)
+            let matchPeriod = true;
+            if (startDate && r.date && r.date < startDate) {
+                matchPeriod = includePendingPrevious && (r.isValidatedInPeriod || r.isRetroactiveOpen);
+            }
+
             const matchCliente = clienteFilter.length === 0 || clienteFilter.includes(r.cliente_nome);
             const matchPedido = pedidoFilter.length === 0 || pedidoFilter.includes(r.pedido_cod);
             const matchMes = !mesRefFilter || r.mes_referencia === mesRefFilter;
@@ -429,6 +469,7 @@ export const Comissoes: React.FC = () => {
             else if (tipoFilter === 'bonus_cliente_novo') matchTipo = r.tipo_lancamento === 'bonus_cliente_novo';
             else if (tipoFilter === 'com_repasses') matchTipo = (r.repasses_count || 0) > 0;
             else if (tipoFilter === 'com_remanejamento') matchTipo = Boolean(r.remanejado_de_pedido || r.remanejado_para_pedido || (r.historico_remanejamento && r.historico_remanejamento.length > 1));
+            else if (tipoFilter === 'acumulado_anterior') matchTipo = Boolean(r.isValidatedInPeriod || r.isRetroactiveOpen);
             else if (tipoFilter === 'ajuste') matchTipo = r._type === 'adjustment' || r._type === 'payment_record';
 
             let matchStatus = true;
@@ -445,7 +486,7 @@ export const Comissoes: React.FC = () => {
                 matchSearch = haystack.includes(q);
             }
 
-            return matchCliente && matchPedido && matchMes && matchTipo && matchStatus && matchSearch;
+            return matchPeriod && matchCliente && matchPedido && matchMes && matchTipo && matchStatus && matchSearch;
         });
 
         const dirMultiplier = sortDir === 'asc' ? 1 : -1;
@@ -563,7 +604,7 @@ export const Comissoes: React.FC = () => {
             }
             return cmp * dirMultiplier;
         });
-    }, [rows, clienteFilter, pedidoFilter, mesRefFilter, tipoFilter, statusFilter, searchQuery, sortField, sortDir, groupByPedido]);
+    }, [rows, startDate, includePendingPrevious, clienteFilter, pedidoFilter, mesRefFilter, tipoFilter, statusFilter, searchQuery, sortField, sortDir, groupByPedido]);
 
     // Conta Corrente Financial Calculations
     const calc = useMemo(() => {
@@ -571,6 +612,8 @@ export const Comissoes: React.FC = () => {
         let totalBloqueadoCarencia = 0;
         let totalBloqueadoFatura = 0;
         let totalElegivelReceber = 0;
+        let elegivelMesAtual = 0;
+        let elegivelAnterior = 0;
         let totalPago = 0;
         let totalAjustes = 0;
         let countVagas = 0;
@@ -579,13 +622,18 @@ export const Comissoes: React.FC = () => {
         filteredRows.forEach(r => {
             if (r._type === 'generated') {
                 totalBrutoGerado += r.valor;
-                if (r.tipo_lancamento === 'contratacao') countVagas++;
+                if (r.tipo_lancamento === 'contratacao' && r.valor > 0) countVagas++;
                 if (r.tipo_lancamento === 'bonus_cliente_novo') countClientesNovos++;
 
                 if (r.status === 'PAGO') {
                     totalPago += r.valor;
                 } else if (r.status === 'ELEGIVEL') {
                     totalElegivelReceber += r.valor;
+                    if (r.isBeforeStart) {
+                        elegivelAnterior += r.valor;
+                    } else {
+                        elegivelMesAtual += r.valor;
+                    }
                 } else if (r.status === 'BLOQUEADA_FATURA') {
                     totalBloqueadoFatura += r.valor;
                 } else {
@@ -594,6 +642,7 @@ export const Comissoes: React.FC = () => {
             } else if (r._type === 'adjustment') {
                 totalAjustes += r.valor;
                 totalElegivelReceber += r.valor;
+                elegivelMesAtual += r.valor;
             } else if (r._type === 'payment_record') {
                 totalPago += Math.abs(r.valor);
             }
@@ -604,6 +653,8 @@ export const Comissoes: React.FC = () => {
             totalBloqueadoCarencia,
             totalBloqueadoFatura,
             totalElegivelReceber,
+            elegivelMesAtual,
+            elegivelAnterior,
             totalPago,
             totalAjustes,
             countVagas,
@@ -822,34 +873,27 @@ export const Comissoes: React.FC = () => {
         }
     };
 
-    const exportToExcel = () => {
-        const dataToExport = filteredRows.map(r => ({
-            'Data Referência': r.date ? new Date(r.date + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
-            'Mês Faturamento': r.mes_referencia_label || '-',
-            'Vendedor': r.vendedor_nome,
-            'Regra Aplicada': r.regra_aplicada === 'individual' ? 'Individual do Vendedor' : 'Padrão Global',
-            'Cliente': r.cliente_nome || '-',
-            'Cadastro Cliente': r.cliente_created_at ? new Date(r.cliente_created_at + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
-            'Pedido': r.pedido_cod || '-',
-            'Data Início Pedido': r.pedido_start_date ? new Date(r.pedido_start_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
-            'Tipo': r.tipo_lancamento === 'bonus_cliente_novo' ? 'Bônus Cliente Novo' : r.tipo_lancamento === 'contratacao' ? 'Contratação (Vaga)' : r.tipo_lancamento,
-            'Trabalhador Titular / Histórico': r.desc,
-            'Documento': r.worker_doc || '-',
-            'Função': r.job_function || '-',
-            'Início Trabalhador': r.start_date ? new Date(r.start_date + 'T12:00:00').toLocaleDateString('pt-PT') : '-',
-            'Saída Trabalhador': r.end_date ? new Date(r.end_date + 'T12:00:00').toLocaleDateString('pt-PT') : 'Ativo',
-            'Repasses na Vaga': r.repasses_count || 0,
-            'Dias Trabalhados': r._type === 'generated' && r.tipo_lancamento === 'contratacao' ? `${r.dias_trabalhados}/${r.carencia_dias_meta}` : '-',
-            'Fatura do Mês': r.fatura_status_label || '-',
-            'Valor (€)': r.valor,
-            'Status Conta Corrente': r.status,
-            'Observação / Bloqueio': r.motivo_bloqueio || 'Liberado'
-        }));
+    const getExportMetadata = () => ({
+        sellerName: activeRuleSummary.sellerName || (vendedorFilter ? vendedorFilter : 'Todos os Vendedores'),
+        sellerEmail: vendedorFilter || undefined,
+        isCustomRule: activeRuleSummary.isCustom,
+        comissaoBase: Number(activeRuleSummary.comissao_base),
+        bonusNovoCliente: Number(activeRuleSummary.bonus_novo_cliente),
+        carenciaDias: Number(activeRuleSummary.carencia_dias),
+        startDate,
+        endDate,
+        includePendingPrevious,
+        calc
+    });
 
-        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
-        const workbook = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Conta_Corrente_Comissoes');
-        XLSX.writeFile(workbook, `Conta_Corrente_Comissoes_${startDate}_a_${endDate}.xlsx`);
+    const handleExportExcel = () => {
+        setIsExportMenuOpen(false);
+        exportCommissionsToExcel(filteredRows, getExportMetadata());
+    };
+
+    const handleExportPDF = () => {
+        setIsExportMenuOpen(false);
+        exportCommissionsToPDF(filteredRows, getExportMetadata());
     };
 
     const renderSortIcon = (field: SortField) => {
@@ -893,12 +937,62 @@ export const Comissoes: React.FC = () => {
                             <PlusCircle size={14} /> Lançamento / Ajuste Extra
                         </button>
 
-                        <button
-                            onClick={exportToExcel}
-                            className="px-3 py-1.5 text-xs font-medium border border-slate-700 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors flex items-center gap-1.5"
-                        >
-                            <Download size={14} /> Exportar Excel
-                        </button>
+                        {/* Export Dropdown (PDF Horizontal or Excel) */}
+                        <div className="relative">
+                            <button
+                                type="button"
+                                onClick={() => setIsExportMenuOpen(prev => !prev)}
+                                className="px-3 py-1.5 text-xs font-semibold border border-slate-700 rounded-lg bg-slate-800 text-white hover:bg-slate-700 transition-colors flex items-center gap-1.5 shadow-xs"
+                            >
+                                <Download size={14} />
+                                <span>Exportar (PDF / Excel)</span>
+                                <ChevronDown size={13} className={`transition-transform ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+                            </button>
+
+                            {isExportMenuOpen && (
+                                <>
+                                    <div
+                                        className="fixed inset-0 z-30"
+                                        onClick={() => setIsExportMenuOpen(false)}
+                                    />
+                                    <div className="absolute right-0 mt-1.5 w-64 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl shadow-xl z-40 py-1.5 overflow-hidden">
+                                        <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400 border-b border-slate-100 dark:border-slate-700/70">
+                                            Escolha o Formato do Relatório
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={handleExportPDF}
+                                            className="w-full px-3 py-2 text-left text-xs hover:bg-red-50 dark:hover:bg-red-950/30 flex items-start gap-2.5 transition-colors"
+                                        >
+                                            <FileText size={16} className="text-red-600 dark:text-red-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <div className="font-bold text-slate-800 dark:text-slate-100">
+                                                    Relatório PDF (Horizontal)
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                    Modelo comercial formatado com validação de 15d, fatura e resumo
+                                                </div>
+                                            </div>
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleExportExcel}
+                                            className="w-full px-3 py-2 text-left text-xs hover:bg-emerald-50 dark:hover:bg-emerald-950/30 flex items-start gap-2.5 transition-colors border-t border-slate-100 dark:border-slate-700/60"
+                                        >
+                                            <FileSpreadsheet size={16} className="text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                                            <div>
+                                                <div className="font-bold text-slate-800 dark:text-slate-100">
+                                                    Planilha Excel (.xlsx)
+                                                </div>
+                                                <div className="text-[11px] text-slate-500 dark:text-slate-400">
+                                                    Tabela completa editável para cálculos e conferência
+                                                </div>
+                                            </div>
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     </div>
                 )}
             </div>
@@ -959,7 +1053,7 @@ export const Comissoes: React.FC = () => {
                     )}
                 </div>
 
-                {/* Right Side: Period Presets + Date Range + Refresh */}
+                {/* Right Side: Period Presets + Date Range + Conta Corrente Carry-Over Toggle + Refresh */}
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-bold uppercase tracking-wider text-slate-500">Período:</span>
                     <div className="flex items-center gap-1 bg-white dark:bg-slate-900 p-1 rounded-lg border border-slate-200 dark:border-slate-700 text-xs">
@@ -1000,6 +1094,26 @@ export const Comissoes: React.FC = () => {
                             className="bg-transparent border-none outline-none text-xs sm:text-sm font-medium dark:text-white"
                         />
                     </div>
+
+                    {startDate > '2026-07-01' && (
+                        <button
+                            type="button"
+                            onClick={() => setIncludePendingPrevious(prev => !prev)}
+                            title="Modo Conta Corrente: quando ativo, inclui trabalhadores que iniciaram em meses anteriores e completaram os 15 dias neste período ou cujas comissões ainda estão em aberto (não pagas)."
+                            className={`px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-colors flex items-center gap-1.5 ${
+                                includePendingPrevious
+                                    ? 'bg-emerald-50 text-emerald-800 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-700'
+                                    : 'bg-white dark:bg-slate-900 text-slate-500 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                            }`}
+                        >
+                            <span className={`w-2 h-2 rounded-full ${includePendingPrevious ? 'bg-emerald-500' : 'bg-slate-300'}`} />
+                            <span>
+                                {includePendingPrevious
+                                    ? `Conta Corrente (+ ${retroactiveCarryCount} pendentes ant.)`
+                                    : `Só Iniciados no Mês (ocultando ${retroactiveCarryCount} ant.)`}
+                            </span>
+                        </button>
+                    )}
 
                     <button
                         onClick={loadData}
@@ -1087,10 +1201,14 @@ export const Comissoes: React.FC = () => {
                     <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                         € {calc.totalElegivelReceber.toFixed(2)}
                     </div>
-                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between">
-                        <span>Já Pago: <b className="text-slate-700 dark:text-slate-200">€ {calc.totalPago.toFixed(2)}</b></span>
-                        {calc.totalAjustes !== 0 && (
-                            <span>Ajustes: <b>€ {calc.totalAjustes.toFixed(2)}</b></span>
+                    <div className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 flex items-center justify-between flex-wrap gap-1">
+                        {calc.elegivelAnterior > 0 ? (
+                            <span>Mês: <b>€ {calc.elegivelMesAtual.toFixed(0)}</b> • Ant.: <b className="text-amber-600 dark:text-amber-400">€ {calc.elegivelAnterior.toFixed(0)}</b></span>
+                        ) : (
+                            <span>Já Pago: <b className="text-slate-700 dark:text-slate-200">€ {calc.totalPago.toFixed(2)}</b></span>
+                        )}
+                        {calc.elegivelAnterior > 0 && (
+                            <span>Pago: <b>€ {calc.totalPago.toFixed(0)}</b></span>
                         )}
                     </div>
                 </div>
@@ -1218,6 +1336,7 @@ export const Comissoes: React.FC = () => {
                     <option value="bonus_cliente_novo">Bônus Cliente Novo (€ {activeRuleSummary.bonus_novo_cliente})</option>
                     <option value="com_repasses">Vagas com Repasse / Substituição</option>
                     <option value="com_remanejamento">⇄ Trabalhadores com Remanejamento entre Pedidos</option>
+                    <option value="acumulado_anterior">⏳ Acumulados / Validados de Meses Anteriores</option>
                     <option value="ajuste">Ajustes Manuais / Pagamentos</option>
                 </select>
 
@@ -1668,6 +1787,24 @@ export const Comissoes: React.FC = () => {
                                                                 >
                                                                     → P/ {row.remanejado_para_pedido.replace('PED-2026-00', 'PED-')}
                                                                 </button>
+                                                            )}
+
+                                                            {row.isValidatedInPeriod && (
+                                                                <span
+                                                                    className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-teal-100 text-teal-800 dark:bg-teal-900/40 dark:text-teal-300 border border-teal-300 dark:border-teal-700"
+                                                                    title={`Iniciou no fim do mês anterior (${row.mes_referencia_label}) e completou os 15 dias em ${row.data_fim_carencia ? new Date(row.data_fim_carencia + 'T12:00:00').toLocaleDateString('pt-PT') : ''} (dentro deste período)`}
+                                                                >
+                                                                    🗓️ 15d no Mês ({String(row.mes_referencia_label || '').split(' ')[0].slice(0, 3)})
+                                                                </span>
+                                                            )}
+
+                                                            {row.isRetroactiveOpen && (
+                                                                <span
+                                                                    className="shrink-0 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-800 dark:bg-amber-950/50 dark:text-amber-300 border border-amber-300 dark:border-amber-700"
+                                                                    title={`Comissão gerada em ${row.mes_referencia_label} que continua em aberto na Conta Corrente (ainda não paga)`}
+                                                                >
+                                                                    ⏳ Ant. ({String(row.mes_referencia_label || '').split(' ')[0].slice(0, 3)})
+                                                                </span>
                                                             )}
                                                         </div>
                                                     </td>
