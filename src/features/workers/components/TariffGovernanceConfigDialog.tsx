@@ -26,6 +26,8 @@ import {
     updateTariffGovernanceSettings,
     DEFAULT_EMAIL_SUBJECT,
     DEFAULT_EMAIL_BODY,
+    DEFAULT_EMAIL_SUBJECT_ES,
+    DEFAULT_EMAIL_BODY_ES,
     type TariffAuthorizer
 } from '../api/tariffGovernanceApi';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -52,8 +54,11 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
     const [selectedUserId, setSelectedUserId] = useState('');
     const [savingAuth, setSavingAuth] = useState(false);
 
+    const [emailLangTab, setEmailLangTab] = useState<'pt' | 'es'>('pt');
     const [subjectTemplate, setSubjectTemplate] = useState(DEFAULT_EMAIL_SUBJECT);
     const [bodyTemplate, setBodyTemplate] = useState(DEFAULT_EMAIL_BODY);
+    const [subjectTemplateEs, setSubjectTemplateEs] = useState(DEFAULT_EMAIL_SUBJECT_ES);
+    const [bodyTemplateEs, setBodyTemplateEs] = useState(DEFAULT_EMAIL_BODY_ES);
     const [savingEmail, setSavingEmail] = useState(false);
 
     const { data: systemUsers = [] } = useQuery({
@@ -81,6 +86,8 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
         if (settings) {
             setSubjectTemplate(settings.email_subject_template || DEFAULT_EMAIL_SUBJECT);
             setBodyTemplate(settings.email_body_template || DEFAULT_EMAIL_BODY);
+            setSubjectTemplateEs(settings.email_subject_template_es || DEFAULT_EMAIL_SUBJECT_ES);
+            setBodyTemplateEs(settings.email_body_template_es || DEFAULT_EMAIL_BODY_ES);
         }
     }, [settings]);
 
@@ -140,7 +147,7 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
 
     const handleSaveEmailTemplate = async () => {
         if (!subjectTemplate.trim() || !bodyTemplate.trim()) {
-            toast.error('Assunto e corpo do e-mail não podem ficar vazios.');
+            toast.error('Assunto e corpo do e-mail em Português não podem ficar vazios.');
             return;
         }
         setSavingEmail(true);
@@ -148,10 +155,12 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
             await updateTariffGovernanceSettings({
                 email_subject_template: subjectTemplate.trim(),
                 email_body_template: bodyTemplate.trim(),
+                email_subject_template_es: subjectTemplateEs.trim() || DEFAULT_EMAIL_SUBJECT_ES,
+                email_body_template_es: bodyTemplateEs.trim() || DEFAULT_EMAIL_BODY_ES,
                 updated_by_email: user?.email || undefined
             });
             queryClient.invalidateQueries({ queryKey: ['tariff-governance-settings'] });
-            toast.success('Modelo de e-mail salvo com sucesso!');
+            toast.success('Modelos de e-mail (PT e ES) salvos com sucesso!');
         } catch (err: any) {
             toast.error(err?.message || 'Erro ao salvar modelo de e-mail.');
         } finally {
@@ -301,6 +310,32 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
                         </TabsContent>
 
                         <TabsContent value="email" className="space-y-4 pt-3">
+                            <div className="flex items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900 p-2 rounded-lg border">
+                                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+                                    Idioma do Modelo:
+                                </span>
+                                <div className="flex gap-1.5">
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={emailLangTab === 'pt' ? 'default' : 'outline'}
+                                        className={`h-7 text-xs ${emailLangTab === 'pt' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                        onClick={() => setEmailLangTab('pt')}
+                                    >
+                                        Português (PT)
+                                    </Button>
+                                    <Button
+                                        type="button"
+                                        size="sm"
+                                        variant={emailLangTab === 'es' ? 'default' : 'outline'}
+                                        className={`h-7 text-xs ${emailLangTab === 'es' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                        onClick={() => setEmailLangTab('es')}
+                                    >
+                                        Espanhol (ES)
+                                    </Button>
+                                </div>
+                            </div>
+
                             <div className="space-y-1.5">
                                 <Label className="text-xs font-bold">Variáveis Disponíveis (clique para inserir no corpo)</Label>
                                 <div className="flex flex-wrap gap-1.5">
@@ -308,7 +343,13 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
                                         <button
                                             key={v.key}
                                             type="button"
-                                            onClick={() => setBodyTemplate(prev => `${prev} ${v.key}`)}
+                                            onClick={() => {
+                                                if (emailLangTab === 'pt') {
+                                                    setBodyTemplate(prev => `${prev} ${v.key}`);
+                                                } else {
+                                                    setBodyTemplateEs(prev => `${prev} ${v.key}`);
+                                                }
+                                            }}
                                             className="px-2 py-1 rounded border bg-indigo-50/70 hover:bg-indigo-100 text-indigo-700 border-indigo-200 text-[11px] font-mono transition-colors"
                                             title={v.desc}
                                         >
@@ -319,21 +360,33 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-bold">Assunto do E-mail</Label>
+                                <Label className="text-xs font-bold">
+                                    Assunto do E-mail ({emailLangTab === 'pt' ? 'Português' : 'Espanhol'})
+                                </Label>
                                 <Input
-                                    value={subjectTemplate}
-                                    onChange={(e) => setSubjectTemplate(e.target.value)}
+                                    value={emailLangTab === 'pt' ? subjectTemplate : subjectTemplateEs}
+                                    onChange={(e) =>
+                                        emailLangTab === 'pt'
+                                            ? setSubjectTemplate(e.target.value)
+                                            : setSubjectTemplateEs(e.target.value)
+                                    }
                                     className="text-xs"
                                     placeholder="Assunto do e-mail..."
                                 />
                             </div>
 
                             <div className="space-y-1.5">
-                                <Label className="text-xs font-bold">Corpo do E-mail (HTML)</Label>
+                                <Label className="text-xs font-bold">
+                                    Corpo do E-mail (HTML - {emailLangTab === 'pt' ? 'Português' : 'Espanhol'})
+                                </Label>
                                 <Textarea
-                                    value={bodyTemplate}
-                                    onChange={(e) => setBodyTemplate(e.target.value)}
-                                    className="min-h-[210px] font-mono text-xs leading-relaxed"
+                                    value={emailLangTab === 'pt' ? bodyTemplate : bodyTemplateEs}
+                                    onChange={(e) =>
+                                        emailLangTab === 'pt'
+                                            ? setBodyTemplate(e.target.value)
+                                            : setBodyTemplateEs(e.target.value)
+                                    }
+                                    className="min-h-[200px] font-mono text-xs leading-relaxed"
                                 />
                             </div>
 
@@ -344,12 +397,17 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
                                     size="sm"
                                     className="h-8 text-xs gap-1.5"
                                     onClick={() => {
-                                        setSubjectTemplate(DEFAULT_EMAIL_SUBJECT);
-                                        setBodyTemplate(DEFAULT_EMAIL_BODY);
+                                        if (emailLangTab === 'pt') {
+                                            setSubjectTemplate(DEFAULT_EMAIL_SUBJECT);
+                                            setBodyTemplate(DEFAULT_EMAIL_BODY);
+                                        } else {
+                                            setSubjectTemplateEs(DEFAULT_EMAIL_SUBJECT_ES);
+                                            setBodyTemplateEs(DEFAULT_EMAIL_BODY_ES);
+                                        }
                                     }}
                                 >
                                     <RotateCcw className="w-3.5 h-3.5" />
-                                    Restaurar Padrão
+                                    Restaurar Padrão ({emailLangTab.toUpperCase()})
                                 </Button>
                                 <Button
                                     type="button"
@@ -359,7 +417,7 @@ export function TariffGovernanceConfigDialog({ trigger }: TariffGovernanceConfig
                                     onClick={handleSaveEmailTemplate}
                                 >
                                     {savingEmail ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Save className="w-3.5 h-3.5" />}
-                                    Salvar Modelo de E-mail
+                                    Salvar Modelos de E-mail
                                 </Button>
                             </div>
                         </TabsContent>

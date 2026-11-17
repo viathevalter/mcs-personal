@@ -26,6 +26,10 @@ export interface TariffAuthorizationRequest {
     itens_solicitacao: TariffItemRequest[];
     assinatura_base64?: string;
     assinado_em?: string;
+    tipo_assinatura?: 'desenho' | 'imagem' | 'texto' | string;
+    motivo_rejeicao?: string;
+    rejeitado_em?: string;
+    rejeitado_por_nome?: string;
     task_id?: string;
     created_at: string;
 }
@@ -62,6 +66,8 @@ export interface TariffGovernanceSettings {
     id: string;
     email_subject_template: string;
     email_body_template: string;
+    email_subject_template_es?: string;
+    email_body_template_es?: string;
     updated_at?: string;
     updated_by_email?: string;
 }
@@ -95,6 +101,19 @@ export const DEFAULT_EMAIL_BODY = `<p>Olá, <strong>{{gerente}}</strong>,</p>
 <p>Para revisar e assinar eletronicamente (é necessário estar logado com seu e-mail corporativo), acesse o link abaixo:</p>
 <p><a href="{{link}}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Revisar e Assinar Termo</a></p>
 <p style="font-size:12px;color:#64748b;">Caso o botão não funcione, copie e cole no navegador: {{link}}</p>`;
+
+export const DEFAULT_EMAIL_SUBJECT_ES =
+    'Autorización de Ajuste de Tarifa ({{codigo}}) - Vigencia {{vigencia}}';
+
+export const DEFAULT_EMAIL_BODY_ES = `<p>Hola, <strong>{{gerente}}</strong>,</p>
+<p><strong>{{solicitante}}</strong> ha generado el Termo de Autorización de Tarifa <strong>{{codigo}}</strong> con vigencia a partir de <strong>{{vigencia}}</strong>.</p>
+<p>Se te ha asignado una tarea en la <strong>Super Gaveta Operacional</strong> del sistema.</p>
+<p><strong>Trabajadores / Tarifas:</strong></p>
+{{itens}}
+<p><strong>Justificación:</strong><br/>{{justificativa}}</p>
+<p>Para revisar y firmar electrónicamente (es necesario iniciar sesión con tu correo corporativo), accede al siguiente enlace:</p>
+<p><a href="{{link}}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Revisar y Firmar Termo</a></p>
+<p style="font-size:12px;color:#64748b;">Si el botón no funciona, copia y pega este enlace en tu navegador: {{link}}</p>`;
 
 export function formatMesVigenciaLabel(mesVigencia?: string): string {
     if (!mesVigencia || !/^\d{4}-\d{2}$/.test(mesVigencia)) return mesVigencia || '-';
@@ -246,15 +265,23 @@ export async function getTariffGovernanceSettings(): Promise<TariffGovernanceSet
         return {
             id: 'default',
             email_subject_template: DEFAULT_EMAIL_SUBJECT,
-            email_body_template: DEFAULT_EMAIL_BODY
+            email_body_template: DEFAULT_EMAIL_BODY,
+            email_subject_template_es: DEFAULT_EMAIL_SUBJECT_ES,
+            email_body_template_es: DEFAULT_EMAIL_BODY_ES
         };
     }
-    return data as TariffGovernanceSettings;
+    return {
+        ...(data as TariffGovernanceSettings),
+        email_subject_template_es: data.email_subject_template_es || DEFAULT_EMAIL_SUBJECT_ES,
+        email_body_template_es: data.email_body_template_es || DEFAULT_EMAIL_BODY_ES
+    };
 }
 
 export async function updateTariffGovernanceSettings(payload: {
     email_subject_template: string;
     email_body_template: string;
+    email_subject_template_es?: string;
+    email_body_template_es?: string;
     updated_by_email?: string;
 }): Promise<void> {
     const { error } = await supabase
@@ -265,6 +292,8 @@ export async function updateTariffGovernanceSettings(payload: {
                 id: 'default',
                 email_subject_template: payload.email_subject_template,
                 email_body_template: payload.email_body_template,
+                email_subject_template_es: payload.email_subject_template_es || DEFAULT_EMAIL_SUBJECT_ES,
+                email_body_template_es: payload.email_body_template_es || DEFAULT_EMAIL_BODY_ES,
                 updated_by_email: payload.updated_by_email || null,
                 updated_at: new Date().toISOString()
             },
@@ -274,7 +303,7 @@ export async function updateTariffGovernanceSettings(payload: {
     if (error) throw error;
 }
 
-function renderEmailTemplate(
+export function renderEmailTemplate(
     template: string,
     vars: Record<string, string>
 ): string {
@@ -283,6 +312,51 @@ function renderEmailTemplate(
         output = output.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi'), val);
     }
     return output;
+}
+
+export function buildTariffEmailFromTemplate(params: {
+    lang: 'pt' | 'es';
+    settings: TariffGovernanceSettings;
+    gerenteNome: string;
+    solicitanteNome: string;
+    mesVigencia: string;
+    codigoTermo: string;
+    itens: TariffItemRequest[];
+    justificativa: string;
+    signingUrl: string;
+}): { subject: string; body: string } {
+    const vigenciaLabel = formatMesVigenciaLabel(params.mesVigencia);
+    const itensHtml = `<ul style="padding-left:18px;margin:8px 0;">${params.itens
+        .map(
+            i =>
+                `<li><strong>${i.worker_nome}</strong> (${i.cod_colab || '-'} • ${i.cliente_nombre || '-'}): € ${i.tarifa_anterior.toFixed(2)} &rarr; <strong style="color:#4f46e5;">€ ${i.tarifa_nova.toFixed(2)}/h</strong></li>`
+        )
+        .join('')}</ul>`;
+
+    const vars = {
+        gerente: params.gerenteNome,
+        solicitante: params.solicitanteNome,
+        vigencia: vigenciaLabel,
+        codigo: params.codigoTermo,
+        itens: itensHtml,
+        justificativa: (params.justificativa || '-').replace(/\n/g, '<br/>'),
+        link: params.signingUrl
+    };
+
+    const subjectTpl =
+        params.lang === 'es'
+            ? params.settings.email_subject_template_es || DEFAULT_EMAIL_SUBJECT_ES
+            : params.settings.email_subject_template || DEFAULT_EMAIL_SUBJECT;
+
+    const bodyTpl =
+        params.lang === 'es'
+            ? params.settings.email_body_template_es || DEFAULT_EMAIL_BODY_ES
+            : params.settings.email_body_template || DEFAULT_EMAIL_BODY;
+
+    return {
+        subject: renderEmailTemplate(subjectTpl, vars),
+        body: renderEmailTemplate(bodyTpl, vars)
+    };
 }
 
 export async function createTariffAuthorizationRequest(payload: {
@@ -297,6 +371,9 @@ export async function createTariffAuthorizationRequest(payload: {
     motivoAlteracao?: string;
     itens: TariffItemRequest[];
     empresaId?: string | null;
+    emailLanguage?: 'pt' | 'es';
+    customEmailSubject?: string;
+    customEmailBody?: string;
 }): Promise<{
     request: TariffAuthorizationRequest;
     token: string;
@@ -411,25 +488,31 @@ export async function createTariffAuthorizationRequest(payload: {
     let emailError: string | undefined;
     try {
         const settings = await getTariffGovernanceSettings();
-        const itensHtml = `<ul style="padding-left:18px;margin:8px 0;">${payload.itens
-            .map(
-                i =>
-                    `<li><strong>${i.worker_nome}</strong> (${i.cod_colab || '-'} • ${i.cliente_nombre || '-'}): € ${i.tarifa_anterior.toFixed(2)} &rarr; <strong style="color:#4f46e5;">€ ${i.tarifa_nova.toFixed(2)}/h</strong></li>`
-            )
-            .join('')}</ul>`;
+        const rendered = buildTariffEmailFromTemplate({
+            lang: payload.emailLanguage || 'pt',
+            settings,
+            gerenteNome: payload.gerenteNome,
+            solicitanteNome: payload.solicitanteNome,
+            mesVigencia: payload.mesVigencia,
+            codigoTermo,
+            itens: payload.itens,
+            justificativa,
+            signingUrl
+        });
 
-        const templateVars = {
-            gerente: payload.gerenteNome,
-            solicitante: payload.solicitanteNome,
-            vigencia: vigenciaLabel,
-            codigo: codigoTermo,
-            itens: itensHtml,
-            justificativa: justificativa.replace(/\n/g, '<br/>'),
-            link: signingUrl
-        };
+        let emailSubject = rendered.subject;
+        let emailBody = rendered.body;
 
-        const emailSubject = renderEmailTemplate(settings.email_subject_template, templateVars);
-        const emailBody = renderEmailTemplate(settings.email_body_template, templateVars);
+        if (payload.customEmailSubject && payload.customEmailSubject.trim()) {
+            emailSubject = payload.customEmailSubject
+                .replace(/\{\{\s*codigo\s*\}\}/gi, codigoTermo)
+                .replace(/\{\{\s*link\s*\}\}/gi, signingUrl);
+        }
+        if (payload.customEmailBody && payload.customEmailBody.trim()) {
+            emailBody = payload.customEmailBody
+                .replace(/\{\{\s*codigo\s*\}\}/gi, codigoTermo)
+                .replace(/\{\{\s*link\s*\}\}/gi, signingUrl);
+        }
 
         const { data: fnData, error: fnErr } = await supabase.functions.invoke('send-order-notification', {
             body: {
@@ -482,6 +565,7 @@ export async function approveAndApplyTariffAuthorization(payload: {
     token: string;
     assinaturaBase64: string;
     signerEmail: string;
+    tipoAssinatura?: 'desenho' | 'imagem' | 'texto';
 }): Promise<{ success: boolean; updatedCount: number; appliedImmediately: boolean; mesVigencia: string }> {
     const request = await getTariffAuthorizationByToken(payload.token);
     if (!request) {
@@ -490,6 +574,9 @@ export async function approveAndApplyTariffAuthorization(payload: {
 
     if (request.status === 'APROVADO') {
         throw new Error('Esta solicitação já foi aprovada e aplicada anteriormente.');
+    }
+    if (request.status === 'REJEITADO') {
+        throw new Error('Esta solicitação já foi marcada como Não Autorizada.');
     }
 
     if (request.gerente_email) {
@@ -508,6 +595,7 @@ export async function approveAndApplyTariffAuthorization(payload: {
             status: 'APROVADO',
             assinatura_base64: payload.assinaturaBase64,
             assinado_em: nowIso,
+            tipo_assinatura: payload.tipoAssinatura || 'desenho',
             updated_at: nowIso
         })
         .eq('id', request.id);
@@ -689,10 +777,79 @@ export async function listTariffAuthorizationRequests(): Promise<(TariffAuthoriz
         itens_solicitacao: r.itens_solicitacao || [],
         assinatura_base64: r.assinatura_base64,
         assinado_em: r.assinado_em,
+        tipo_assinatura: r.tipo_assinatura,
+        motivo_rejeicao: r.motivo_rejeicao,
+        rejeitado_em: r.rejeitado_em,
+        rejeitado_por_nome: r.rejeitado_por_nome,
         task_id: r.task_id,
         created_at: r.created_at,
         url: `${baseUrl}/tariffs/authorization/${r.token_assinatura}`
     }));
+}
+
+export async function rejectTariffAuthorization(payload: {
+    token: string;
+    motivoRejeicao: string;
+    rejectorEmail: string;
+    rejectorNome?: string;
+}): Promise<{ success: boolean }> {
+    const request = await getTariffAuthorizationByToken(payload.token);
+    if (!request) {
+        throw new Error('Solicitação de autorização não encontrada.');
+    }
+
+    if (request.status === 'APROVADO') {
+        throw new Error('Esta solicitação já foi aprovada anteriormente.');
+    }
+    if (request.status === 'REJEITADO') {
+        throw new Error('Esta solicitação já foi marcada como Não Autorizada.');
+    }
+
+    if (request.gerente_email) {
+        const expected = request.gerente_email.trim().toLowerCase();
+        const actual = payload.rejectorEmail.trim().toLowerCase();
+        if (expected !== actual) {
+            throw new Error(`Apenas o autorizador designado (${expected}) pode recusar este termo. Você está logado como ${actual}.`);
+        }
+    }
+
+    const reason = payload.motivoRejeicao.trim();
+    if (!reason) {
+        throw new Error('Informe a justificativa da não autorização.');
+    }
+
+    const nowIso = new Date().toISOString();
+    const rejectorName = payload.rejectorNome || request.gerente_nome;
+
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .update({
+            status: 'REJEITADO',
+            motivo_rejeicao: reason,
+            rejeitado_em: nowIso,
+            rejeitado_por_nome: rejectorName,
+            updated_at: nowIso
+        })
+        .eq('id', request.id);
+
+    if (error) {
+        console.error('Error rejecting tariff authorization:', error);
+        throw error;
+    }
+
+    if (request.task_id) {
+        try {
+            await supabase.schema('core_operacoes').rpc('concluir_tarefa_termo_tarifa', {
+                p_task_id: request.task_id,
+                p_signed_by: `${rejectorName} (NÃO AUTORIZADO: ${reason})`
+            });
+        } catch (taskErr) {
+            console.error('Error completing linked Super Gaveta task on rejection:', taskErr);
+        }
+    }
+
+    return { success: true };
 }
 
 export interface WorkerTariffStatusBadge {

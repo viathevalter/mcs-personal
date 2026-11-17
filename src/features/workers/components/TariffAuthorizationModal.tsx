@@ -19,7 +19,6 @@ import {
     ShieldCheck,
     Copy,
     Check,
-    MessageSquare,
     Send,
     Bold,
     List,
@@ -29,7 +28,11 @@ import {
     Mail,
     CheckCircle2,
     AlertTriangle,
-    ClipboardList
+    ClipboardList,
+    Languages,
+    ChevronDown,
+    ChevronUp,
+    RotateCcw
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,6 +41,8 @@ import {
     createTariffAuthorizationRequest,
     listSystemUsers,
     listTariffAuthorizers,
+    getTariffGovernanceSettings,
+    buildTariffEmailFromTemplate,
     getCurrentYearMonth,
     formatMesVigenciaLabel,
     type TariffItemRequest,
@@ -71,11 +76,25 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         refetchOnWindowFocus: false
     });
 
+    const { data: governanceSettings } = useQuery({
+        queryKey: ['tariff-governance-settings'],
+        queryFn: getTariffGovernanceSettings,
+        enabled: open,
+        refetchOnWindowFocus: false
+    });
+
     const [solicitanteNome, setSolicitanteNome] = useState('');
     const [solicitanteEmail, setSolicitanteEmail] = useState('');
     const [selectedAuthorizerEmail, setSelectedAuthorizerEmail] = useState('');
     const [mesVigencia, setMesVigencia] = useState<string>(getCurrentYearMonth());
     const [motivoAlteracao, setMotivoAlteracao] = useState('');
+
+    // Email language & customization
+    const [emailLang, setEmailLang] = useState<'pt' | 'es'>('pt');
+    const [showEmailEditor, setShowEmailEditor] = useState(false);
+    const [emailEditedManually, setEmailEditedManually] = useState(false);
+    const [customSubject, setCustomSubject] = useState('');
+    const [customBody, setCustomBody] = useState('');
 
     // Map of worker_id -> proposed new tariff
     const [proposedTariffs, setProposedTariffs] = useState<Record<string, string>>({});
@@ -127,12 +146,54 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
             setProposedTariffs(initialMap);
             setMesVigencia(getCurrentYearMonth());
             setMotivoAlteracao('');
+            setEmailLang('pt');
+            setEmailEditedManually(false);
+            setShowEmailEditor(false);
         }
     }, [open, workers]);
 
     const selectedAuthorizer = authorizers.find(
         a => a.email.toLowerCase() === selectedAuthorizerEmail.toLowerCase()
     );
+
+    const buildPreviewItems = React.useCallback((): TariffItemRequest[] => {
+        return (workers || []).map(w => {
+            const currentTariff = Number(w.worker_beneficios_settings?.tarifa_hora || 0);
+            const rawProposed = proposedTariffs[w.id] || '0';
+            const newTariff = parseFloat(rawProposed.replace(',', '.')) || 0;
+            return {
+                worker_id: w.id,
+                worker_nome: w.nome,
+                cod_colab: w.cod_colab,
+                cliente_nombre: w.cliente_nombre,
+                tarifa_anterior: currentTariff,
+                tarifa_nova: newTariff
+            };
+        });
+    }, [workers, proposedTariffs]);
+
+    const syncEmailFromTemplate = React.useCallback((langOverride?: 'pt' | 'es') => {
+        if (!governanceSettings) return;
+        const rendered = buildTariffEmailFromTemplate({
+            lang: langOverride || emailLang,
+            settings: governanceSettings,
+            gerenteNome: selectedAuthorizer?.nome || '{{gerente}}',
+            solicitanteNome: solicitanteNome || '{{solicitante}}',
+            mesVigencia,
+            codigoTermo: '{{codigo}}',
+            itens: buildPreviewItems(),
+            justificativa: motivoAlteracao || '-',
+            signingUrl: '{{link}}'
+        });
+        setCustomSubject(rendered.subject);
+        setCustomBody(rendered.body);
+    }, [governanceSettings, emailLang, selectedAuthorizer, solicitanteNome, mesVigencia, buildPreviewItems, motivoAlteracao]);
+
+    useEffect(() => {
+        if (open && !emailEditedManually && governanceSettings) {
+            syncEmailFromTemplate();
+        }
+    }, [open, emailEditedManually, governanceSettings, syncEmailFromTemplate]);
 
     const handleTariffChange = (workerId: string, value: string) => {
         setProposedTariffs(prev => ({
@@ -199,7 +260,10 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                 mesVigencia,
                 motivoAlteracao,
                 itens: items,
-                empresaId: selectedEmpresaId || null
+                empresaId: selectedEmpresaId || null,
+                emailLanguage: emailLang,
+                customEmailSubject: customSubject,
+                customEmailBody: customBody
             });
 
             setGeneratedResult({
@@ -234,27 +298,6 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         setCopied(true);
         toast.success('Link de autorização copiado!');
         setTimeout(() => setCopied(false), 2500);
-    };
-
-    const handleSendWhatsApp = () => {
-        if (!generatedResult) return;
-        const msg = encodeURIComponent(
-            `*MCS GLOBAL - Solicitação de Autorização de Tarifa*\n\n` +
-            `Olá *${generatedResult.gerenteNome}*,\n` +
-            `Foi solicitada uma alteração de tarifas (Termo *${generatedResult.codigoTermo}*) com vigência a partir de *${formatMesVigenciaLabel(generatedResult.mesVigencia)}*.\n\n` +
-            `Por favor, acesse o link abaixo (logado com seu e-mail) para revisar e assinar:\n` +
-            `${generatedResult.url}`
-        );
-
-        let whatsappUrl = `https://wa.me/?text=${msg}`;
-        if (generatedResult.gerentePhone) {
-            const cleanPhone = generatedResult.gerentePhone.replace(/\D/g, '');
-            if (cleanPhone.length > 8) {
-                whatsappUrl = `https://wa.me/${cleanPhone}?text=${msg}`;
-            }
-        }
-
-        window.open(whatsappUrl, '_blank');
     };
 
     const handleClose = (newOpen: boolean) => {
@@ -345,18 +388,10 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                        <div className="flex justify-end pt-2">
                             <Button
-                                onClick={handleSendWhatsApp}
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs font-semibold h-10"
-                            >
-                                <MessageSquare className="w-4 h-4" />
-                                Enviar também via WhatsApp
-                            </Button>
-                            <Button
-                                variant="outline"
                                 onClick={() => handleClose(false)}
-                                className="h-10 text-xs"
+                                className="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 font-semibold px-6"
                             >
                                 Concluir
                             </Button>
@@ -491,9 +526,106 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                 className="text-xs bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 leading-relaxed font-sans"
                                 required
                             />
+                        </div>
+
+                        {/* Email Language & Inline Customization */}
+                        <div className="border rounded-lg p-3 bg-slate-50/70 dark:bg-slate-900/50 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Languages className="w-4 h-4 text-indigo-600" />
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                        Idioma do E-mail:
+                                    </span>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={emailLang === 'pt' ? 'default' : 'outline'}
+                                            className={`h-7 text-[11px] px-2.5 ${emailLang === 'pt' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                            onClick={() => {
+                                                setEmailLang('pt');
+                                                setEmailEditedManually(false);
+                                                syncEmailFromTemplate('pt');
+                                            }}
+                                        >
+                                            Português
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={emailLang === 'es' ? 'default' : 'outline'}
+                                            className={`h-7 text-[11px] px-2.5 ${emailLang === 'es' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                            onClick={() => {
+                                                setEmailLang('es');
+                                                setEmailEditedManually(false);
+                                                syncEmailFromTemplate('es');
+                                            }}
+                                        >
+                                            Espanhol
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-[11px] text-indigo-700 hover:bg-indigo-100/60 gap-1"
+                                    onClick={() => setShowEmailEditor(v => !v)}
+                                >
+                                    <Mail className="w-3.5 h-3.5" />
+                                    {showEmailEditor ? 'Ocultar Texto do E-mail' : 'Visualizar / Alterar E-mail'}
+                                    {showEmailEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </Button>
+                            </div>
+
+                            {showEmailEditor && (
+                                <div className="space-y-2 pt-2 border-t">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-[11px] font-semibold">Assunto do E-mail</Label>
+                                        {emailEditedManually && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 text-[10px] gap-1 text-slate-600"
+                                                onClick={() => {
+                                                    setEmailEditedManually(false);
+                                                    syncEmailFromTemplate();
+                                                }}
+                                            >
+                                                <RotateCcw className="w-3 h-3" /> Restaurar do modelo
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <Input
+                                        value={customSubject}
+                                        onChange={(e) => {
+                                            setEmailEditedManually(true);
+                                            setCustomSubject(e.target.value);
+                                        }}
+                                        className="h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+
+                                    <Label className="text-[11px] font-semibold block">Corpo do E-mail (HTML)</Label>
+                                    <Textarea
+                                        rows={6}
+                                        value={customBody}
+                                        onChange={(e) => {
+                                            setEmailEditedManually(true);
+                                            setCustomBody(e.target.value);
+                                        }}
+                                        className="text-[11px] font-mono bg-white dark:bg-slate-900 leading-relaxed"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">
+                                        As variáveis <code>{'{{codigo}}'}</code> e <code>{'{{link}}'}</code> serão substituídas automaticamente ao enviar.
+                                    </p>
+                                </div>
+                            )}
+
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                                 <Mail className="w-3 h-3 text-indigo-500" />
-                                Ao gerar, será criada uma tarefa na Super Gaveta e enviado um e-mail automático para <strong>{selectedAuthorizer?.email || 'o autorizador'}</strong>.
+                                Ao clicar em <strong>Enviar</strong>, será criada a tarefa na Super Gaveta e enviado o e-mail para <strong>{selectedAuthorizer?.email || 'o autorizador'}</strong>.
                             </p>
                         </div>
 
@@ -509,12 +641,12 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        Gerando Termo & Enviando...
+                                        Enviando...
                                     </>
                                 ) : (
                                     <>
                                         <Send className="w-4 h-4" />
-                                        Gerar Termo, Tarefa & Enviar E-mail
+                                        Enviar para Autorização
                                     </>
                                 )}
                             </Button>
