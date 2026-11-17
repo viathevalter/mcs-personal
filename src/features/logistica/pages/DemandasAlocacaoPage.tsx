@@ -53,7 +53,8 @@ import type {
   Cama,
   PedidoDemandaLogistica,
   TrabalhadorDemandaItem,
-  TrabalhadorAlojado
+  TrabalhadorAlojado,
+  ClienteBancoLogistica
 } from '../services/logisticsService';
 import { ExportLogisticaDialog, type ExportColumnDef } from '../components/ExportLogisticaDialog';
 import { AlojamentoSearchSelect } from '../components/AlojamentoSearchSelect';
@@ -108,6 +109,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [alojados, setAlojados] = useState<TrabalhadorAlojado[]>([]);
   const [alojamentos, setAlojamentos] = useState<Alojamento[]>([]);
   const [camasDisponiveis, setCamasDisponiveis] = useState<Cama[]>([]);
+  const [clientesBanco, setClientesBanco] = useState<ClienteBancoLogistica[]>([]);
+  const [activeClienteDropdown, setActiveClienteDropdown] = useState<'edit' | 'propio' | 'cliente' | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   // Filtros e Ordenação de Pedidos (Aba 1)
@@ -205,6 +208,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
     workerNome: string;
     codigoColab?: string;
     alojamentoNome: string;
+    clienteId?: string;
     clienteNome?: string;
     obraNome?: string;
     isPropio?: boolean;
@@ -233,6 +237,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [propioSearchResults, setPropioSearchResults] = useState<any[]>([]);
   const [isSearchingPropio, setIsSearchingPropio] = useState(false);
   const [selectedPropioWorker, setSelectedPropioWorker] = useState<any | null>(null);
+  const [propioClienteId, setPropioClienteId] = useState('');
   const [propioClienteNome, setPropioClienteNome] = useState('');
   const [propioObraNome, setPropioObraNome] = useState('');
   const [propioEmpresa, setPropioEmpresa] = useState('LUMINOUS');
@@ -246,6 +251,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const [clienteSearchResults, setClienteSearchResults] = useState<any[]>([]);
   const [isSearchingClienteWorker, setIsSearchingClienteWorker] = useState(false);
   const [selectedClienteWorker, setSelectedClienteWorker] = useState<any | null>(null);
+  const [clienteAlojClienteId, setClienteAlojClienteId] = useState('');
   const [clienteAlojClienteNome, setClienteAlojClienteNome] = useState('');
   const [clienteAlojObraNome, setClienteAlojObraNome] = useState('');
   const [clienteAlojHotelNome, setClienteAlojHotelNome] = useState('');
@@ -292,17 +298,19 @@ export const DemandasAlocacaoPage: React.FC = () => {
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [pedidosData, alojadosData, alojData, camasData] = await Promise.all([
+      const [pedidosData, alojadosData, alojData, camasData, clientesData] = await Promise.all([
         logisticsService.fetchDemandasPorPedido(),
         logisticsService.fetchTrabalhadoresAlojados(),
         logisticsService.fetchAlojamentos(),
-        logisticsService.fetchCamas()
+        logisticsService.fetchCamas(),
+        logisticsService.fetchClientesBanco()
       ]);
 
       setPedidos(pedidosData);
       setAlojados(alojadosData);
       setAlojamentos(alojData);
       setCamasDisponiveis(camasData.filter(c => c.status === 'livre'));
+      setClientesBanco(clientesData);
       try {
         const termosData = await termoResponsabilidadeService.fetchAllTermos();
         setTermosList(termosData);
@@ -1226,12 +1234,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
       await logisticsService.atualizarDatasAlocacao(targetAlocIds, {
         data_inicio: editingAlocacaoPeriodo.dataInicio,
         data_fim: editingAlocacaoPeriodo.dataFim || undefined,
+        cliente_id: editingAlocacaoPeriodo.clienteId,
         cliente_nome: editingAlocacaoPeriodo.clienteNome,
         obra_nome: editingAlocacaoPeriodo.obraNome,
         isPropio: editingAlocacaoPeriodo.isPropio,
         workerIds: targetWorkerIds
       });
       setEditingAlocacaoPeriodo(null);
+      setActiveClienteDropdown(null);
       await loadData();
     } catch (err: any) {
       console.error(err);
@@ -1456,7 +1466,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
         worker_id: selectedPropioWorker.id,
         worker_nome: selectedPropioWorker.Nombre || selectedPropioWorker.nombre,
         codigo_colab: selectedPropioWorker.Cod_colab || selectedPropioWorker.cod_colab,
-        cliente_nome: propioClienteNome || selectedPropioWorker.contratante || 'Cliente Obra',
+        cliente_id: propioClienteId || undefined,
+        cliente_nome: propioClienteNome || selectedPropioWorker.cliente || 'Cliente Obra',
         obra_nome: propioObraNome || selectedPropioWorker.ubicacion || 'Obra',
         empresa_contratante: propioEmpresa,
         data_inicio: propioDataInicio,
@@ -1467,11 +1478,197 @@ export const DemandasAlocacaoPage: React.FC = () => {
       syncPropioMonthFromDate(propioDataInicio);
       setIsPropioModalOpen(false);
       setSelectedPropioWorker(null);
+      setActiveClienteDropdown(null);
       await loadData();
     } catch (err: any) {
       console.error(err);
       alert('Error al registrar alojamiento propio: ' + err.message);
     }
+  };
+
+  // Seletor Inteligente de Cliente vinculado ao Banco de Dados (core_common.clients + Pedidos do Trabalhador)
+  const renderClienteDatabaseCombobox = (opts: {
+    dropdownKey: 'edit' | 'propio' | 'cliente';
+    value: string;
+    selectedClienteId?: string;
+    workerId?: string;
+    workerCodigo?: string;
+    onSelect: (cliente: { id?: string; nome: string; obra?: string }) => void;
+    onChangeText: (val: string) => void;
+  }) => {
+    const q = (opts.value || '').toLowerCase().trim();
+    const isOpen = activeClienteDropdown === opts.dropdownKey;
+
+    // 1. Pedidos ativos nos quais este trabalhador está alocado
+    const workerPedidos = pedidos.filter(p =>
+      p.trabalhadores.some(
+        t =>
+          (opts.workerId && t.worker_id === opts.workerId) ||
+          (opts.workerCodigo && t.codigo_colab && t.codigo_colab.toUpperCase() === opts.workerCodigo.toUpperCase())
+      )
+    );
+
+    // 2. Clientes do Banco de Dados (core_common.clients) filtrados
+    const filteredDbClients = clientesBanco
+      .filter(c => {
+        if (!q) return true;
+        return (
+          c.nome.toLowerCase().includes(q) ||
+          (c.razao_social && c.razao_social.toLowerCase().includes(q)) ||
+          (c.codigo && c.codigo.toLowerCase().includes(q)) ||
+          (c.cif_nif && c.cif_nif.toLowerCase().includes(q)) ||
+          (c.cidade && c.cidade.toLowerCase().includes(q))
+        );
+      })
+      .slice(0, 40);
+
+    const matchedDbClient = clientesBanco.find(
+      c =>
+        (opts.selectedClienteId && c.id === opts.selectedClienteId) ||
+        (opts.value && (c.nome.toUpperCase() === opts.value.trim().toUpperCase() || (c.razao_social && c.razao_social.toUpperCase() === opts.value.trim().toUpperCase())))
+    );
+
+    return (
+      <div className="relative">
+        <div className="relative">
+          <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={opts.value}
+            onFocus={() => setActiveClienteDropdown(opts.dropdownKey)}
+            onChange={e => {
+              opts.onChangeText(e.target.value);
+              setActiveClienteDropdown(opts.dropdownKey);
+            }}
+            placeholder="Buscar cliente en la base de datos..."
+            className="w-full pl-8 pr-7 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500"
+          />
+          {opts.value && (
+            <button
+              type="button"
+              onClick={() => {
+                opts.onChangeText('');
+                setActiveClienteDropdown(opts.dropdownKey);
+              }}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 cursor-pointer"
+              title="Limpiar y buscar otro cliente"
+            >
+              <X size={13} />
+            </button>
+          )}
+        </div>
+
+        {matchedDbClient ? (
+          <div className="mt-1 flex items-center gap-1 text-[10px] font-bold text-emerald-700 dark:text-emerald-400">
+            <CheckCircle2 size={11} />
+            <span className="truncate">
+              Vinculado: {matchedDbClient.nome}
+              {matchedDbClient.codigo ? ` (${matchedDbClient.codigo})` : ''}
+              {matchedDbClient.cif_nif ? ` • CIF: ${matchedDbClient.cif_nif}` : ''}
+            </span>
+          </div>
+        ) : (
+          <p className="mt-1 text-[10px] text-slate-400">
+            Haga clic para elegir un cliente oficial de la base de datos ({clientesBanco.length} clientes)
+          </p>
+        )}
+
+        {isOpen && (
+          <div className="absolute left-0 right-0 top-full mt-1 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl max-h-56 overflow-y-auto z-50 divide-y divide-slate-100 dark:divide-slate-800">
+            {workerPedidos.length > 0 && (
+              <div className="p-2 bg-purple-50/70 dark:bg-purple-950/40">
+                <span className="text-[10px] font-black uppercase text-purple-700 dark:text-purple-300 block mb-1">
+                  ⭐ Pedido(s) vinculados a este trabajador:
+                </span>
+                <div className="space-y-1">
+                  {workerPedidos.map(wp => {
+                    const dbMatch = clientesBanco.find(
+                      c => c.nome.toUpperCase() === wp.cliente_nome.toUpperCase() || (c.razao_social && c.razao_social.toUpperCase() === wp.cliente_nome.toUpperCase())
+                    );
+                    return (
+                      <button
+                        key={wp.pedido_id}
+                        type="button"
+                        onClick={() => {
+                          opts.onSelect({
+                            id: dbMatch?.id,
+                            nome: wp.cliente_nome,
+                            obra: wp.cidade || wp.obra_nome
+                          });
+                          setActiveClienteDropdown(null);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg bg-white dark:bg-slate-800 hover:bg-purple-100/70 dark:hover:bg-purple-900/40 border border-purple-200 dark:border-purple-800 flex items-center justify-between gap-2 cursor-pointer"
+                      >
+                        <div className="min-w-0">
+                          <p className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate">
+                            🏢 {wp.cliente_nome}
+                          </p>
+                          <p className="text-[10px] text-slate-500 truncate">
+                            {wp.pedido_codigo} • 📍 {wp.cidade || wp.obra_nome}
+                          </p>
+                        </div>
+                        <span className="text-[10px] font-bold text-purple-700 dark:text-purple-300 flex-shrink-0">
+                          Elegir
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            <div className="py-1">
+              <div className="px-2.5 py-1 text-[10px] font-bold uppercase text-slate-400 flex items-center justify-between">
+                <span>Base de Datos de Clientes ({filteredDbClients.length})</span>
+                <button
+                  type="button"
+                  onClick={() => setActiveClienteDropdown(null)}
+                  className="text-slate-400 hover:text-slate-600 text-[10px] cursor-pointer"
+                >
+                  Cerrar ✕
+                </button>
+              </div>
+              {filteredDbClients.length === 0 ? (
+                <div className="p-3 text-center text-slate-400 text-[11px]">
+                  Ningún cliente encontrado con "{opts.value}".
+                </div>
+              ) : (
+                filteredDbClients.map(c => (
+                  <button
+                    key={c.id}
+                    type="button"
+                    onClick={() => {
+                      opts.onSelect({
+                        id: c.id,
+                        nome: c.nome,
+                        obra: c.cidade ? `${c.cidade}${c.provincia && c.provincia !== c.cidade ? `, ${c.provincia}` : ''}` : undefined
+                      });
+                      setActiveClienteDropdown(null);
+                    }}
+                    className="w-full text-left px-3 py-2 hover:bg-purple-50/70 dark:hover:bg-slate-800 transition-colors flex items-center justify-between gap-2 cursor-pointer"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-bold text-slate-800 dark:text-slate-100 text-xs truncate">
+                        {c.nome}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {c.razao_social && c.razao_social !== c.nome ? `${c.razao_social} • ` : ''}
+                        {c.codigo ? `${c.codigo} • ` : ''}
+                        {c.cif_nif ? `CIF: ${c.cif_nif}` : ''}
+                        {c.cidade ? ` • 📍 ${c.cidade}` : ''}
+                      </p>
+                    </div>
+                    <span className="text-[10px] font-bold text-purple-600 dark:text-purple-400 flex-shrink-0">
+                      Seleccionar
+                    </span>
+                  </button>
+                ))
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    );
   };
 
   // Buscar Trabalhadores para Modal de Alojamiento por Cliente
@@ -4983,7 +5180,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 rounded-b-3xl flex justify-end gap-2">
               <button
                 onClick={() => setAllocatingWorker(null)}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl cursor-pointer"
@@ -5095,7 +5292,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
               </div>
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 rounded-b-3xl flex justify-end gap-2">
               <button
                 onClick={() => setIsBatchModalOpen(false)}
                 className="px-4 py-2 text-xs font-semibold text-slate-600 dark:text-slate-300 hover:bg-slate-200 rounded-xl cursor-pointer"
@@ -5236,14 +5433,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Cliente / Proyecto:</label>
-                      <input
-                        type="text"
-                        value={propioClienteNome}
-                        onChange={e => setPropioClienteNome(e.target.value)}
-                        placeholder="Ej: INCONAL / EUROFESA"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
-                      />
+                      <label className="font-bold text-slate-600">Cliente / Proyecto (Base de Datos):</label>
+                      {renderClienteDatabaseCombobox({
+                        dropdownKey: 'propio',
+                        value: propioClienteNome,
+                        selectedClienteId: propioClienteId,
+                        workerId: selectedPropioWorker?.id,
+                        workerCodigo: selectedPropioWorker?.Cod_colab || selectedPropioWorker?.cod_colab,
+                        onSelect: cli => {
+                          setPropioClienteId(cli.id || '');
+                          setPropioClienteNome(cli.nome);
+                          if (cli.obra && (!propioObraNome || propioObraNome === 'Espanha' || propioObraNome === 'España')) {
+                            setPropioObraNome(cli.obra);
+                          }
+                        },
+                        onChangeText: val => {
+                          setPropioClienteNome(val);
+                          setPropioClienteId('');
+                        }
+                      })}
                     </div>
                   </div>
 
@@ -5378,7 +5586,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
                           key={w.id}
                           onClick={() => {
                             setSelectedClienteWorker(w);
-                            setClienteAlojClienteNome(w.contratante || '');
+                            setClienteAlojClienteNome(w.cliente && w.cliente !== 'Cliente Principal' ? w.cliente : '');
                             setClienteAlojObraNome(w.ubicacion || '');
                             setClienteAlojEmpresa(w.empresa_interna || 'LUMINOUS');
                           }}
@@ -5428,14 +5636,25 @@ export const DemandasAlocacaoPage: React.FC = () => {
                     </div>
 
                     <div className="space-y-1">
-                      <label className="font-bold text-slate-600">Cliente Responsable:</label>
-                      <input
-                        type="text"
-                        value={clienteAlojClienteNome}
-                        onChange={e => setClienteAlojClienteNome(e.target.value)}
-                        placeholder="Ej: INSTALACIONES Y SISTEMAS HIDRAULICOS"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border rounded-xl text-xs font-semibold"
-                      />
+                      <label className="font-bold text-slate-600">Cliente Responsable (Base de Datos):</label>
+                      {renderClienteDatabaseCombobox({
+                        dropdownKey: 'cliente',
+                        value: clienteAlojClienteNome,
+                        selectedClienteId: clienteAlojClienteId,
+                        workerId: selectedClienteWorker?.id,
+                        workerCodigo: selectedClienteWorker?.Cod_colab || selectedClienteWorker?.cod_colab,
+                        onSelect: cli => {
+                          setClienteAlojClienteId(cli.id || '');
+                          setClienteAlojClienteNome(cli.nome);
+                          if (cli.obra && (!clienteAlojObraNome || clienteAlojObraNome === 'Espanha' || clienteAlojObraNome === 'España')) {
+                            setClienteAlojObraNome(cli.obra);
+                          }
+                        },
+                        onChangeText: val => {
+                          setClienteAlojClienteNome(val);
+                          setClienteAlojClienteId('');
+                        }
+                      })}
                     </div>
                   </div>
 
@@ -5853,8 +6072,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
       {/* MODAL DE EDIÇÃO DE DATA DE INÍCIO / PERÍODO NO ALOJAMENTO */}
       {editingAlocacaoPeriodo && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-md overflow-hidden shadow-2xl space-y-0">
-            <div className="p-5 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/40 flex items-center justify-between">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-full max-w-lg overflow-visible shadow-2xl space-y-0">
+            <div className="p-5 bg-blue-50/70 dark:bg-blue-950/40 border-b border-blue-100 dark:border-blue-900/40 rounded-t-3xl flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-blue-600 text-white rounded-2xl shadow-xs">
                   <Calendar size={20} />
@@ -5901,15 +6120,32 @@ export const DemandasAlocacaoPage: React.FC = () => {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="font-bold text-slate-700 dark:text-slate-300 block">
-                      Cliente / Proyecto
+                      Cliente / Proyecto (Base de Datos)
                     </label>
-                    <input
-                      type="text"
-                      value={editingAlocacaoPeriodo.clienteNome || ''}
-                      onChange={e => setEditingAlocacaoPeriodo(prev => prev ? { ...prev, clienteNome: e.target.value } : null)}
-                      placeholder="Ej: EUROFESA"
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500"
-                    />
+                    {renderClienteDatabaseCombobox({
+                      dropdownKey: 'edit',
+                      value: editingAlocacaoPeriodo.clienteNome || '',
+                      selectedClienteId: editingAlocacaoPeriodo.clienteId,
+                      workerId: editingAlocacaoPeriodo.workerId,
+                      workerCodigo: editingAlocacaoPeriodo.codigoColab,
+                      onSelect: cli => {
+                        setEditingAlocacaoPeriodo(prev =>
+                          prev
+                            ? {
+                                ...prev,
+                                clienteId: cli.id,
+                                clienteNome: cli.nome,
+                                obraNome: cli.obra && (!prev.obraNome || prev.obraNome === 'España') ? cli.obra : prev.obraNome
+                              }
+                            : null
+                        );
+                      },
+                      onChangeText: val => {
+                        setEditingAlocacaoPeriodo(prev =>
+                          prev ? { ...prev, clienteId: undefined, clienteNome: val } : null
+                        );
+                      }
+                    })}
                   </div>
                   <div className="space-y-1">
                     <label className="font-bold text-slate-700 dark:text-slate-300 block">
@@ -5967,7 +6203,7 @@ export const DemandasAlocacaoPage: React.FC = () => {
               )}
             </div>
 
-            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-2">
+            <div className="p-4 bg-slate-50 dark:bg-slate-800/60 border-t border-slate-100 dark:border-slate-800 rounded-b-3xl flex justify-end gap-2">
               <button
                 disabled={isSavingPeriodoAloc}
                 onClick={() => setEditingAlocacaoPeriodo(null)}
