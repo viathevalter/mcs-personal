@@ -204,11 +204,16 @@ export interface CommissionGenerated {
   vendedor_email: string;
   codpedido: string;
   pedido_id?: string;
+  pedido_start_date?: string | null;
+  pedido_created_at?: string | null;
+  empresa_nome?: string;
   nome_colab: string;
   worker_doc?: string;
+  worker_movil?: string;
   job_function?: string;
   start_date?: string | null;
   end_date?: string | null;
+  data_fim_carencia?: string | null;
   worker_status_label?: string;
   cliente_id?: string;
   cliente_cod?: string;
@@ -233,6 +238,7 @@ export interface CommissionGenerated {
   remanejado_para_cliente?: string | null;
   historico_remanejamento?: WorkerCrossPedidoEntry[];
   repasses_count?: number;
+  reemplazo_cod?: string | null;
   historico_vaga?: CommissionSlotHistoryEntry[];
   fatura_quitada?: boolean;
   fatura_status?: 'QUITADA' | 'LIBERADA_FINANCEIRO' | 'FATURA_ABERTA' | 'AGUARDANDO_FATURA';

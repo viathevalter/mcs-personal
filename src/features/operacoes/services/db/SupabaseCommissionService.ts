@@ -73,6 +73,16 @@ function parseLocalDate(dateStr: string | null | undefined): Date | null {
     return isNaN(dt.getTime()) ? null : dt;
 }
 
+function addDaysYMD(dateStr: string | null | undefined, days: number): string | null {
+    const dt = parseLocalDate(dateStr);
+    if (!dt) return null;
+    dt.setDate(dt.getDate() + days);
+    const y = dt.getFullYear();
+    const m = String(dt.getMonth() + 1).padStart(2, '0');
+    const d = String(dt.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+}
+
 export const commissionService = {
     async getSettings(): Promise<CommissionSettings> {
         const defaultSettings: CommissionSettings = {
@@ -202,6 +212,7 @@ export const commissionService = {
             pedidoItemsRes,
             estimacionesRes,
             clientsRes,
+            empresasRes,
             assignmentsRes,
             solicitudesRes,
             targetsRes,
@@ -212,7 +223,7 @@ export const commissionService = {
             supabase
                 .schema('core_comercial')
                 .from('pedidos')
-                .select('id, codigo, client_id, client_site_id, commercial_owner_id, created_by, responsible_id, source_estimacion_id, document_language, country_id, expected_start_date, created_at'),
+                .select('id, codigo, empresa_id, client_id, client_site_id, commercial_owner_id, created_by, responsible_id, source_estimacion_id, document_language, country_id, expected_start_date, created_at'),
             supabase
                 .schema('core_comercial')
                 .from('pedido_items')
@@ -226,6 +237,10 @@ export const commissionService = {
                 .from('clients')
                 .select('id, codigo, trade_name, legal_name, country_id, tax_id, province, created_at'),
             supabase
+                .schema('core_common')
+                .from('empresas')
+                .select('id, nome, trade_name, legal_name'),
+            supabase
                 .schema('core_personal')
                 .from('worker_assignments')
                 .select(`
@@ -233,7 +248,7 @@ export const commissionService = {
                     client_id, client_site_id, job_function_name_snapshot, assignment_type,
                     status, start_date, end_date, planned_start_date, planned_end_date,
                     replacement_of_assignment_id, root_assignment_id, notes, created_at,
-                    worker:workers(id, nome, nif, dni, cod_colab, funcion, status_trabajador, data_baixa)
+                    worker:workers(id, nome, nif, dni, cod_colab, movil, contratante, empresa_id, funcion, status_trabajador, data_baixa)
                 `)
                 .order('created_at', { ascending: true }),
             supabase
@@ -264,6 +279,31 @@ export const commissionService = {
 
         const clientsMap = new Map<string, any>();
         ((clientsRes.data || []) as any[]).forEach(c => clientsMap.set(c.id, c));
+
+        const empresasMap = new Map<string, any>();
+        ((empresasRes.data || []) as any[]).forEach(emp => empresasMap.set(emp.id, emp));
+
+        function resolveEmpresaLabel(pedido?: any, assignment?: any, worker?: any): string {
+            const rawContratante = String(worker?.contratante || '').trim();
+            if (rawContratante) {
+                const upper = rawContratante.toUpperCase();
+                if (upper.includes('LUMINOUS')) return 'LUMINOUS';
+                if (upper.includes('WISEOWE')) return 'WISEOWE';
+                if (upper.includes('KOTRIK')) return 'KOTRIK';
+                return rawContratante;
+            }
+            const empId = assignment?.empresa_id || pedido?.empresa_id || worker?.empresa_id;
+            const emp = empId ? empresasMap.get(empId) : null;
+            const empName = String(emp?.nome || emp?.trade_name || emp?.legal_name || '').trim();
+            if (empName) {
+                const upper = empName.toUpperCase();
+                if (upper.includes('LUMINOUS')) return 'LUMINOUS';
+                if (upper.includes('WISEOWE')) return 'WISEOWE';
+                if (upper.includes('KOTRIK')) return 'KOTRIK';
+                return empName;
+            }
+            return 'LUMINOUS';
+        }
 
         const estimacionesMap = new Map<string, any>();
         ((estimacionesRes.data || []) as any[]).forEach(e => estimacionesMap.set(e.id, e));
@@ -298,8 +338,8 @@ export const commissionService = {
             }
         });
 
-        function checkInvoiceForClientMonth(client: any, clientNameFallback: string, mesRef: string) {
-            const label = formatMesReferenciaLabel(mesRef); // e.g., "Outubro 2026"
+        function checkSingleMonthInvoice(client: any, clientNameFallback: string, mesYM: string) {
+            const label = formatMesReferenciaLabel(mesYM); // e.g., "Outubro 2026"
             const periodNorm = normalizeStr(label);
             let matchedCobros: any[] = [];
 
@@ -359,6 +399,24 @@ export const commissionService = {
                 fatura_num_doc: firstDoc || null,
                 fatura_dt_recebimento: null
             };
+        }
+
+        function checkInvoiceForClientMonth(client: any, clientNameFallback: string, mesRef: string, mesValidacao?: string | null) {
+            const primary = checkSingleMonthInvoice(client, clientNameFallback, mesRef);
+            if (primary.fatura_quitada) return primary;
+
+            // If worker started near the end of the month and completed the 15-day validation in the next month (mesValidacao),
+            // check if the invoice for mesValidacao was issued/paid!
+            if (mesValidacao && mesValidacao !== mesRef) {
+                const validationMonthRes = checkSingleMonthInvoice(client, clientNameFallback, mesValidacao);
+                if (validationMonthRes.fatura_quitada) {
+                    return validationMonthRes;
+                }
+                if (primary.fatura_status === 'AGUARDANDO_FATURA' && validationMonthRes.fatura_status === 'FATURA_ABERTA') {
+                    return validationMonthRes;
+                }
+            }
+            return primary;
         }
 
         function isFrenchOrBelgian(pedido?: any, est?: any, client?: any): boolean {
@@ -921,7 +979,9 @@ export const commissionService = {
                 firstEntry.meta.startDateStr ||
                 (firstEntry.raw.created_at ? String(firstEntry.raw.created_at).split('T')[0] : todayYMD);
 
+            const dataFimCarencia = addDaysYMD(currentEntry.meta.startDateStr || refDateStr, carenciaMeta);
             const mesRef = refDateStr.substring(0, 7); // 'YYYY-MM'
+            const mesValidacao = dataFimCarencia ? dataFimCarencia.substring(0, 7) : mesRef;
 
             // Track client's first order for the New Client Bonus
             if (matchedClient?.id && !isRemanejamentoDuplicado) {
@@ -939,8 +999,8 @@ export const commissionService = {
                 }
             }
 
-            // Check invoice status for Client + Reference Month
-            const invoiceInfo = checkInvoiceForClientMonth(matchedClient, clientName, mesRef);
+            // Check invoice status for Client + Reference Month (or Validation Month if worker started late in month and completed 15 days in next month)
+            const invoiceInfo = checkInvoiceForClientMonth(matchedClient, clientName, mesRef, mesValidacao);
 
             const exigeFatura = effectiveExigeFatura;
             const elegivel = !isRemanejamentoDuplicado && carenciaCumprida && (!exigeFatura || invoiceInfo.fatura_quitada);
@@ -961,6 +1021,10 @@ export const commissionService = {
             }
 
             const repassesCount = Math.max(0, historico_vaga.length - 1);
+            const reemplazoCodFound =
+                [...historico_vaga].reverse().find(h => h.solicitud_codigo && String(h.solicitud_codigo).toUpperCase().startsWith('R-'))?.solicitud_codigo ||
+                (currentEntry.meta.sol?.codigo && String(currentEntry.meta.sol.codigo).toUpperCase().startsWith('R-') ? currentEntry.meta.sol.codigo : null);
+            const empresaLabel = resolveEmpresaLabel(matchedPedido, currentEntry.raw, currentEntry.raw.worker);
 
             generatedList.push({
                 id: `vaga_${rootId}`,
@@ -975,11 +1039,14 @@ export const commissionService = {
                     || (matchedPedido?.expected_start_date ? String(matchedPedido.expected_start_date).split('T')[0] : null)
                     || (matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : refDateStr),
                 pedido_created_at: matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : null,
+                empresa_nome: empresaLabel,
                 nome_colab: currentEntry.raw.worker?.nome || 'Trabalhador',
                 worker_doc: currentEntry.raw.worker?.dni || currentEntry.raw.worker?.nif || currentEntry.raw.worker?.cod_colab || '-',
+                worker_movil: currentEntry.raw.worker?.movil || '',
                 job_function: currentEntry.raw.job_function_name_snapshot || currentEntry.raw.worker?.funcion || 'Geral',
                 start_date: currentEntry.meta.startDateStr,
                 end_date: currentEntry.meta.endDateStr,
+                data_fim_carencia: dataFimCarencia,
                 worker_status_label: currentEntry.meta.statusLabel,
                 cliente_id: matchedClient?.id || undefined,
                 cliente_cod: matchedClient?.codigo || undefined,
@@ -1003,6 +1070,7 @@ export const commissionService = {
                 remanejado_para_cliente: nextPedidoEntry ? nextPedidoEntry.cliente_nombre : null,
                 historico_remanejamento: historico_remanejamento.length > 1 ? historico_remanejamento : [],
                 repasses_count: repassesCount,
+                reemplazo_cod: reemplazoCodFound,
                 historico_vaga,
                 fatura_quitada: invoiceInfo.fatura_quitada,
                 fatura_status: invoiceInfo.fatura_status,
@@ -1029,9 +1097,11 @@ export const commissionService = {
             const exigeFatura = Boolean(useCustomRule ? (customRule!.exigir_fatura_quitada ?? settings.exigir_fatura_quitada ?? true) : (settings.exigir_fatura_quitada ?? true));
 
             const refDate = clientCreatedDate >= firstDate ? clientCreatedDate : firstDate;
+            const dataFimCarenciaCli = addDaysYMD(firstDate, effectiveCarenciaDias);
             const mesRef = firstDate.substring(0, 7);
+            const mesValCli = dataFimCarenciaCli ? dataFimCarenciaCli.substring(0, 7) : mesRef;
             const clientName = client?.trade_name || client?.legal_name || 'Cliente Novo';
-            const invoiceInfo = checkInvoiceForClientMonth(client, clientName, mesRef);
+            const invoiceInfo = checkInvoiceForClientMonth(client, clientName, mesRef, mesValCli);
             const elegivel = has15Days && (!exigeFatura || invoiceInfo.fatura_quitada);
 
             let motivoBloqueio: string | null = null;
@@ -1040,6 +1110,8 @@ export const commissionService = {
             } else if (exigeFatura && !invoiceInfo.fatura_quitada) {
                 motivoBloqueio = `Aguardando quitação da 1ª fatura (${formatMesReferenciaLabel(mesRef)})`;
             }
+
+            const empresaLabelCli = resolveEmpresaLabel(pedido, null, null);
 
             generatedList.push({
                 id: `bonus_cli_${clientId}`,
@@ -1052,7 +1124,9 @@ export const commissionService = {
                     ? String(pedido.expected_start_date).split('T')[0]
                     : (pedido?.created_at ? String(pedido.created_at).split('T')[0] : firstDate),
                 pedido_created_at: pedido?.created_at ? String(pedido.created_at).split('T')[0] : null,
+                empresa_nome: empresaLabelCli,
                 nome_colab: `Cadastro Cliente: ${new Date(clientCreatedDate + 'T12:00:00').toLocaleDateString('pt-PT')}`,
+                data_fim_carencia: dataFimCarenciaCli,
                 cliente_id: clientId,
                 cliente_cod: client?.codigo || undefined,
                 cliente_nombre: clientName,
@@ -1079,9 +1153,8 @@ export const commissionService = {
             });
         });
 
-        // Filter by startDate, endDate, and vendedorEmail
+        // Filter by endDate and vendedorEmail (startDate filtering + Conta Corrente carry-over is handled in Comissoes.tsx so open items from prior months remain visible!)
         return generatedList.filter(item => {
-            if (startDate && item.data_referencia < startDate) return false;
             if (endDate && item.data_referencia > endDate) return false;
             if (vendedorEmail && item.vendedor_email.toLowerCase() !== vendedorEmail.toLowerCase()) return false;
             return true;
