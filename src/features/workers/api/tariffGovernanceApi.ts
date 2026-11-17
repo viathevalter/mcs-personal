@@ -718,6 +718,49 @@ export async function approveAndApplyTariffAuthorization(payload: {
         }
     }
 
+    // 5. Create follow-up task for the original requester to notify the worker
+    if (request.solicitante_email || request.solicitante_id) {
+        try {
+            const vigenciaLabel = formatMesVigenciaLabel(mesVigencia);
+            const lines = finalItems
+                .map(i => `• ${i.worker_nome} (${i.cod_colab || '-'}): € ${Number(i.tarifa_anterior).toFixed(2)} -> € ${Number(i.tarifa_nova).toFixed(2)}/h`)
+                .join('\n');
+
+            await supabase.schema('core_operacoes').rpc('criar_tarefa_direta', {
+                payload: {
+                    department_code: 'RH',
+                    assigned_to: request.solicitante_id || null,
+                    assigned_to_email: request.solicitante_email || null,
+                    assigned_to_name: request.solicitante_nome,
+                    created_by_email: request.gerente_email || payload.signerEmail,
+                    created_by_name: request.gerente_nome,
+                    worker_id: finalItems.length === 1 ? finalItems[0].worker_id : null,
+                    title: `Comunicar Trabalhador: Tarifa Aprovada (${request.codigo_termo})`,
+                    description: [
+                        `A solicitação de tarifa ${request.codigo_termo} foi APROVADA por ${request.gerente_nome}.`,
+                        `Vigência: ${vigenciaLabel}`,
+                        ``,
+                        `Valores aprovados:`,
+                        lines,
+                        ``,
+                        `Próximo passo: avisar o(s) trabalhador(es) sobre o valor e mês de vigência e concluir esta tarefa.`
+                    ].join('\n'),
+                    priority: 'normal',
+                    task_source: 'tariff_feedback',
+                    metadata: {
+                        tipo: 'tariff_feedback',
+                        decision: 'APROVADO',
+                        request_id: request.id,
+                        codigo_termo: request.codigo_termo,
+                        mes_vigencia: mesVigencia
+                    }
+                }
+            });
+        } catch (followErr) {
+            console.error('Error creating follow-up task for requester:', followErr);
+        }
+    }
+
     return {
         success: true,
         updatedCount,
@@ -876,6 +919,49 @@ export async function rejectTariffAuthorization(payload: {
             });
         } catch (taskErr) {
             console.error('Error completing linked Super Gaveta task on rejection:', taskErr);
+        }
+    }
+
+    // Create follow-up task for the original requester to notify the worker of the rejection
+    if (request.solicitante_email || request.solicitante_id) {
+        try {
+            const items = request.itens_solicitacao || [];
+            const lines = items
+                .map(i => `• ${i.worker_nome} (${i.cod_colab || '-'}): mantida em € ${Number(i.tarifa_anterior).toFixed(2)}/h`)
+                .join('\n');
+
+            await supabase.schema('core_operacoes').rpc('criar_tarefa_direta', {
+                payload: {
+                    department_code: 'RH',
+                    assigned_to: request.solicitante_id || null,
+                    assigned_to_email: request.solicitante_email || null,
+                    assigned_to_name: request.solicitante_nome,
+                    created_by_email: request.gerente_email || payload.rejectorEmail,
+                    created_by_name: rejectorName,
+                    worker_id: items.length === 1 ? items[0].worker_id : null,
+                    title: `Comunicar Trabalhador: Tarifa Não Autorizada (${request.codigo_termo})`,
+                    description: [
+                        `A solicitação de tarifa ${request.codigo_termo} foi NÃO AUTORIZADA por ${rejectorName}.`,
+                        ``,
+                        `Trabalhador(es):`,
+                        lines,
+                        ``,
+                        `Motivo da não autorização: ${reason}`,
+                        ``,
+                        `Próximo passo: dar o retorno ao colaborador e concluir esta tarefa.`
+                    ].join('\n'),
+                    priority: 'high',
+                    task_source: 'tariff_feedback',
+                    metadata: {
+                        tipo: 'tariff_feedback',
+                        decision: 'REJEITADO',
+                        request_id: request.id,
+                        codigo_termo: request.codigo_termo
+                    }
+                }
+            });
+        } catch (followErr) {
+            console.error('Error creating follow-up rejection task for requester:', followErr);
         }
     }
 
