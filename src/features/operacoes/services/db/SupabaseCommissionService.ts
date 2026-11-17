@@ -248,7 +248,7 @@ export const commissionService = {
                     client_id, client_site_id, job_function_name_snapshot, assignment_type,
                     status, start_date, end_date, planned_start_date, planned_end_date,
                     replacement_of_assignment_id, root_assignment_id, notes, created_at,
-                    worker:workers(id, nome, nif, dni, cod_colab, movil, contratante, empresa_id, funcion, status_trabajador, data_baixa)
+                    worker:workers(id, nome, nif, dni, cod_colab, movil, contratante, funcion, status_trabajador, data_baixa)
                 `)
                 .order('created_at', { ascending: true }),
             supabase
