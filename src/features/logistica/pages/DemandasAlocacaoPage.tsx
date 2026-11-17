@@ -206,6 +206,8 @@ export const DemandasAlocacaoPage: React.FC = () => {
     codigoColab?: string;
     alojamentoNome: string;
     clienteNome?: string;
+    obraNome?: string;
+    isPropio?: boolean;
     dataInicio: string;
     dataFim: string;
     companheiros: Array<{ alocacaoId: string; workerId: string; nome: string }>;
@@ -679,9 +681,13 @@ export const DemandasAlocacaoPage: React.FC = () => {
     const wStartParsed = parseYMD(checkinStr) || { y: 2025, m: 1, d: 1 };
     const wStartInt = wStartParsed.y * 10000 + wStartParsed.m * 100 + wStartParsed.d;
 
-    // Considera saída efetiva apenas se o status for Checkout ou houver motivo registrado
-    const isCheckedOut = status === 'Checkout' || Boolean(motivoCheckout);
-    const wEndParsed = isCheckedOut && checkoutStr ? parseYMD(checkoutStr) : null;
+    // Considera saída efetiva quando o status for Checkout, houver motivo registrado ou houver data_fim explícita (exceto o placeholder legado 2026-10-13 da importação inicial)
+    const cleanCheckoutStr = checkoutStr ? String(checkoutStr).trim().split('T')[0] : '';
+    const isCheckedOut =
+      status === 'Checkout' ||
+      Boolean(motivoCheckout) ||
+      Boolean(cleanCheckoutStr && cleanCheckoutStr !== '2026-10-13' && cleanCheckoutStr !== '2026-05-31');
+    const wEndParsed = isCheckedOut && cleanCheckoutStr ? parseYMD(cleanCheckoutStr) : null;
     const wEndInt = wEndParsed ? (wEndParsed.y * 10000 + wEndParsed.m * 100 + wEndParsed.d) : null;
 
     // Se trabalhador começou depois do fim do mês ou terminou antes do início do mês
@@ -1220,6 +1226,9 @@ export const DemandasAlocacaoPage: React.FC = () => {
       await logisticsService.atualizarDatasAlocacao(targetAlocIds, {
         data_inicio: editingAlocacaoPeriodo.dataInicio,
         data_fim: editingAlocacaoPeriodo.dataFim || undefined,
+        cliente_nome: editingAlocacaoPeriodo.clienteNome,
+        obra_nome: editingAlocacaoPeriodo.obraNome,
+        isPropio: editingAlocacaoPeriodo.isPropio,
         workerIds: targetWorkerIds
       });
       setEditingAlocacaoPeriodo(null);
@@ -4172,7 +4181,14 @@ export const DemandasAlocacaoPage: React.FC = () => {
                               <p className="font-medium">Desde: {a.data_checkin || '2026-01-01'}</p>
                               <button
                                 type="button"
-                                onClick={() =>
+                                onClick={() => {
+                                  const rawEnd = (a.data_checkout_prevista || a.data_fim)
+                                    ? String(a.data_checkout_prevista || a.data_fim).split('T')[0]
+                                    : '';
+                                  const effectiveEnd =
+                                    a.status === 'Checkout' || Boolean(a.motivo_checkout) || (rawEnd && rawEnd !== '2026-10-13' && rawEnd !== '2026-05-31')
+                                      ? rawEnd
+                                      : '';
                                   setEditingAlocacaoPeriodo({
                                     alocacaoId: a.alocacao_id || a.id,
                                     workerId: a.worker_id,
@@ -4180,19 +4196,21 @@ export const DemandasAlocacaoPage: React.FC = () => {
                                     codigoColab: a.codigo_colab,
                                     alojamentoNome: 'Alojamiento Propio (€ 300 / mes)',
                                     clienteNome: a.cliente_nome,
+                                    obraNome: a.obra_nome || a.municipio,
+                                    isPropio: true,
                                     dataInicio: a.data_checkin ? String(a.data_checkin).split('T')[0] : '2026-10-01',
-                                    dataFim: (a.data_checkout_prevista || a.data_fim) ? String(a.data_checkout_prevista || a.data_fim).split('T')[0] : '',
+                                    dataFim: effectiveEnd,
                                     companheiros: [{ alocacaoId: a.alocacao_id || a.id, workerId: a.worker_id, nome: a.worker_nome }],
                                     applyToCompanheiros: false
-                                  })
-                                }
+                                  });
+                                }}
                                 className="p-1 text-purple-600 hover:text-purple-700 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/50 dark:text-purple-300 border border-purple-200 dark:border-purple-800 rounded-md transition-colors cursor-pointer"
-                                title="Editar Fecha de Inicio de Alojamiento Propio"
+                                title="Editar Período, Cliente o Fecha de Alojamiento Propio"
                               >
                                 <Pencil size={10} />
                               </button>
                             </div>
-                            {(a.status === 'Checkout' || a.motivo_checkout) && (a.data_checkout_prevista || a.data_fim) ? (
+                            {(a.status === 'Checkout' || a.motivo_checkout || ((a.data_checkout_prevista || a.data_fim) && String(a.data_checkout_prevista || a.data_fim).split('T')[0] !== '2026-10-13' && String(a.data_checkout_prevista || a.data_fim).split('T')[0] !== '2026-05-31')) && (a.data_checkout_prevista || a.data_fim) ? (
                               <p className="text-[10px] text-rose-500 font-semibold">Salida: {a.data_checkout_prevista || a.data_fim}</p>
                             ) : (
                               <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400">En curso</span>
@@ -5878,6 +5896,35 @@ export const DemandasAlocacaoPage: React.FC = () => {
                   )}
                 </div>
               </div>
+
+              {editingAlocacaoPeriodo.isPropio && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                      Cliente / Proyecto
+                    </label>
+                    <input
+                      type="text"
+                      value={editingAlocacaoPeriodo.clienteNome || ''}
+                      onChange={e => setEditingAlocacaoPeriodo(prev => prev ? { ...prev, clienteNome: e.target.value } : null)}
+                      placeholder="Ej: EUROFESA"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <label className="font-bold text-slate-700 dark:text-slate-300 block">
+                      Localidad / Obra
+                    </label>
+                    <input
+                      type="text"
+                      value={editingAlocacaoPeriodo.obraNome || ''}
+                      onChange={e => setEditingAlocacaoPeriodo(prev => prev ? { ...prev, obraNome: e.target.value } : null)}
+                      placeholder="Ej: Vic, Barcelona"
+                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl text-xs font-semibold text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500"
+                    />
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div className="space-y-1">

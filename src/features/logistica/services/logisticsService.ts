@@ -955,7 +955,18 @@ export const logisticsService = {
     let newId = `propio-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`;
 
     try {
+      const hasEndDate = Boolean(payload.data_fim && String(payload.data_fim).trim().length > 0);
+
       if (isUuid(payload.worker_id)) {
+        // 1. Verificar se já existe um registro de Alojamiento Propio ativo ou com a mesma data de início para este trabalhador
+        const { data: existingPropios } = await client
+          .from('alocacoes')
+          .select('id, data_inicio, status, tipo_alojamento')
+          .eq('worker_id', payload.worker_id)
+          .in('tipo_alojamento', ['Propio', 'PROPIO'])
+          .order('created_at', { ascending: false });
+
+        // 2. Dar check-out apenas em alocações anteriores que NÃO sejam Alojamiento Propio (ex: imóveis fixos/temporários)
         await client
           .from('alocacoes')
           .update({
@@ -964,43 +975,81 @@ export const logisticsService = {
             motivo_checkout: 'Cambio a Alojamiento Propio'
           })
           .eq('worker_id', payload.worker_id)
-          .neq('status', 'Checkout');
-      }
+          .neq('status', 'Checkout')
+          .not('tipo_alojamento', 'in', '("Propio","PROPIO")');
 
-      const todayStr = formatToLocalDate(new Date());
-      const isFinishedPropio = Boolean(payload.data_fim && payload.data_fim <= todayStr);
+        const matchExisting = (existingPropios || []).find(
+          (r: any) => r.status !== 'Checkout' || r.data_inicio === payload.data_inicio
+        );
 
-      const { data: inserted, error } = await client
-        .from('alocacoes')
-        .insert({
-          cama_id: null,
-          alojamento_id: null,
-          worker_id: isUuid(payload.worker_id) ? payload.worker_id : null,
-          pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
-          data_inicio: payload.data_inicio,
-          data_fim: payload.data_fim || null,
-          status: isFinishedPropio ? 'Checkout' : 'Alojamiento Propio',
-          motivo_checkout: isFinishedPropio ? 'Fin de Período / Salida Registrada' : null,
-          tipo_alojamento: 'Propio',
-          gerou_auxilio_moradia: true,
-          observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
-          cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
-          project_name: payload.obra_nome || payload.cliente_nome || null,
-          valor_ajuda_moradia: payload.custo_alojamento || 300
-        })
-        .select()
-        .single();
+        if (matchExisting?.id) {
+          // Atualizar o registro de Alojamiento Propio existente em vez de duplicar!
+          const { data: updatedRow, error: updErr } = await client
+            .from('alocacoes')
+            .update({
+              pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
+              data_inicio: payload.data_inicio,
+              data_fim: payload.data_fim || null,
+              status: hasEndDate ? 'Checkout' : 'Alojamiento Propio',
+              motivo_checkout: hasEndDate ? 'Fin de Período / Salida Registrada' : null,
+              tipo_alojamento: 'Propio',
+              gerou_auxilio_moradia: true,
+              observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
+              cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
+              project_name: payload.obra_nome || payload.cliente_nome || null,
+              valor_ajuda_moradia: payload.custo_alojamento || 300,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', matchExisting.id)
+            .select()
+            .single();
 
-      if (!error && inserted?.id) {
-        newId = inserted.id;
+          if (!updErr && updatedRow?.id) {
+            newId = updatedRow.id;
+          } else {
+            newId = matchExisting.id;
+          }
+
+          // Remover eventuais duplicatas de Alojamiento Propio com a mesma data de início
+          const dupIds = (existingPropios || [])
+            .filter((r: any) => r.id !== matchExisting.id && (r.status !== 'Checkout' || r.data_inicio === payload.data_inicio))
+            .map((r: any) => r.id);
+          if (dupIds.length > 0) {
+            await client.from('alocacoes').delete().in('id', dupIds);
+          }
+        } else {
+          const { data: inserted, error } = await client
+            .from('alocacoes')
+            .insert({
+              cama_id: null,
+              alojamento_id: null,
+              worker_id: payload.worker_id,
+              pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
+              data_inicio: payload.data_inicio,
+              data_fim: payload.data_fim || null,
+              status: hasEndDate ? 'Checkout' : 'Alojamiento Propio',
+              motivo_checkout: hasEndDate ? 'Fin de Período / Salida Registrada' : null,
+              tipo_alojamento: 'Propio',
+              gerou_auxilio_moradia: true,
+              observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
+              cliente_obra_nome: payload.cliente_nome || payload.obra_nome || null,
+              project_name: payload.obra_nome || payload.cliente_nome || null,
+              valor_ajuda_moradia: payload.custo_alojamento || 300
+            })
+            .select()
+            .single();
+
+          if (!error && inserted?.id) {
+            newId = inserted.id;
+          }
+        }
       }
     } catch (e) {
-      console.warn('Erro ao inserir alojamento próprio no Supabase:', e);
+      console.warn('Erro ao inserir/atualizar alojamento próprio no Supabase:', e);
     }
 
     const alocacoes = await this.fetchAlocacoesAtivas();
-    const todayStr = formatToLocalDate(new Date());
-    const isFinishedPropio = Boolean(payload.data_fim && payload.data_fim <= todayStr);
+    const hasEndDate = Boolean(payload.data_fim && String(payload.data_fim).trim().length > 0);
     const newAloc: Alocacao = {
       id: newId,
       cama_id: `propio-cama-${payload.worker_id}`,
@@ -1015,8 +1064,8 @@ export const logisticsService = {
       data_inicio: payload.data_inicio,
       data_fim: payload.data_fim,
       observacoes: payload.observacoes || 'Alojamiento Propio / Por Cuenta Propia',
-      status: isFinishedPropio ? 'Checkout' : 'Alojamiento Propio',
-      motivo_checkout: isFinishedPropio ? 'Fin de Período / Salida Registrada' : undefined,
+      status: hasEndDate ? 'Checkout' : 'Alojamiento Propio',
+      motivo_checkout: hasEndDate ? 'Fin de Período / Salida Registrada' : undefined,
       tipo_alojamento: 'Propio',
       empresa_contratante: normalizeLogisticaEmpresa(payload.empresa_contratante),
       custo_alojamento: payload.custo_alojamento || 300,
@@ -1034,7 +1083,17 @@ export const logisticsService = {
       }
     };
 
-    const filtered = alocacoes.filter(a => a.id !== newId && (a.worker_id !== payload.worker_id || a.status === 'Checkout'));
+    const filtered = alocacoes.filter(a => {
+      if (a.id === newId) return false;
+      if (a.worker_id === payload.worker_id) {
+        const isExistingPropioSamePeriod =
+          (a.tipo_alojamento === 'Propio' || a.status === 'Alojamiento Propio') &&
+          (a.status !== 'Checkout' || a.data_inicio === payload.data_inicio);
+        if (isExistingPropioSamePeriod) return false;
+        return a.status === 'Checkout';
+      }
+      return true;
+    });
     const updated = [newAloc, ...filtered];
 
     try {
@@ -1359,6 +1418,9 @@ export const logisticsService = {
       data_inicio: string;
       data_fim?: string;
       observacoes?: string;
+      cliente_nome?: string;
+      obra_nome?: string;
+      isPropio?: boolean;
       workerIds?: string[];
     }
   ): Promise<void> {
@@ -1392,6 +1454,21 @@ export const logisticsService = {
       };
       if (params.observacoes !== undefined) {
         updatePayload.observacoes = params.observacoes || null;
+      }
+      if (params.cliente_nome !== undefined && params.cliente_nome.trim()) {
+        updatePayload.cliente_obra_nome = params.cliente_nome.trim();
+      }
+      if (params.obra_nome !== undefined && params.obra_nome.trim()) {
+        updatePayload.project_name = params.obra_nome.trim();
+      }
+      if (params.isPropio) {
+        if (params.data_fim && params.data_fim.trim()) {
+          updatePayload.status = 'Checkout';
+          updatePayload.motivo_checkout = 'Fin de Período / Salida Registrada';
+        } else {
+          updatePayload.status = 'Alojamiento Propio';
+          updatePayload.motivo_checkout = null;
+        }
       }
 
       if (validAlocUuids.length > 0) {
@@ -2577,7 +2654,7 @@ export const logisticsService = {
     const alojamentos = await this.fetchAlojamentos();
     const alojMap = new Map(alojamentos.map(a => [a.id, a]));
 
-    return alocacoes
+    const mappedItems = alocacoes
       .map(a => {
         const aloj = alojMap.get(a.alojamento_id || '') || a.alojamento;
         const nomeAloj = (aloj?.nome || a.alojamento?.nome || '').toUpperCase();
@@ -2677,6 +2754,33 @@ export const logisticsService = {
         } as TrabalhadorAlojado;
       })
       .filter((item): item is TrabalhadorAlojado => item !== null);
+
+    // Deduplicar registros de Alojamiento Propio do mesmo trabalhador que tenham a mesma data de início ou sobreposição,
+    // garantindo que um trabalhador nunca apareça duplicado no mesmo período de auxílio moradia (€ 300/mês)
+    const seenPropioByWorkerAndStart = new Set<string>();
+    const seenActivePropioWorker = new Set<string>();
+    const deduplicatedResult: TrabalhadorAlojado[] = [];
+
+    for (const item of mappedItems) {
+      if (item.tipo_alojamento === 'Propio') {
+        const workerKey = item.worker_id || item.codigo_colab || item.worker_nome;
+        const startKey = `${workerKey}::${item.data_checkin || ''}`;
+
+        if (seenPropioByWorkerAndStart.has(startKey)) {
+          continue;
+        }
+        // Se o trabalhador já possui um registro de Alojamiento Propio ativo (ou mais recente) listado,
+        // evita exibir outro registro redundante do mesmo mês
+        if (seenActivePropioWorker.has(workerKey) && item.data_fim && item.data_checkin === item.data_fim) {
+          continue;
+        }
+        seenPropioByWorkerAndStart.add(startKey);
+        seenActivePropioWorker.add(workerKey);
+      }
+      deduplicatedResult.push(item);
+    }
+
+    return deduplicatedResult;
   },
 
   async fetchHistoricoAlojamentosTrabalhador(params: {
