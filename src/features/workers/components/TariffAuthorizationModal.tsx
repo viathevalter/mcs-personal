@@ -19,17 +19,22 @@ import {
     ShieldCheck,
     Copy,
     Check,
-    MessageSquare,
     Send,
     Bold,
     List,
     Heading,
     Sparkles,
-    Calendar,
     Mail,
     CheckCircle2,
     AlertTriangle,
-    ClipboardList
+    ClipboardList,
+    Languages,
+    ChevronDown,
+    ChevronUp,
+    RotateCcw,
+    BarChart3,
+    Clock,
+    FileSpreadsheet
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -38,8 +43,10 @@ import {
     createTariffAuthorizationRequest,
     listSystemUsers,
     listTariffAuthorizers,
-    getCurrentYearMonth,
-    formatMesVigenciaLabel,
+    getTariffGovernanceSettings,
+    buildTariffEmailFromTemplate,
+    getWorkerTariffDossiers,
+    formatDossierSummaryText,
     type TariffItemRequest,
 } from '../api/tariffGovernanceApi';
 import { useAuth } from '@/app/providers/AuthProvider';
@@ -71,13 +78,34 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         refetchOnWindowFocus: false
     });
 
+    const { data: governanceSettings } = useQuery({
+        queryKey: ['tariff-governance-settings'],
+        queryFn: getTariffGovernanceSettings,
+        enabled: open,
+        refetchOnWindowFocus: false
+    });
+
+    const workerIdsKey = React.useMemo(() => (workers || []).map(w => w.id).join(','), [workers]);
+    const { data: dossiersMap, isLoading: loadingDossiers } = useQuery({
+        queryKey: ['worker-tariff-dossiers', workerIdsKey],
+        queryFn: () => getWorkerTariffDossiers((workers || []).map(w => w.id)),
+        enabled: open && (workers || []).length > 0,
+        refetchOnWindowFocus: false
+    });
+
     const [solicitanteNome, setSolicitanteNome] = useState('');
     const [solicitanteEmail, setSolicitanteEmail] = useState('');
     const [selectedAuthorizerEmail, setSelectedAuthorizerEmail] = useState('');
-    const [mesVigencia, setMesVigencia] = useState<string>(getCurrentYearMonth());
     const [motivoAlteracao, setMotivoAlteracao] = useState('');
 
-    // Map of worker_id -> proposed new tariff
+    // Email language & customization
+    const [emailLang, setEmailLang] = useState<'pt' | 'es'>('pt');
+    const [showEmailEditor, setShowEmailEditor] = useState(false);
+    const [emailEditedManually, setEmailEditedManually] = useState(false);
+    const [customSubject, setCustomSubject] = useState('');
+    const [customBody, setCustomBody] = useState('');
+
+    // Map of worker_id -> intended tariff
     const [proposedTariffs, setProposedTariffs] = useState<Record<string, string>>({});
 
     const [isSubmitting, setIsSubmitting] = useState(false);
@@ -90,8 +118,6 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         emailError?: string;
         gerenteNome: string;
         gerenteEmail: string;
-        gerentePhone?: string;
-        mesVigencia: string;
     } | null>(null);
     const [copied, setCopied] = useState(false);
 
@@ -104,7 +130,6 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         }
     }, [user, systemUsers]);
 
-    // Pre-select default authorizer when modal opens
     useEffect(() => {
         if (open && authorizers.length > 0) {
             const alreadyValid = authorizers.some(a => a.email.toLowerCase() === selectedAuthorizerEmail.toLowerCase());
@@ -125,14 +150,56 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                 initialMap[w.id] = Number(current).toFixed(2);
             });
             setProposedTariffs(initialMap);
-            setMesVigencia(getCurrentYearMonth());
             setMotivoAlteracao('');
+            setEmailLang('pt');
+            setEmailEditedManually(false);
+            setShowEmailEditor(false);
         }
     }, [open, workers]);
 
     const selectedAuthorizer = authorizers.find(
         a => a.email.toLowerCase() === selectedAuthorizerEmail.toLowerCase()
     );
+
+    const buildPreviewItems = React.useCallback((): TariffItemRequest[] => {
+        return (workers || []).map(w => {
+            const currentTariff = Number(w.worker_beneficios_settings?.tarifa_hora || 0);
+            const rawProposed = proposedTariffs[w.id] || '0';
+            const newTariff = parseFloat(rawProposed.replace(',', '.')) || 0;
+            return {
+                worker_id: w.id,
+                worker_nome: w.nome,
+                cod_colab: w.cod_colab,
+                cliente_nombre: w.cliente_nombre,
+                tarifa_anterior: currentTariff,
+                tarifa_pretendida: newTariff,
+                tarifa_nova: newTariff
+            };
+        });
+    }, [workers, proposedTariffs]);
+
+    const syncEmailFromTemplate = React.useCallback((langOverride?: 'pt' | 'es') => {
+        if (!governanceSettings) return;
+        const rendered = buildTariffEmailFromTemplate({
+            lang: langOverride || emailLang,
+            settings: governanceSettings,
+            gerenteNome: selectedAuthorizer?.nome || '{{gerente}}',
+            solicitanteNome: solicitanteNome || '{{solicitante}}',
+            mesVigencia: 'A definir pelo autorizador',
+            codigoTermo: '{{codigo}}',
+            itens: buildPreviewItems(),
+            justificativa: motivoAlteracao || '-',
+            signingUrl: '{{link}}'
+        });
+        setCustomSubject(rendered.subject);
+        setCustomBody(rendered.body);
+    }, [governanceSettings, emailLang, selectedAuthorizer, solicitanteNome, buildPreviewItems, motivoAlteracao]);
+
+    useEffect(() => {
+        if (open && !emailEditedManually && governanceSettings) {
+            syncEmailFromTemplate();
+        }
+    }, [open, emailEditedManually, governanceSettings, syncEmailFromTemplate]);
 
     const handleTariffChange = (workerId: string, value: string) => {
         setProposedTariffs(prev => ({
@@ -148,6 +215,18 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         });
     };
 
+    const handleCopyDossierToJustification = () => {
+        if (!dossiersMap || workers.length === 0) return;
+        const blocks = workers
+            .map(w => formatDossierSummaryText(w.nome, dossiersMap.get(w.id)))
+            .filter(Boolean);
+        if (blocks.length === 0) return;
+
+        const summary = blocks.join('\n\n');
+        setMotivoAlteracao(prev => (prev.trim() ? `${prev.trim()}\n\n${summary}` : summary));
+        toast.success('Resumo operacional copiado para a justificativa!');
+    };
+
     const handleGenerateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
 
@@ -161,13 +240,8 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
             return;
         }
 
-        if (!mesVigencia || !/^\d{4}-\d{2}$/.test(mesVigencia)) {
-            toast.error('Informe o mês de início da vigência.');
-            return;
-        }
-
         if (!motivoAlteracao.trim()) {
-            toast.error('Informe a justificativa do reajuste de tarifa.');
+            toast.error('Informe a justificativa / objeção do reajuste de tarifa.');
             return;
         }
 
@@ -182,7 +256,9 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                 cod_colab: w.cod_colab,
                 cliente_nombre: w.cliente_nombre,
                 tarifa_anterior: currentTariff,
-                tarifa_nova: newTariff
+                tarifa_pretendida: newTariff,
+                tarifa_nova: newTariff,
+                dossie: dossiersMap?.get(w.id)
             };
         });
 
@@ -196,10 +272,12 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                 gerenteNome: selectedAuthorizer.nome,
                 gerenteEmail: selectedAuthorizer.email,
                 gerentePhone: selectedAuthorizer.phone || undefined,
-                mesVigencia,
                 motivoAlteracao,
                 itens: items,
-                empresaId: selectedEmpresaId || null
+                empresaId: selectedEmpresaId || null,
+                emailLanguage: emailLang,
+                customEmailSubject: customSubject,
+                customEmailBody: customBody
             });
 
             setGeneratedResult({
@@ -210,15 +288,13 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                 emailSent: result.emailSent,
                 emailError: result.emailError,
                 gerenteNome: selectedAuthorizer.nome,
-                gerenteEmail: selectedAuthorizer.email,
-                gerentePhone: selectedAuthorizer.phone || undefined,
-                mesVigencia
+                gerenteEmail: selectedAuthorizer.email
             });
 
             queryClient.invalidateQueries({ queryKey: ['worker-tariff-status-badges'] });
             queryClient.invalidateQueries({ queryKey: ['tariff-authorization-requests'] });
 
-            toast.success('Termo gerado e enviado para autorização!');
+            toast.success('Solicitação enviada para análise e autorização!');
             if (onSuccess) onSuccess();
         } catch (err: any) {
             console.error('Error creating tariff authorization request:', err);
@@ -234,27 +310,6 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         setCopied(true);
         toast.success('Link de autorização copiado!');
         setTimeout(() => setCopied(false), 2500);
-    };
-
-    const handleSendWhatsApp = () => {
-        if (!generatedResult) return;
-        const msg = encodeURIComponent(
-            `*MCS GLOBAL - Solicitação de Autorização de Tarifa*\n\n` +
-            `Olá *${generatedResult.gerenteNome}*,\n` +
-            `Foi solicitada uma alteração de tarifas (Termo *${generatedResult.codigoTermo}*) com vigência a partir de *${formatMesVigenciaLabel(generatedResult.mesVigencia)}*.\n\n` +
-            `Por favor, acesse o link abaixo (logado com seu e-mail) para revisar e assinar:\n` +
-            `${generatedResult.url}`
-        );
-
-        let whatsappUrl = `https://wa.me/?text=${msg}`;
-        if (generatedResult.gerentePhone) {
-            const cleanPhone = generatedResult.gerentePhone.replace(/\D/g, '');
-            if (cleanPhone.length > 8) {
-                whatsappUrl = `https://wa.me/${cleanPhone}?text=${msg}`;
-            }
-        }
-
-        window.open(whatsappUrl, '_blank');
     };
 
     const handleClose = (newOpen: boolean) => {
@@ -273,14 +328,14 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
 
     return (
         <Dialog open={open} onOpenChange={handleClose}>
-            <DialogContent className="sm:max-w-[780px] max-h-[90vh] overflow-y-auto">
+            <DialogContent className="sm:max-w-[920px] max-h-[92vh] overflow-y-auto">
                 <DialogHeader>
                     <DialogTitle className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
                         <ShieldCheck className="w-5 h-5 text-indigo-600" />
-                        Solicitar Termo de Autorização de Tarifa
+                        Solicitar Análise e Autorização de Tarifa
                     </DialogTitle>
                     <DialogDescription className="text-xs">
-                        A alteração de tarifa só passa a valer após a assinatura eletrônica do autorizador e respeitará o mês de início da vigência.
+                        Envie a tarifa pretendida com o dossiê do trabalhador e a justificativa. O autorizador definirá o valor final aprovado e o mês de início da vigência.
                     </DialogDescription>
                 </DialogHeader>
 
@@ -294,7 +349,7 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                 Solicitação Enviada para Autorização!
                             </h3>
                             <p className="text-xs text-muted-foreground">
-                                Vigência programada: <strong>{formatMesVigenciaLabel(generatedResult.mesVigencia)}</strong> • Autorizador: <strong>{generatedResult.gerenteNome}</strong> ({generatedResult.gerenteEmail})
+                                Autorizador responsável: <strong>{generatedResult.gerenteNome}</strong> ({generatedResult.gerenteEmail})
                             </p>
                         </div>
 
@@ -305,7 +360,7 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                     <div className="font-semibold">Tarefa na Super Gaveta</div>
                                     <div className="text-[11px] opacity-85">
                                         {generatedResult.taskCreated
-                                            ? `Tarefa criada e atribuída para ${generatedResult.gerenteNome}.`
+                                            ? `Tarefa criada e atribuída para ${generatedResult.gerenteNome} (Central de Comando / Super Gaveta).`
                                             : 'Não foi possível criar a tarefa automaticamente.'}
                                     </div>
                                 </div>
@@ -345,18 +400,10 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             </div>
                         </div>
 
-                        <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                        <div className="flex justify-end pt-2">
                             <Button
-                                onClick={handleSendWhatsApp}
-                                className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs font-semibold h-10"
-                            >
-                                <MessageSquare className="w-4 h-4" />
-                                Enviar também via WhatsApp
-                            </Button>
-                            <Button
-                                variant="outline"
                                 onClick={() => handleClose(false)}
-                                className="h-10 text-xs"
+                                className="h-10 text-xs bg-indigo-600 hover:bg-indigo-700 font-semibold px-6"
                             >
                                 Concluir
                             </Button>
@@ -364,8 +411,8 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                     </div>
                 ) : (
                     <form onSubmit={handleGenerateRequest} className="space-y-4 py-2">
-                        {/* Solicitante, Autorizador e Vigência */}
-                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                        {/* Solicitante & Autorizador */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div className="space-y-1">
                                 <Label className="text-xs font-semibold">Solicitante (Logado)</Label>
                                 <Input
@@ -396,39 +443,27 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                         emptyText="Nenhum autorizador encontrado."
                                     />
                                 )}
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold flex items-center gap-1">
-                                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
-                                    Início da Vigência (Folha) *
-                                </Label>
-                                <Input
-                                    type="month"
-                                    value={mesVigencia}
-                                    onChange={(e) => setMesVigencia(e.target.value)}
-                                    className="h-9 text-xs font-semibold"
-                                    required
-                                />
                                 <p className="text-[10px] text-muted-foreground">
-                                    Ex: <strong>12/2026</strong> não altera as horas de novembro.
+                                    O autorizador definirá o valor final aprovado e o mês de vigência na assinatura.
                                 </p>
                             </div>
                         </div>
 
-                        {/* Workers Table with Proposed Tariffs */}
+                        {/* Workers Table with Intended Tariffs */}
                         <div className="space-y-1.5 pt-1">
                             <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
-                                Definir Novas Tarifas Propostas ({workers.length} Colaborador(es)):
+                                Tarifa Pretendida ({workers.length} Colaborador(es)):
                             </Label>
-                            <div className="border rounded-md max-h-52 overflow-y-auto bg-white dark:bg-slate-900">
+                            <div className="border rounded-md max-h-48 overflow-y-auto bg-white dark:bg-slate-900">
                                 <Table>
                                     <TableHeader className="bg-slate-50 dark:bg-slate-800">
                                         <TableRow>
                                             <TableHead className="text-xs font-bold py-2">Trabalhador</TableHead>
                                             <TableHead className="text-xs font-bold py-2">Cliente</TableHead>
                                             <TableHead className="text-xs font-bold py-2 text-right">Tarifa Atual</TableHead>
-                                            <TableHead className="text-xs font-bold py-2 text-right w-[140px] text-indigo-700 dark:text-indigo-400">Nova Tarifa (€)</TableHead>
+                                            <TableHead className="text-xs font-bold py-2 text-right w-[160px] text-indigo-700 dark:text-indigo-400">
+                                                Tarifa Pretendida (€)
+                                            </TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
@@ -463,12 +498,91 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             </div>
                         </div>
 
+                        {/* Worker Operational Dossier (Hours, Tenure & Last Payslips) */}
+                        <div className="border rounded-lg p-3.5 bg-indigo-50/40 dark:bg-indigo-950/20 border-indigo-200/80 space-y-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <BarChart3 className="w-4 h-4 text-indigo-600" />
+                                    <span className="text-xs font-bold text-indigo-950 dark:text-indigo-200 uppercase tracking-wide">
+                                        Dossiê Operacional & Últimos Holerites (Para Análise do Autorizador)
+                                    </span>
+                                </div>
+                                <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-7 text-[11px] bg-white hover:bg-indigo-50 border-indigo-200 text-indigo-700 gap-1.5 font-semibold"
+                                    disabled={loadingDossiers || !dossiersMap}
+                                    onClick={handleCopyDossierToJustification}
+                                >
+                                    <Copy className="w-3 h-3" />
+                                    Copiar Resumo para Justificativa
+                                </Button>
+                            </div>
+
+                            {loadingDossiers ? (
+                                <div className="py-3 flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                                    <Loader2 className="w-4 h-4 animate-spin text-indigo-500" />
+                                    Buscando horas e últimos holerites...
+                                </div>
+                            ) : (
+                                <div className="space-y-2.5 max-h-48 overflow-y-auto pr-1">
+                                    {workers.map(w => {
+                                        const d = dossiersMap?.get(w.id);
+                                        return (
+                                            <div key={w.id} className="bg-white dark:bg-slate-900 rounded-md border p-2.5 text-xs space-y-2">
+                                                <div className="flex flex-wrap items-center justify-between gap-2">
+                                                    <span className="font-bold text-slate-800 dark:text-slate-100">{w.nome}</span>
+                                                    <div className="flex flex-wrap items-center gap-2 text-[11px]">
+                                                        {d?.tempo_casa_dias != null && (
+                                                            <Badge variant="outline" className="gap-1 font-normal">
+                                                                <Clock className="w-3 h-3 text-slate-500" />
+                                                                Empresa: <strong>{d.tempo_casa_dias}d</strong>
+                                                            </Badge>
+                                                        )}
+                                                        {d?.tempo_cliente_dias != null && (
+                                                            <Badge variant="outline" className="gap-1 font-normal">
+                                                                Cliente atual: <strong>{d.tempo_cliente_dias}d</strong>
+                                                            </Badge>
+                                                        )}
+                                                        <Badge className="bg-indigo-100 text-indigo-800 hover:bg-indigo-100 border-indigo-200 gap-1 font-semibold">
+                                                            Média: {d?.media_horas_mensal ?? 0}h/mês
+                                                        </Badge>
+                                                    </div>
+                                                </div>
+
+                                                {d && d.ultimos_holerites.length > 0 ? (
+                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                                        {d.ultimos_holerites.map((h, idx) => (
+                                                            <div key={idx} className="p-1.5 rounded bg-slate-50 dark:bg-slate-800 border text-[11px]">
+                                                                <div className="font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
+                                                                    <FileSpreadsheet className="w-3 h-3" />
+                                                                    {h.mes_referencia}
+                                                                </div>
+                                                                <div className="text-slate-700 dark:text-slate-300 font-mono">
+                                                                    {h.horas_trabalhadas}h • € {h.valor_liquido.toFixed(2)}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                ) : (
+                                                    <div className="text-[11px] text-muted-foreground italic">
+                                                        Sem holerites anteriores registrados para este colaborador.
+                                                    </div>
+                                                )}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+                        </div>
+
                         {/* Justification */}
                         <div className="space-y-1.5 pt-1">
                             <div className="flex justify-between items-center">
                                 <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                                    Justificativa / Motivo do Reajuste *
+                                    Justificativa / Objeção do Trabalhador *
                                 </Label>
                                 <div className="flex gap-1">
                                     <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => insertFormatting('### ')}>
@@ -484,16 +598,113 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             </div>
 
                             <Textarea
-                                rows={4}
+                                rows={5}
                                 value={motivoAlteracao}
                                 onChange={(e) => setMotivoAlteracao(e.target.value)}
-                                placeholder="Descreva aqui o motivo detalhado do reajuste de tarifa (ex: Aditivo contratual com o cliente, reajuste por mérito/função...)"
+                                placeholder="Relate a objeção/pedido do trabalhador (ex: despesas, comparativo com colegas, desempenho...) e use o botão 'Copiar Resumo para Justificativa' acima se desejar incluir os números."
                                 className="text-xs bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 leading-relaxed font-sans"
                                 required
                             />
+                        </div>
+
+                        {/* Email Language & Inline Customization */}
+                        <div className="border rounded-lg p-3 bg-slate-50/70 dark:bg-slate-900/50 space-y-2.5">
+                            <div className="flex flex-wrap items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Languages className="w-4 h-4 text-indigo-600" />
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">
+                                        Idioma do E-mail:
+                                    </span>
+                                    <div className="flex gap-1">
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={emailLang === 'pt' ? 'default' : 'outline'}
+                                            className={`h-7 text-[11px] px-2.5 ${emailLang === 'pt' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                            onClick={() => {
+                                                setEmailLang('pt');
+                                                setEmailEditedManually(false);
+                                                syncEmailFromTemplate('pt');
+                                            }}
+                                        >
+                                            Português
+                                        </Button>
+                                        <Button
+                                            type="button"
+                                            size="sm"
+                                            variant={emailLang === 'es' ? 'default' : 'outline'}
+                                            className={`h-7 text-[11px] px-2.5 ${emailLang === 'es' ? 'bg-indigo-600 hover:bg-indigo-700' : ''}`}
+                                            onClick={() => {
+                                                setEmailLang('es');
+                                                setEmailEditedManually(false);
+                                                syncEmailFromTemplate('es');
+                                            }}
+                                        >
+                                            Espanhol
+                                        </Button>
+                                    </div>
+                                </div>
+
+                                <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 text-[11px] text-indigo-700 hover:bg-indigo-100/60 gap-1"
+                                    onClick={() => setShowEmailEditor(v => !v)}
+                                >
+                                    <Mail className="w-3.5 h-3.5" />
+                                    {showEmailEditor ? 'Ocultar Texto do E-mail' : 'Visualizar / Alterar E-mail'}
+                                    {showEmailEditor ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+                                </Button>
+                            </div>
+
+                            {showEmailEditor && (
+                                <div className="space-y-2 pt-2 border-t">
+                                    <div className="flex items-center justify-between">
+                                        <Label className="text-[11px] font-semibold">Assunto do E-mail</Label>
+                                        {emailEditedManually && (
+                                            <Button
+                                                type="button"
+                                                variant="ghost"
+                                                size="sm"
+                                                className="h-6 text-[10px] gap-1 text-slate-600"
+                                                onClick={() => {
+                                                    setEmailEditedManually(false);
+                                                    syncEmailFromTemplate();
+                                                }}
+                                            >
+                                                <RotateCcw className="w-3 h-3" /> Restaurar do modelo
+                                            </Button>
+                                        )}
+                                    </div>
+                                    <Input
+                                        value={customSubject}
+                                        onChange={(e) => {
+                                            setEmailEditedManually(true);
+                                            setCustomSubject(e.target.value);
+                                        }}
+                                        className="h-8 text-xs bg-white dark:bg-slate-900"
+                                    />
+
+                                    <Label className="text-[11px] font-semibold block">Corpo do E-mail (HTML)</Label>
+                                    <Textarea
+                                        rows={6}
+                                        value={customBody}
+                                        onChange={(e) => {
+                                            setEmailEditedManually(true);
+                                            setCustomBody(e.target.value);
+                                        }}
+                                        className="text-[11px] font-mono bg-white dark:bg-slate-900 leading-relaxed"
+                                    />
+                                    <p className="text-[10px] text-muted-foreground">
+                                        As variáveis <code>{'{{codigo}}'}</code> e <code>{'{{link}}'}</code> serão substituídas automaticamente ao enviar.
+                                    </p>
+                                </div>
+                            )}
+
                             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
                                 <Mail className="w-3 h-3 text-indigo-500" />
-                                Ao gerar, será criada uma tarefa na Super Gaveta e enviado um e-mail automático para <strong>{selectedAuthorizer?.email || 'o autorizador'}</strong>.
+                                Ao clicar em <strong>Enviar</strong>, será criada a tarefa na Super Gaveta e enviado o e-mail para <strong>{selectedAuthorizer?.email || 'o autorizador'}</strong>.
                             </p>
                         </div>
 
@@ -509,12 +720,12 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        Gerando Termo & Enviando...
+                                        Enviando...
                                     </>
                                 ) : (
                                     <>
                                         <Send className="w-4 h-4" />
-                                        Gerar Termo, Tarefa & Enviar E-mail
+                                        Enviar para Autorização
                                     </>
                                 )}
                             </Button>

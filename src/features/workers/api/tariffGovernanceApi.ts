@@ -1,12 +1,33 @@
 import { supabase } from '@/shared/supabase/client';
 
+export interface WorkerHoleriteSummary {
+    mes_referencia: string; // YYYY-MM
+    horas_trabalhadas: number;
+    total_proventos: number;
+    valor_liquido: number;
+    status?: string;
+}
+
+export interface WorkerTariffDossier {
+    worker_id: string;
+    data_ingresso?: string | null;
+    tempo_casa_dias?: number | null;
+    cliente_atual?: string | null;
+    tempo_cliente_dias?: number | null;
+    total_horas_ultimos_meses: number;
+    media_horas_mensal: number;
+    ultimos_holerites: WorkerHoleriteSummary[];
+}
+
 export interface TariffItemRequest {
     worker_id: string;
     worker_nome: string;
     cod_colab?: string;
     cliente_nombre?: string;
     tarifa_anterior: number;
+    tarifa_pretendida?: number;
     tarifa_nova: number;
+    dossie?: WorkerTariffDossier;
 }
 
 export interface TariffAuthorizationRequest {
@@ -62,6 +83,8 @@ export interface TariffGovernanceSettings {
     id: string;
     email_subject_template: string;
     email_body_template: string;
+    email_subject_template_es?: string;
+    email_body_template_es?: string;
     updated_at?: string;
     updated_by_email?: string;
 }
@@ -95,6 +118,19 @@ export const DEFAULT_EMAIL_BODY = `<p>Olá, <strong>{{gerente}}</strong>,</p>
 <p>Para revisar e assinar eletronicamente (é necessário estar logado com seu e-mail corporativo), acesse o link abaixo:</p>
 <p><a href="{{link}}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Revisar e Assinar Termo</a></p>
 <p style="font-size:12px;color:#64748b;">Caso o botão não funcione, copie e cole no navegador: {{link}}</p>`;
+
+export const DEFAULT_EMAIL_SUBJECT_ES =
+    'Autorización de Ajuste de Tarifa ({{codigo}}) - Vigencia {{vigencia}}';
+
+export const DEFAULT_EMAIL_BODY_ES = `<p>Hola, <strong>{{gerente}}</strong>,</p>
+<p><strong>{{solicitante}}</strong> ha generado el Termo de Autorización de Tarifa <strong>{{codigo}}</strong> ({{vigencia}}).</p>
+<p>Se te ha asignado una tarea en la <strong>Super Gaveta Operacional</strong> del sistema.</p>
+<p><strong>Trabajadores / Tarifas:</strong></p>
+{{itens}}
+<p><strong>Justificación:</strong><br/>{{justificativa}}</p>
+<p>Para revisar y firmar electrónicamente (es necesario iniciar sesión con tu correo corporativo), accede al siguiente enlace:</p>
+<p><a href="{{link}}" style="display:inline-block;padding:10px 18px;background:#4f46e5;color:#ffffff;text-decoration:none;border-radius:6px;font-weight:600;">Revisar y Firmar Termo</a></p>
+<p style="font-size:12px;color:#64748b;">Si el botón no funciona, copia y pega este enlace en tu navegador: {{link}}</p>`;
 
 export function formatMesVigenciaLabel(mesVigencia?: string): string {
     if (!mesVigencia || !/^\d{4}-\d{2}$/.test(mesVigencia)) return mesVigencia || '-';
@@ -274,7 +310,7 @@ export async function updateTariffGovernanceSettings(payload: {
     if (error) throw error;
 }
 
-function renderEmailTemplate(
+export function renderEmailTemplate(
     template: string,
     vars: Record<string, string>
 ): string {
@@ -285,6 +321,54 @@ function renderEmailTemplate(
     return output;
 }
 
+export function buildTariffEmailFromTemplate(params: {
+    lang: 'pt' | 'es';
+    settings: TariffGovernanceSettings;
+    gerenteNome: string;
+    solicitanteNome: string;
+    mesVigencia: string;
+    codigoTermo: string;
+    itens: TariffItemRequest[];
+    justificativa: string;
+    signingUrl: string;
+}): { subject: string; body: string } {
+    const vigenciaLabel = /^\d{4}-\d{2}$/.test(params.mesVigencia)
+        ? formatMesVigenciaLabel(params.mesVigencia)
+        : params.mesVigencia;
+
+    const itensHtml = `<ul style="padding-left:18px;margin:8px 0;">${params.itens
+        .map(
+            i =>
+                `<li><strong>${i.worker_nome}</strong> (${i.cod_colab || '-'} • ${i.cliente_nombre || '-'}): € ${i.tarifa_anterior.toFixed(2)} &rarr; <strong style="color:#4f46e5;">€ ${i.tarifa_nova.toFixed(2)}/h</strong></li>`
+        )
+        .join('')}</ul>`;
+
+    const vars = {
+        gerente: params.gerenteNome,
+        solicitante: params.solicitanteNome,
+        vigencia: vigenciaLabel,
+        codigo: params.codigoTermo,
+        itens: itensHtml,
+        justificativa: (params.justificativa || '-').replace(/\n/g, '<br/>'),
+        link: params.signingUrl
+    };
+
+    const subjectTpl =
+        params.lang === 'es'
+            ? params.settings.email_subject_template_es || DEFAULT_EMAIL_SUBJECT_ES
+            : params.settings.email_subject_template || DEFAULT_EMAIL_SUBJECT;
+
+    const bodyTpl =
+        params.lang === 'es'
+            ? params.settings.email_body_template_es || DEFAULT_EMAIL_BODY_ES
+            : params.settings.email_body_template || DEFAULT_EMAIL_BODY;
+
+    return {
+        subject: renderEmailTemplate(subjectTpl, vars),
+        body: renderEmailTemplate(bodyTpl, vars)
+    };
+}
+
 export async function createTariffAuthorizationRequest(payload: {
     solicitanteNome: string;
     solicitanteId?: string;
@@ -293,10 +377,13 @@ export async function createTariffAuthorizationRequest(payload: {
     gerenteEmail: string;
     gerenteUserId?: string;
     gerentePhone?: string;
-    mesVigencia: string; // YYYY-MM
+    mesVigencia?: string; // YYYY-MM (defined by authorizer on approval)
     motivoAlteracao?: string;
     itens: TariffItemRequest[];
     empresaId?: string | null;
+    emailLanguage?: 'pt' | 'es';
+    customEmailSubject?: string;
+    customEmailBody?: string;
 }): Promise<{
     request: TariffAuthorizationRequest;
     token: string;
@@ -313,6 +400,7 @@ export async function createTariffAuthorizationRequest(payload: {
     const signingUrl = `${window.location.origin}/tariffs/authorization/${token}`;
     const justificativa = (payload.motivoAlteracao || '').trim() || 'Ajuste de tarifa de remuneração horária';
 
+    const effectiveMesVigencia = payload.mesVigencia || getCurrentYearMonth();
     const newRequest = {
         codigo_termo: codigoTermo,
         solicitante_id: payload.solicitanteId || null,
@@ -322,7 +410,7 @@ export async function createTariffAuthorizationRequest(payload: {
         gerente_nome: payload.gerenteNome,
         gerente_email: payload.gerenteEmail.trim().toLowerCase(),
         gerente_phone: payload.gerentePhone || null,
-        mes_vigencia: payload.mesVigencia,
+        mes_vigencia: effectiveMesVigencia,
         motivo_alteracao: justificativa,
         status: 'PENDENTE',
         token_assinatura: token,
@@ -341,7 +429,9 @@ export async function createTariffAuthorizationRequest(payload: {
         throw error;
     }
 
-    const vigenciaLabel = formatMesVigenciaLabel(payload.mesVigencia);
+    const vigenciaLabel = payload.mesVigencia
+        ? formatMesVigenciaLabel(payload.mesVigencia)
+        : 'A definir pelo autorizador';
 
     // 1. Create Task in Super Gaveta Operacional (core_operacoes.solicitud_tareas)
     let taskCreated = false;
@@ -411,25 +501,31 @@ export async function createTariffAuthorizationRequest(payload: {
     let emailError: string | undefined;
     try {
         const settings = await getTariffGovernanceSettings();
-        const itensHtml = `<ul style="padding-left:18px;margin:8px 0;">${payload.itens
-            .map(
-                i =>
-                    `<li><strong>${i.worker_nome}</strong> (${i.cod_colab || '-'} • ${i.cliente_nombre || '-'}): € ${i.tarifa_anterior.toFixed(2)} &rarr; <strong style="color:#4f46e5;">€ ${i.tarifa_nova.toFixed(2)}/h</strong></li>`
-            )
-            .join('')}</ul>`;
+        const rendered = buildTariffEmailFromTemplate({
+            lang: payload.emailLanguage || 'pt',
+            settings,
+            gerenteNome: payload.gerenteNome,
+            solicitanteNome: payload.solicitanteNome,
+            mesVigencia: payload.mesVigencia || 'A definir pelo autorizador',
+            codigoTermo,
+            itens: payload.itens,
+            justificativa,
+            signingUrl
+        });
 
-        const templateVars = {
-            gerente: payload.gerenteNome,
-            solicitante: payload.solicitanteNome,
-            vigencia: vigenciaLabel,
-            codigo: codigoTermo,
-            itens: itensHtml,
-            justificativa: justificativa.replace(/\n/g, '<br/>'),
-            link: signingUrl
-        };
+        let emailSubject = rendered.subject;
+        let emailBody = rendered.body;
 
-        const emailSubject = renderEmailTemplate(settings.email_subject_template, templateVars);
-        const emailBody = renderEmailTemplate(settings.email_body_template, templateVars);
+        if (payload.customEmailSubject && payload.customEmailSubject.trim()) {
+            emailSubject = payload.customEmailSubject
+                .replace(/\{\{\s*codigo\s*\}\}/gi, codigoTermo)
+                .replace(/\{\{\s*link\s*\}\}/gi, signingUrl);
+        }
+        if (payload.customEmailBody && payload.customEmailBody.trim()) {
+            emailBody = payload.customEmailBody
+                .replace(/\{\{\s*codigo\s*\}\}/gi, codigoTermo)
+                .replace(/\{\{\s*link\s*\}\}/gi, signingUrl);
+        }
 
         const { data: fnData, error: fnErr } = await supabase.functions.invoke('send-order-notification', {
             body: {
@@ -482,6 +578,9 @@ export async function approveAndApplyTariffAuthorization(payload: {
     token: string;
     assinaturaBase64: string;
     signerEmail: string;
+    tipoAssinatura?: 'desenho' | 'imagem' | 'texto';
+    mesVigencia?: string;
+    approvedTariffs?: Record<string, number>;
 }): Promise<{ success: boolean; updatedCount: number; appliedImmediately: boolean; mesVigencia: string }> {
     const request = await getTariffAuthorizationByToken(payload.token);
     if (!request) {
@@ -490,6 +589,9 @@ export async function approveAndApplyTariffAuthorization(payload: {
 
     if (request.status === 'APROVADO') {
         throw new Error('Esta solicitação já foi aprovada e aplicada anteriormente.');
+    }
+    if (request.status === 'REJEITADO') {
+        throw new Error('Esta solicitação já foi marcada como Não Autorizada.');
     }
 
     if (request.gerente_email) {
@@ -500,14 +602,32 @@ export async function approveAndApplyTariffAuthorization(payload: {
         }
     }
 
+    const mesVigencia = payload.mesVigencia || request.mes_vigencia || getCurrentYearMonth();
     const nowIso = new Date().toISOString();
+
+    const finalItems: TariffItemRequest[] = (request.itens_solicitacao || []).map(item => {
+        const overrideVal = payload.approvedTariffs?.[item.worker_id];
+        const approvedRate =
+            overrideVal !== undefined && !isNaN(overrideVal) && overrideVal >= 0
+                ? overrideVal
+                : Number(item.tarifa_nova || 0);
+        return {
+            ...item,
+            tarifa_pretendida: item.tarifa_pretendida ?? item.tarifa_nova,
+            tarifa_nova: approvedRate
+        };
+    });
+
     const { error: updateReqErr } = await supabase
         .schema('core_personal')
         .from('tariff_authorization_requests')
         .update({
             status: 'APROVADO',
+            mes_vigencia: mesVigencia,
+            itens_solicitacao: finalItems,
             assinatura_base64: payload.assinaturaBase64,
             assinado_em: nowIso,
+            tipo_assinatura: payload.tipoAssinatura || 'desenho',
             updated_at: nowIso
         })
         .eq('id', request.id);
@@ -517,14 +637,12 @@ export async function approveAndApplyTariffAuthorization(payload: {
         throw updateReqErr;
     }
 
-    const mesVigencia = request.mes_vigencia || getCurrentYearMonth();
     const currentMonth = getCurrentYearMonth();
     const applyNowToCurrentSettings = mesVigencia <= currentMonth;
 
-    const items = request.itens_solicitacao || [];
     let updatedCount = 0;
 
-    for (const item of items) {
+    for (const item of finalItems) {
         if (!item.worker_id) continue;
 
         // 1. Always record competence schedule (used by Holerites for mes_referencia >= mesVigencia)
@@ -689,10 +807,79 @@ export async function listTariffAuthorizationRequests(): Promise<(TariffAuthoriz
         itens_solicitacao: r.itens_solicitacao || [],
         assinatura_base64: r.assinatura_base64,
         assinado_em: r.assinado_em,
+        tipo_assinatura: r.tipo_assinatura,
+        motivo_rejeicao: r.motivo_rejeicao,
+        rejeitado_em: r.rejeitado_em,
+        rejeitado_por_nome: r.rejeitado_por_nome,
         task_id: r.task_id,
         created_at: r.created_at,
         url: `${baseUrl}/tariffs/authorization/${r.token_assinatura}`
     }));
+}
+
+export async function rejectTariffAuthorization(payload: {
+    token: string;
+    motivoRejeicao: string;
+    rejectorEmail: string;
+    rejectorNome?: string;
+}): Promise<{ success: boolean }> {
+    const request = await getTariffAuthorizationByToken(payload.token);
+    if (!request) {
+        throw new Error('Solicitação de autorização não encontrada.');
+    }
+
+    if (request.status === 'APROVADO') {
+        throw new Error('Esta solicitação já foi aprovada anteriormente.');
+    }
+    if (request.status === 'REJEITADO') {
+        throw new Error('Esta solicitação já foi marcada como Não Autorizada.');
+    }
+
+    if (request.gerente_email) {
+        const expected = request.gerente_email.trim().toLowerCase();
+        const actual = payload.rejectorEmail.trim().toLowerCase();
+        if (expected !== actual) {
+            throw new Error(`Apenas o autorizador designado (${expected}) pode recusar este termo. Você está logado como ${actual}.`);
+        }
+    }
+
+    const reason = payload.motivoRejeicao.trim();
+    if (!reason) {
+        throw new Error('Informe a justificativa da não autorização.');
+    }
+
+    const nowIso = new Date().toISOString();
+    const rejectorName = payload.rejectorNome || request.gerente_nome;
+
+    const { error } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .update({
+            status: 'REJEITADO',
+            motivo_rejeicao: reason,
+            rejeitado_em: nowIso,
+            rejeitado_por_nome: rejectorName,
+            updated_at: nowIso
+        })
+        .eq('id', request.id);
+
+    if (error) {
+        console.error('Error rejecting tariff authorization:', error);
+        throw error;
+    }
+
+    if (request.task_id) {
+        try {
+            await supabase.schema('core_operacoes').rpc('concluir_tarefa_termo_tarifa', {
+                p_task_id: request.task_id,
+                p_signed_by: `${rejectorName} (NÃO AUTORIZADO: ${reason})`
+            });
+        } catch (taskErr) {
+            console.error('Error completing linked Super Gaveta task on rejection:', taskErr);
+        }
+    }
+
+    return { success: true };
 }
 
 export interface WorkerTariffStatusBadge {
@@ -811,7 +998,9 @@ export async function updatePendingTariffAuthorizationRequest(payload: {
     // Sync linked Super Gaveta task (without creating a new task or sending a new email)
     if (existing.task_id) {
         try {
-            const vigenciaLabel = formatMesVigenciaLabel(payload.mesVigencia);
+            const vigenciaLabel = payload.mesVigencia
+        ? formatMesVigenciaLabel(payload.mesVigencia)
+        : 'A definir pelo autorizador';
             const signingUrl = `${window.location.origin}/tariffs/authorization/${existing.token_assinatura}`;
             const workersSummaryLines = payload.itens
                 .map(i => `• ${i.worker_nome} (${i.cod_colab || '-'}): € ${Number(i.tarifa_anterior).toFixed(2)} -> € ${Number(i.tarifa_nova).toFixed(2)}`)
@@ -995,4 +1184,145 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
     });
 
     return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
+
+export async function getWorkerTariffDossiers(
+    workerIds: string[]
+): Promise<Map<string, WorkerTariffDossier>> {
+    const map = new Map<string, WorkerTariffDossier>();
+    if (!workerIds || workerIds.length === 0) return map;
+
+    const [workersRes, assignmentsRes, holeritesRes] = await Promise.all([
+        supabase
+            .schema('core_personal')
+            .from('workers')
+            .select('id, data_ingresso, cliente, created_at')
+            .in('id', workerIds),
+        supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .select('worker_id, start_date, planned_start_date, end_date, status')
+            .in('worker_id', workerIds)
+            .order('created_at', { ascending: false }),
+        supabase
+            .schema('core_personal')
+            .from('holerites')
+            .select('id, worker_id, mes_referencia, horas_trabalhadas, total_proventos, valor_liquido, status')
+            .in('worker_id', workerIds)
+            .order('mes_referencia', { ascending: false })
+            .limit(workerIds.length * 6)
+    ]);
+
+    const holerites = holeritesRes.data || [];
+    const holeriteIds = holerites.map((h: any) => h.id).filter(Boolean);
+    const horasEventoMap = new Map<string, number>();
+
+    if (holeriteIds.length > 0) {
+        const { data: eventos } = await supabase
+            .schema('core_personal')
+            .from('holerite_eventos')
+            .select('holerite_id, categoria, referencia_dias_horas')
+            .in('holerite_id', holeriteIds)
+            .in('categoria', ['total_horas', 'ajuste_manual_horas']);
+
+        (eventos || []).forEach((ev: any) => {
+            if (ev.categoria === 'ajuste_manual_horas' && ev.referencia_dias_horas != null) {
+                horasEventoMap.set(ev.holerite_id, Number(ev.referencia_dias_horas));
+            } else if (!horasEventoMap.has(ev.holerite_id) && ev.referencia_dias_horas != null) {
+                horasEventoMap.set(ev.holerite_id, Number(ev.referencia_dias_horas));
+            }
+        });
+    }
+
+    const nowMs = Date.now();
+    const dayMs = 1000 * 60 * 60 * 24;
+
+    const workerMap = new Map<string, any>();
+    (workersRes.data || []).forEach((w: any) => workerMap.set(w.id, w));
+
+    const assignByWorker = new Map<string, any[]>();
+    (assignmentsRes.data || []).forEach((a: any) => {
+        const list = assignByWorker.get(a.worker_id) || [];
+        list.push(a);
+        assignByWorker.set(a.worker_id, list);
+    });
+
+    const holeritesByWorker = new Map<string, any[]>();
+    holerites.forEach((h: any) => {
+        const list = holeritesByWorker.get(h.worker_id) || [];
+        if (list.length < 4) list.push(h);
+        holeritesByWorker.set(h.worker_id, list);
+    });
+
+    for (const wid of workerIds) {
+        const w = workerMap.get(wid);
+        const assigns = assignByWorker.get(wid) || [];
+        const hList = holeritesByWorker.get(wid) || [];
+
+        const admissionStr = w?.data_ingresso || w?.created_at || null;
+        const tempoCasaDias = admissionStr
+            ? Math.max(0, Math.floor((nowMs - new Date(admissionStr).getTime()) / dayMs))
+            : null;
+
+        const activeAssign = assigns.find((a: any) => a.status === 'active') || assigns[0];
+        const clientStartStr = activeAssign?.start_date || activeAssign?.planned_start_date || null;
+        const tempoClienteDias = clientStartStr
+            ? Math.max(0, Math.floor((nowMs - new Date(clientStartStr).getTime()) / dayMs))
+            : null;
+
+        const ultimosHolerites: WorkerHoleriteSummary[] = hList.map((h: any) => {
+            const horas = Number(h.horas_trabalhadas || 0) > 0
+                ? Number(h.horas_trabalhadas)
+                : Number(horasEventoMap.get(h.id) || 0);
+            return {
+                mes_referencia: String(h.mes_referencia).slice(0, 7),
+                horas_trabalhadas: horas,
+                total_proventos: Number(h.total_proventos || 0),
+                valor_liquido: Number(h.valor_liquido || 0),
+                status: h.status || undefined
+            };
+        });
+
+        const totalHoras = ultimosHolerites.reduce((sum, h) => sum + h.horas_trabalhadas, 0);
+        const mediaHoras = ultimosHolerites.length > 0 ? totalHoras / ultimosHolerites.length : 0;
+
+        map.set(wid, {
+            worker_id: wid,
+            data_ingresso: admissionStr,
+            tempo_casa_dias: tempoCasaDias,
+            cliente_atual: w?.cliente || null,
+            tempo_cliente_dias: tempoClienteDias,
+            total_horas_ultimos_meses: Math.round(totalHoras * 100) / 100,
+            media_horas_mensal: Math.round(mediaHoras * 10) / 10,
+            ultimos_holerites: ultimosHolerites
+        });
+    }
+
+    return map;
+}
+
+export function formatDossierSummaryText(workerName: string, dossier?: WorkerTariffDossier): string {
+    if (!dossier) return '';
+    const lines: string[] = [`📊 Resumo Operacional — ${workerName}:`];
+    if (dossier.data_ingresso) {
+        lines.push(
+            `• Tempo na empresa: ${dossier.tempo_casa_dias ?? 0} dias (desde ${new Date(dossier.data_ingresso).toLocaleDateString('pt-PT')})`
+        );
+    }
+    if (dossier.cliente_atual) {
+        lines.push(
+            `• Cliente atual: ${dossier.cliente_atual}${dossier.tempo_cliente_dias != null ? ` (${dossier.tempo_cliente_dias} dias nesta alocação)` : ''}`
+        );
+    }
+    if (dossier.ultimos_holerites.length > 0) {
+        lines.push(`• Média de horas: ${dossier.media_horas_mensal}h/mês (últimos ${dossier.ultimos_holerites.length} holerites):`);
+        dossier.ultimos_holerites.forEach(h => {
+            lines.push(
+                `  - ${h.mes_referencia}: ${h.horas_trabalhadas}h | Proventos: € ${h.total_proventos.toFixed(2)} | Líquido: € ${h.valor_liquido.toFixed(2)}`
+            );
+        });
+    } else {
+        lines.push('• Sem holerites anteriores registrados.');
+    }
+    return lines.join('\n');
 }
