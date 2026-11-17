@@ -1269,7 +1269,7 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                       replacementTargets
                     );
                     const firstRep = itemReplacements[0] || (selectedPedido.isSynthetic ? replacementTargets.find(t => t.id === item.solicitud_target_id) : undefined);
-                    const isItemFulfilled = effectiveFulfilled >= (item.quantity_requested || 0);
+                    const isItemFulfilled = repCount === 0 && effectiveFulfilled >= (item.quantity_requested || 0);
                     const progress = item.quantity_requested > 0 
                       ? Math.min(100, Math.round((effectiveFulfilled / item.quantity_requested) * 100))
                       : 0;
@@ -1381,14 +1381,24 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                   {repDate && <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-400">Início: {repDate}</span>}
                                 </div>
                                 
-                                <p className="text-[11px] text-slate-700 dark:text-slate-300">
-                                  Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{workerName}</strong>{workerCod}
-                                  {firstRep?.source_end_date && (
-                                    <span className="ml-1.5 inline-block px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 font-bold text-[10px]">
-                                      Trabalha até: {new Date(`${String(firstRep.source_end_date).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-PT')}
-                                    </span>
-                                  )}
-                                </p>
+                                <div className="space-y-1">
+                                  {(itemReplacements.length > 0 ? itemReplacements : [firstRep].filter(Boolean)).map((rep: any, rIdx: number) => {
+                                    const rWorkerName = rep?.source_worker?.nome || item.replaced_worker?.nome || 'Trabalhador';
+                                    const rWorkerCod = rep?.source_worker?.cod_colab
+                                      ? ` (Cód: ${rep.source_worker.cod_colab})`
+                                      : (item.replaced_worker?.cod_colab ? ` (Cód: ${item.replaced_worker.cod_colab})` : '');
+                                    return (
+                                      <p key={rep?.id || rIdx} className="text-[11px] text-slate-700 dark:text-slate-300">
+                                        {itemReplacements.length > 1 ? `${rIdx + 1}. ` : ''}Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{rWorkerName}</strong>{rWorkerCod}
+                                        {rep?.source_end_date && (
+                                          <span className="ml-1.5 inline-block px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 font-bold text-[10px]">
+                                            Trabalha até: {new Date(`${String(rep.source_end_date).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-PT')}
+                                          </span>
+                                        )}
+                                      </p>
+                                    );
+                                  })}
+                                </div>
 
                                 {isFunctionChanged && (
                                   <p className="text-[11px] text-purple-800 dark:text-purple-300 font-semibold">

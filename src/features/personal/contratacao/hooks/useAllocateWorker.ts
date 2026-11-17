@@ -114,6 +114,8 @@ export const useAllocateWorker = () => {
       queryClient.invalidateQueries({ queryKey: ['pedido_items'] });
       queryClient.invalidateQueries({ queryKey: ['inactive_workers'] });
       queryClient.invalidateQueries({ queryKey: ['active_pedidos'] });
+      queryClient.invalidateQueries({ queryKey: ['active_replacement_targets'] });
+      queryClient.invalidateQueries({ queryKey: ['all_allocations'] });
       queryClient.invalidateQueries({ queryKey: ['pedido_allocations'] });
       queryClient.invalidateQueries({ queryKey: ['workers-tariffs'] });
       queryClient.invalidateQueries({ queryKey: ['workers'] });
