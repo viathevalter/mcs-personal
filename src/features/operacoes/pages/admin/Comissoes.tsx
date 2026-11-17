@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
-import { commissionService } from '../../services/db/SupabaseCommissionService';
+import { commissionService, RETROACTIVE_PAID_CUTOFF } from '../../services/db/SupabaseCommissionService';
 import type {
     CommissionGenerated,
     CommissionLancamento,
@@ -257,8 +257,13 @@ export const Comissoes: React.FC = () => {
             const isCarenciaOk = Boolean(g.carencia_cumprida);
             const isElegivel = isCarenciaOk && (!exigeFatura || isFaturaQuitada);
 
+            const isPaidBeforeCutoff = Boolean(
+                (g.data_referencia && g.data_referencia <= RETROACTIVE_PAID_CUTOFF) ||
+                (g.pedido_start_date && g.pedido_start_date <= RETROACTIVE_PAID_CUTOFF)
+            );
+
             let statusConta: 'PAGO' | 'ELEGIVEL' | 'BLOQUEADA_FATURA' | 'BLOQUEADA_CARENCIA' | 'REMANEJADO' = 'BLOQUEADA_CARENCIA';
-            if (payment) {
+            if (payment || (isPaidBeforeCutoff && !(g.remanejado_de_pedido && g.valor === 0))) {
                 statusConta = 'PAGO';
             } else if (g.remanejado_de_pedido && g.valor === 0) {
                 statusConta = 'REMANEJADO';
@@ -282,6 +287,8 @@ export const Comissoes: React.FC = () => {
             const isBeforeStart = Boolean(startDate && g.data_referencia < startDate);
             const isValidatedInPeriod = Boolean(
                 isBeforeStart &&
+                statusConta !== 'PAGO' &&
+                statusConta !== 'REMANEJADO' &&
                 g.data_fim_carencia &&
                 g.data_fim_carencia >= startDate &&
                 (!endDate || g.data_fim_carencia <= endDate)
@@ -352,7 +359,7 @@ export const Comissoes: React.FC = () => {
         // Add manual adjustments and standalone payments
         lancamentos.forEach(l => {
             if (l.tipo === 'liberacao_fatura') return;
-            if (l.tipo === 'pagamento' && l.referencia_id && geradas.some(g => g.id === l.referencia_id)) {
+            if (l.tipo === 'pagamento' && l.referencia_id) {
                 return;
             }
 

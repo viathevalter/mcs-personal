@@ -15,6 +15,10 @@ const ALEX_NAME = 'Alex Carmona Archiles';
 const OMAR_ID = '346a9262-2edf-4a2e-80fc-aa5b43bf483a';
 const OMAR_EMAIL = 'omar@gestaologinpro.com';
 const OMAR_NAME = 'Omar';
+const EVERALDO_ID = 'e7e4a1d0-0000-4000-8000-00000000e7e4';
+const EVERALDO_EMAIL = 'everaldo@gestaologinpro.com';
+const EVERALDO_NAME = 'Everaldo';
+export const RETROACTIVE_PAID_CUTOFF = '2026-09-30';
 
 const MONTH_NAMES_PT = [
     'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
@@ -276,6 +280,7 @@ export const commissionService = {
 
         const alexSeller: CommissionSeller = sellerByEmail.get(ALEX_EMAIL) || { id: ALEX_ID, email: ALEX_EMAIL, name: ALEX_NAME };
         const omarSeller: CommissionSeller = sellerByEmail.get(OMAR_EMAIL) || { id: OMAR_ID, email: OMAR_EMAIL, name: OMAR_NAME };
+        const everaldoSeller: CommissionSeller = sellerByEmail.get(EVERALDO_EMAIL) || { id: EVERALDO_ID, email: EVERALDO_EMAIL, name: EVERALDO_NAME, active: true, estadotrabajador: 'Ativo' };
 
         const clientsMap = new Map<string, any>();
         ((clientsRes.data || []) as any[]).forEach(c => clientsMap.set(c.id, c));
@@ -433,6 +438,10 @@ export const commissionService = {
         }
 
         function resolveSellerForOrder(pedido?: any, client?: any): CommissionSeller {
+            const clientNameUpper = String(client?.trade_name || client?.legal_name || '').toUpperCase();
+            if (clientNameUpper.includes('CAM IMPIANTI')) {
+                return everaldoSeller;
+            }
             const est = pedido?.source_estimacion_id ? estimacionesMap.get(pedido.source_estimacion_id) : null;
             if (isFrenchOrBelgian(pedido, est, client)) {
                 return omarSeller;
@@ -726,7 +735,12 @@ export const commissionService = {
         rawAssignments.forEach(a => {
             if (!a.pedido_id) return;
             const m = getAssignmentDatesAndStatus(a);
-            if (m.startDateStr && !m.isWithdrawnPreStart) {
+            const ped = pedidosMap.get(a.pedido_id);
+            const pedExp = ped?.expected_start_date ? String(ped.expected_start_date).split('T')[0] : null;
+            if (m.startDateStr && !m.isWithdrawnPreStart && (m.daysWorked > 0 || m.isActive || m.isPendingEntry)) {
+                if (pedExp && pedExp > RETROACTIVE_PAID_CUTOFF && m.startDateStr <= RETROACTIVE_PAID_CUTOFF) {
+                    return;
+                }
                 const cur = earliestStartByPedidoId.get(a.pedido_id);
                 if (!cur || m.startDateStr < cur) {
                     earliestStartByPedidoId.set(a.pedido_id, m.startDateStr);
@@ -862,19 +876,26 @@ export const commissionService = {
                 }
             }
 
-            // If this slot was created from a floating Replacement Solicitud (R-2026-...) without pedido_id, attach it to the client's active PED-2026-... so it stays grouped inside the client's Pedido!
+            // Track whether this slot originated only from a standalone Replacement Solicitud (R-2026-...) with no pedido_id on any assignment in the chain
+            const isStandaloneReplacementWithoutPedido = !matchedPedido && Boolean(
+                currentEntry.meta.sol?.tipo === 'replacement' ||
+                String(currentEntry.meta.sol?.codigo || '').toUpperCase().startsWith('R-')
+            );
+
+            // If this slot was created from a floating Replacement Solicitud (R-2026-...) without pedido_id, only attach it to a client's PED-2026-... if that PED started on or before the replacement date
             if (!matchedPedido && matchedClient?.id) {
                 const clientPedidos = Array.from(pedidosMap.values())
                     .filter((p: any) => p.client_id === matchedClient.id && String(p.codigo || '').toUpperCase().startsWith('PED-'))
                     .sort((a: any, b: any) => String(b.codigo || '').localeCompare(String(a.codigo || '')));
                 if (clientPedidos.length > 0) {
-                    const slotDate = currentEntry.meta.startDateStr || firstEntry.meta.startDateStr || '';
-                    // Prefer the PED- whose start/created date is closest on or before slotDate, or the latest PED- of that client
+                    const slotDate = firstEntry.meta.startDateStr || currentEntry.meta.startDateStr || '';
                     const onOrBefore = clientPedidos.find((p: any) => {
                         const pDate = String(p.expected_start_date || p.created_at || '').split('T')[0];
-                        return !slotDate || !pDate || pDate <= slotDate;
+                        return slotDate && pDate && pDate <= slotDate;
                     });
-                    matchedPedido = onOrBefore || clientPedidos[0];
+                    if (onOrBefore) {
+                        matchedPedido = onOrBefore;
+                    }
                 }
             }
 
@@ -973,11 +994,31 @@ export const commissionService = {
             const carenciaMeta = effectiveCarenciaDias || 15;
             const carenciaCumprida = titularDaysWorked >= carenciaMeta;
 
-            // Reference date: start date of the current worker (or first entry start date / created_at)
-            const refDateStr =
+            const pedidoStartDateResolved =
+                (matchedPedido?.id && earliestStartByPedidoId.get(matchedPedido.id))
+                || (matchedPedido?.expected_start_date ? String(matchedPedido.expected_start_date).split('T')[0] : null)
+                || firstEntry.meta.startDateStr
+                || (matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : null);
+
+            // Reference date: if the Pedido or original slot started on or before 30/09/2026 (RETROACTIVE_PAID_CUTOFF),
+            // anchor data_referencia to that original <= 30/09/2026 date so replacements in October on old September pedidos are recognized as September (Paid)!
+            const rawCurrentOrFirstDate =
                 currentEntry.meta.startDateStr ||
                 firstEntry.meta.startDateStr ||
                 (firstEntry.raw.created_at ? String(firstEntry.raw.created_at).split('T')[0] : todayYMD);
+
+            const isPreOctoberOrder =
+                isStandaloneReplacementWithoutPedido ||
+                (pedidoStartDateResolved && pedidoStartDateResolved <= RETROACTIVE_PAID_CUTOFF) ||
+                String(pedidoCod).toUpperCase().startsWith('R-');
+
+            const refDateStr = isPreOctoberOrder
+                ? (firstEntry.meta.startDateStr && firstEntry.meta.startDateStr <= RETROACTIVE_PAID_CUTOFF
+                    ? firstEntry.meta.startDateStr
+                    : (pedidoStartDateResolved && pedidoStartDateResolved <= RETROACTIVE_PAID_CUTOFF
+                        ? pedidoStartDateResolved
+                        : RETROACTIVE_PAID_CUTOFF))
+                : rawCurrentOrFirstDate;
 
             const dataFimCarencia = addDaysYMD(currentEntry.meta.startDateStr || refDateStr, carenciaMeta);
             const mesRef = refDateStr.substring(0, 7); // 'YYYY-MM'
@@ -1034,10 +1075,7 @@ export const commissionService = {
                 codpedido: pedidoCod,
                 pedido_id: matchedPedido?.id || undefined,
                 pedido_vagas_solicitadas: matchedPedido?.id ? (pedidoVagasSolicitadasMap.get(matchedPedido.id) || 0) : 0,
-                pedido_start_date: (matchedPedido?.id && earliestStartByPedidoId.get(matchedPedido.id))
-                    || firstEntry.meta.startDateStr
-                    || (matchedPedido?.expected_start_date ? String(matchedPedido.expected_start_date).split('T')[0] : null)
-                    || (matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : refDateStr),
+                pedido_start_date: pedidoStartDateResolved || refDateStr,
                 pedido_created_at: matchedPedido?.created_at ? String(matchedPedido.created_at).split('T')[0] : null,
                 empresa_nome: empresaLabel,
                 nome_colab: currentEntry.raw.worker?.nome || 'Trabalhador',
