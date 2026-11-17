@@ -404,8 +404,11 @@ export function ClientHoursDetail() {
                     .from(bucketName)
                     .createSignedUrl(worker.file_url, 3600); // 1 hour validity
 
-                if (error) throw error;
-                signedUrl = data?.signedUrl;
+                if (error) {
+                    console.warn('Warning: file not found in storage when opening validation, opening table view without file preview:', error);
+                } else {
+                    signedUrl = data?.signedUrl;
+                }
             }
             
             setValidationDialogState({
@@ -436,15 +439,25 @@ export function ClientHoursDetail() {
         try {
             setActionLoading(recordId + '-rj');
 
-            // Delete file from storage first if there is one
+            // Delete file from storage first if there is one and no other worker_hours record references it
             if (filePath) {
-                const bucketName = getBucketName(filePath);
-                const { error: storageError } = await supabase.storage
-                    .from(bucketName)
-                    .remove([filePath]);
+                const { data: otherRefs } = await supabase
+                    .schema('core_personal')
+                    .from('worker_hours')
+                    .select('id')
+                    .eq('file_url', filePath)
+                    .neq('id', recordId)
+                    .limit(1);
 
-                if (storageError) {
-                    console.error('Error deleting file:', storageError);
+                if (!otherRefs || otherRefs.length === 0) {
+                    const bucketName = getBucketName(filePath);
+                    const { error: storageError } = await supabase.storage
+                        .from(bucketName)
+                        .remove([filePath]);
+
+                    if (storageError) {
+                        console.error('Error deleting file:', storageError);
+                    }
                 }
             }
 
