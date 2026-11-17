@@ -53,6 +53,7 @@ import { ExportTarifasDialog } from '../components/ExportTarifasDialog';
 import { TariffAuthorizationModal } from '../components/TariffAuthorizationModal';
 import { TariffAuditLogDialog } from '../components/TariffAuditLogDialog';
 import { TariffGovernanceConfigDialog } from '../components/TariffGovernanceConfigDialog';
+import { WorkerTariffTimelineCard } from '../components/WorkerTariffTimelineCard';
 import { getWorkerTariffStatusBadges } from '../api/tariffGovernanceApi';
 import type { Worker } from '@/shared/types/corePersonal';
 import { toast } from 'sonner';
@@ -1088,6 +1089,7 @@ export function WorkerTariffsPage() {
                                                                     )}
                                                                 </div>
                                                             </div>
+                                                            <WorkerTariffTimelineCard workerId={worker.id} />
                                                         </TableCell>
                                                 </TableRow>
                                             )}

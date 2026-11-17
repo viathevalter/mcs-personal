@@ -877,3 +877,122 @@ export async function deletePendingTariffAuthorizationRequest(requestId: string)
 
     if (delErr) throw delErr;
 }
+
+export interface WorkerTariffTimelineEvent {
+    id: string;
+    kind: 'contratacao' | 'termo_audit' | 'vigencia_agendada';
+    date: string;
+    title: string;
+    subtitle?: string;
+    tarifaAnterior?: number;
+    tarifaNova: number;
+    mesVigencia?: string;
+    actorName?: string;
+    authorizerName?: string;
+    status?: string;
+    codigoTermo?: string;
+}
+
+export async function getWorkerCompleteTariffTimeline(workerId: string): Promise<WorkerTariffTimelineEvent[]> {
+    const [assignmentsRes, auditRes, schedulesRes, usersRes] = await Promise.all([
+        supabase
+            .schema('core_personal')
+            .from('worker_assignments')
+            .select('id, client_id, status, tarifa_acordada, planned_start_date, start_date, end_date, created_at, created_by')
+            .eq('worker_id', workerId)
+            .order('created_at', { ascending: false }),
+        supabase
+            .schema('core_personal')
+            .from('worker_tariff_audit_logs')
+            .select('*')
+            .eq('worker_id', workerId)
+            .order('created_at', { ascending: false }),
+        supabase
+            .schema('core_personal')
+            .from('worker_tariff_schedules')
+            .select('*')
+            .eq('worker_id', workerId)
+            .order('mes_inicio', { ascending: false }),
+        listSystemUsers().catch(() => [] as SystemUser[])
+    ]);
+
+    const userMap = new Map<string, SystemUser>();
+    usersRes.forEach(u => userMap.set(u.id, u));
+
+    const assignments = assignmentsRes.data || [];
+    const clientIds = Array.from(new Set(assignments.map((a: any) => a.client_id).filter(Boolean)));
+    const clientMap = new Map<string, string>();
+    if (clientIds.length > 0) {
+        const { data: clients } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id, trade_name, legal_name')
+            .in('id', clientIds);
+        (clients || []).forEach((c: any) => clientMap.set(c.id, c.trade_name || c.legal_name || 'Cliente'));
+    }
+
+    const audits = auditRes.data || [];
+    const reqIds = Array.from(new Set(audits.map((a: any) => a.request_id).filter(Boolean)));
+    const reqCodeMap = new Map<string, string>();
+    if (reqIds.length > 0) {
+        const { data: reqs } = await supabase
+            .schema('core_personal')
+            .from('tariff_authorization_requests')
+            .select('id, codigo_termo')
+            .in('id', reqIds);
+        (reqs || []).forEach((r: any) => reqCodeMap.set(r.id, r.codigo_termo));
+    }
+
+    const events: WorkerTariffTimelineEvent[] = [];
+
+    assignments.forEach((a: any) => {
+        const clientName = a.client_id ? clientMap.get(a.client_id) || 'Cliente' : 'Cliente';
+        const creator = a.created_by ? userMap.get(a.created_by) : undefined;
+        const startStr = a.start_date || a.planned_start_date;
+        const endStr = a.end_date;
+        const periodParts: string[] = [];
+        if (startStr) periodParts.push(`Início: ${new Date(startStr).toLocaleDateString('pt-PT')}`);
+        if (endStr) periodParts.push(`Fim: ${new Date(endStr).toLocaleDateString('pt-PT')}`);
+
+        events.push({
+            id: `assign-${a.id}`,
+            kind: 'contratacao',
+            date: a.created_at,
+            title: `Contratação: ${clientName}`,
+            subtitle: periodParts.join(' • ') || undefined,
+            tarifaNova: Number(a.tarifa_acordada || 0),
+            mesVigencia: startStr ? String(startStr).slice(0, 7) : undefined,
+            actorName: creator ? `${creator.nome} (${creator.email})` : 'Contratação',
+            status: a.status
+        });
+    });
+
+    audits.forEach((l: any) => {
+        events.push({
+            id: `audit-${l.id}`,
+            kind: 'termo_audit',
+            date: l.created_at,
+            title: l.motivo || 'Alteração de Tarifa',
+            tarifaAnterior: Number(l.tarifa_anterior || 0),
+            tarifaNova: Number(l.tarifa_nova || 0),
+            mesVigencia: l.mes_vigencia || undefined,
+            actorName: l.alterado_por_nome,
+            authorizerName: l.autorizado_por_nome,
+            codigoTermo: l.request_id ? reqCodeMap.get(l.request_id) : undefined
+        });
+    });
+
+    (schedulesRes.data || []).forEach((s: any) => {
+        events.push({
+            id: `sch-${s.id}`,
+            kind: 'vigencia_agendada',
+            date: s.aprovado_em || s.created_at,
+            title: `Vigência por Competência (${formatMesVigenciaLabel(s.mes_inicio)})`,
+            tarifaNova: Number(s.tarifa_hora || 0),
+            mesVigencia: s.mes_inicio,
+            authorizerName: s.aprovado_por_nome || undefined
+        });
+    });
+
+    return events.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+}
