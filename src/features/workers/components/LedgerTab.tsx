@@ -1,9 +1,13 @@
 import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useLedgerEntriesByWorker } from '@/features/ledger/hooks/useLedgerEntriesByWorker';
 import { useLedgerTypes } from '@/features/ledger/hooks/useLedgerTypes';
 import { useGenerateHousingLedger } from '@/features/ledger/hooks/useGenerateHousingLedger';
 import { useInsertLedgerEntry } from '@/features/ledger/hooks/useInsertLedgerEntry';
+import { getWorkerTariffDossiers, getEffectiveTariffsMapForMonth } from '../api/tariffGovernanceApi';
+import { supabase } from '@/shared/supabase/client';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -45,6 +49,89 @@ export function LedgerTab({ workerId, empresaId }: LedgerTabProps) {
     const { data: ledgerTypes } = useLedgerTypes(empresaId);
     const generateLedger = useGenerateHousingLedger();
     const insertLedger = useInsertLedgerEntry(workerId, year, month);
+
+    const mesReferencia = `${year}-${String(month).padStart(2, '0')}`;
+
+    const { data: dossierMap } = useQuery({
+        queryKey: ['worker-tariff-dossiers', workerId],
+        queryFn: () => getWorkerTariffDossiers([workerId]),
+        enabled: Boolean(workerId),
+        staleTime: 30 * 1000
+    });
+
+    const { data: competenceSummary } = useQuery({
+        queryKey: ['worker-ledger-competence-summary', workerId, mesReferencia],
+        queryFn: async () => {
+            const startDt = `${mesReferencia}-01`;
+            const lastDay = new Date(year, month, 0).getDate();
+            const endDt = `${mesReferencia}-${String(lastDay).padStart(2, '0')}`;
+
+            const [horasRes, settingRes, effMap, discountsRes, housingRes, holeriteRes] = await Promise.all([
+                supabase
+                    .schema('core_finance')
+                    .from('horas_trabalhadas')
+                    .select('horas_totais')
+                    .eq('worker_id', workerId)
+                    .gte('data_trabalho', startDt)
+                    .lte('data_trabalho', endDt),
+                supabase
+                    .schema('core_personal')
+                    .from('worker_beneficios_settings')
+                    .select('tarifa_hora')
+                    .eq('worker_id', workerId)
+                    .maybeSingle(),
+                getEffectiveTariffsMapForMonth(mesReferencia),
+                supabase
+                    .schema('core_personal')
+                    .from('worker_discounts')
+                    .select('amount')
+                    .eq('worker_id', workerId)
+                    .gte('reference_date', startDt)
+                    .lte('reference_date', endDt),
+                supabase
+                    .schema('core_personal')
+                    .from('worker_benefit_housing')
+                    .select('monthly_amount, start_date, end_date')
+                    .eq('worker_id', workerId)
+                    .eq('is_active', true),
+                supabase
+                    .schema('core_personal')
+                    .from('holerites')
+                    .select('horas_trabalhadas, total_proventos, total_descontos, valor_liquido, status')
+                    .eq('worker_id', workerId)
+                    .eq('mes_referencia', startDt)
+                    .maybeSingle()
+            ]);
+
+            const totalHoras = (horasRes.data || []).reduce((s: number, r: any) => s + Number(r.horas_totais || 0), 0);
+            const tarifa = effMap.get(workerId) ?? Number(settingRes.data?.tarifa_hora || 0);
+            const vencimentoHoras = totalHoras * tarifa;
+            const housing = (housingRes.data || []).reduce((s: number, h: any) => {
+                if (h.start_date && h.start_date > endDt) return s;
+                if (h.end_date && h.end_date < startDt) return s;
+                return s + Number(h.monthly_amount || 0);
+            }, 0);
+            const discounts = (discountsRes.data || []).reduce((s: number, d: any) => s + Number(d.amount || 0), 0);
+
+            const hRow = holeriteRes.data;
+            const proventos = hRow && Number(hRow.total_proventos || 0) > 0 ? Number(hRow.total_proventos) : vencimentoHoras + housing;
+            const descontos = hRow && Number(hRow.total_descontos || 0) > 0 ? Number(hRow.total_descontos) : discounts;
+            const liquido = hRow && Number(hRow.valor_liquido || 0) > 0 ? Number(hRow.valor_liquido) : proventos - descontos;
+
+            return {
+                totalHoras: Math.round(totalHoras * 100) / 100,
+                tarifa,
+                proventos: Math.round(proventos * 100) / 100,
+                descontos: Math.round(descontos * 100) / 100,
+                liquido: Math.round(liquido * 100) / 100,
+                status: hRow?.status || (totalHoras > 0 ? 'Valores Lançados' : 'Sem Lançamentos')
+            };
+        },
+        enabled: Boolean(workerId),
+        staleTime: 30 * 1000
+    });
+
+    const workerDossier = dossierMap?.get(workerId);
 
     const safeEntries = entries || [];
 
@@ -93,7 +180,9 @@ export function LedgerTab({ workerId, empresaId }: LedgerTabProps) {
         return acc;
     }, { credits: 0, debits: 0 });
 
-    const netAmount = totals.credits - totals.debits;
+    const displayCredits = totals.credits > 0 ? totals.credits : (competenceSummary?.proventos || 0);
+    const displayDebits = totals.debits > 0 ? totals.debits : (competenceSummary?.descontos || 0);
+    const netAmount = displayCredits - displayDebits;
 
     const handleGenerateHousing = () => {
         generateLedger.mutate(
@@ -146,15 +235,19 @@ export function LedgerTab({ workerId, empresaId }: LedgerTabProps) {
 
                     <div className="grid grid-cols-3 gap-4 mb-6">
                         <div className="p-4 border rounded-md bg-green-500/10 text-center">
-                            <p className="text-sm font-medium text-muted-foreground mb-1">Créditos</p>
-                            <p className="text-lg font-bold text-green-600 dark:text-green-500">€ {totals.credits.toFixed(2)}</p>
+                            <p className="text-sm font-medium text-muted-foreground mb-1">
+                                Créditos {competenceSummary && competenceSummary.totalHoras > 0 ? `(${competenceSummary.totalHoras}h × €${competenceSummary.tarifa.toFixed(2)})` : ''}
+                            </p>
+                            <p className="text-lg font-bold text-green-600 dark:text-green-500">€ {displayCredits.toFixed(2)}</p>
                         </div>
                         <div className="p-4 border rounded-md bg-red-500/10 text-center">
                             <p className="text-sm font-medium text-muted-foreground mb-1">Débitos</p>
-                            <p className="text-lg font-bold text-red-600 dark:text-red-500">€ {totals.debits.toFixed(2)}</p>
+                            <p className="text-lg font-bold text-red-600 dark:text-red-500">€ {displayDebits.toFixed(2)}</p>
                         </div>
                         <div className="p-4 border rounded-md bg-primary/10 text-center">
-                            <p className="text-sm font-medium text-muted-foreground mb-1">Líquido (Net)</p>
+                            <p className="text-sm font-medium text-muted-foreground mb-1">
+                                Líquido (Net) {competenceSummary?.status ? `• ${competenceSummary.status}` : ''}
+                            </p>
                             <p className="text-lg font-bold text-primary">€ {netAmount.toFixed(2)}</p>
                         </div>
                     </div>
@@ -281,6 +374,46 @@ export function LedgerTab({ workerId, empresaId }: LedgerTabProps) {
 
                 </CardContent>
             </Card>
+
+            {workerDossier && workerDossier.ultimos_holerites.length > 0 && (
+                <Card>
+                    <CardHeader>
+                        <CardTitle className="text-base">Histórico de Competências & Horas Trabalhadas</CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                        <Table>
+                            <TableHeader>
+                                <TableRow>
+                                    <TableHead>Competência</TableHead>
+                                    <TableHead>Cliente(s)</TableHead>
+                                    <TableHead className="text-right">Horas</TableHead>
+                                    <TableHead className="text-right">Proventos / Est.</TableHead>
+                                    <TableHead className="text-right">Líquido / Est.</TableHead>
+                                    <TableHead className="text-center">Status</TableHead>
+                                </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                                {workerDossier.ultimos_holerites.map((h, i) => (
+                                    <TableRow key={i}>
+                                        <TableCell className="font-semibold">{h.mes_referencia}</TableCell>
+                                        <TableCell className="text-xs text-muted-foreground">
+                                            {h.clientes && h.clientes.length > 0 ? h.clientes.join(', ') : '-'}
+                                        </TableCell>
+                                        <TableCell className="text-right font-mono">{h.horas_trabalhadas}h</TableCell>
+                                        <TableCell className="text-right font-mono">€ {h.total_proventos.toFixed(2)}</TableCell>
+                                        <TableCell className="text-right font-mono font-bold text-indigo-600">€ {h.valor_liquido.toFixed(2)}</TableCell>
+                                        <TableCell className="text-center">
+                                            <Badge variant={h.status === 'Pago' ? 'default' : 'secondary'} className="text-xs">
+                                                {h.status || 'Lançado'}
+                                            </Badge>
+                                        </TableCell>
+                                    </TableRow>
+                                ))}
+                            </TableBody>
+                        </Table>
+                    </CardContent>
+                </Card>
+            )}
         </div>
     );
 }
