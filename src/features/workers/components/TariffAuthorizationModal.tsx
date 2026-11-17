@@ -578,13 +578,36 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                                     </div>
                                                 </div>
 
+                                                {d?.empresas_passadas && d.empresas_passadas.length > 0 && (
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] font-semibold uppercase text-muted-foreground">
+                                                            Empresas / Clientes por onde passou:
+                                                        </span>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {d.empresas_passadas.map((emp, eIdx) => (
+                                                                <span
+                                                                    key={eIdx}
+                                                                    className="px-2 py-0.5 rounded border bg-slate-50 dark:bg-slate-800 text-[11px] text-slate-700 dark:text-slate-300"
+                                                                >
+                                                                    <strong>{emp.cliente_nome}</strong>: {emp.dias_no_cliente}d • {emp.total_horas}h
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {d && d.ultimos_holerites.length > 0 ? (
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
                                                         {d.ultimos_holerites.map((h, idx) => (
                                                             <div key={idx} className="p-1.5 rounded bg-slate-50 dark:bg-slate-800 border text-[11px]">
-                                                                <div className="font-bold text-indigo-700 dark:text-indigo-400 flex items-center gap-1">
-                                                                    <FileSpreadsheet className="w-3 h-3" />
-                                                                    {h.mes_referencia}
+                                                                <div className="font-bold text-indigo-700 dark:text-indigo-400 flex items-center justify-between gap-1">
+                                                                    <span className="flex items-center gap-1">
+                                                                        <FileSpreadsheet className="w-3 h-3" />
+                                                                        {h.mes_referencia}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-normal px-1 rounded bg-white dark:bg-slate-900 border">
+                                                                        {h.status || '-'}
+                                                                    </span>
                                                                 </div>
                                                                 <div className="text-slate-700 dark:text-slate-300 font-mono">
                                                                     {h.horas_trabalhadas}h • € {h.valor_liquido.toFixed(2)}
@@ -594,7 +617,7 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                                     </div>
                                                 ) : (
                                                     <div className="text-[11px] text-muted-foreground italic">
-                                                        Sem holerites anteriores registrados para este colaborador.
+                                                        Sem horas ou holerites anteriores registrados para este colaborador.
                                                     </div>
                                                 )}
                                             </div>

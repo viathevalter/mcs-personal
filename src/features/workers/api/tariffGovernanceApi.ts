@@ -6,6 +6,15 @@ export interface WorkerHoleriteSummary {
     total_proventos: number;
     valor_liquido: number;
     status?: string;
+    clientes?: string[];
+}
+
+export interface WorkerClientHistory {
+    cliente_nome: string;
+    primeira_data?: string | null;
+    ultima_data?: string | null;
+    dias_no_cliente: number;
+    total_horas: number;
 }
 
 export interface WorkerTariffDossier {
@@ -16,6 +25,7 @@ export interface WorkerTariffDossier {
     tempo_cliente_dias?: number | null;
     total_horas_ultimos_meses: number;
     media_horas_mensal: number;
+    empresas_passadas?: WorkerClientHistory[];
     ultimos_holerites: WorkerHoleriteSummary[];
 }
 
@@ -1278,7 +1288,7 @@ export async function getWorkerTariffDossiers(
     const map = new Map<string, WorkerTariffDossier>();
     if (!workerIds || workerIds.length === 0) return map;
 
-    const [workersRes, assignmentsRes, holeritesRes] = await Promise.all([
+    const [workersRes, assignmentsRes, holeritesRes, horasRes, settingsRes] = await Promise.all([
         supabase
             .schema('core_personal')
             .from('workers')
@@ -1287,7 +1297,7 @@ export async function getWorkerTariffDossiers(
         supabase
             .schema('core_personal')
             .from('worker_assignments')
-            .select('worker_id, start_date, planned_start_date, end_date, status')
+            .select('worker_id, client_id, start_date, planned_start_date, end_date, status')
             .in('worker_id', workerIds)
             .order('created_at', { ascending: false }),
         supabase
@@ -1296,8 +1306,42 @@ export async function getWorkerTariffDossiers(
             .select('id, worker_id, mes_referencia, horas_trabalhadas, total_proventos, valor_liquido, status')
             .in('worker_id', workerIds)
             .order('mes_referencia', { ascending: false })
-            .limit(workerIds.length * 6)
+            .limit(workerIds.length * 6),
+        supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .select('worker_id, client_id, data_trabalho, horas_totais')
+            .in('worker_id', workerIds)
+            .order('data_trabalho', { ascending: false })
+            .limit(3000),
+        supabase
+            .schema('core_personal')
+            .from('worker_beneficios_settings')
+            .select('worker_id, tarifa_hora')
+            .in('worker_id', workerIds)
     ]);
+
+    const horasRows = horasRes.data || [];
+    const assignments = assignmentsRes.data || [];
+
+    const allClientIds = Array.from(
+        new Set([
+            ...horasRows.map((r: any) => r.client_id).filter(Boolean),
+            ...assignments.map((a: any) => a.client_id).filter(Boolean)
+        ])
+    );
+
+    const clientNameMap = new Map<string, string>();
+    if (allClientIds.length > 0) {
+        const { data: clientsData } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id, trade_name, legal_name')
+            .in('id', allClientIds);
+        (clientsData || []).forEach((c: any) => {
+            clientNameMap.set(c.id, c.trade_name || c.legal_name || 'Cliente');
+        });
+    }
 
     const holerites = holeritesRes.data || [];
     const holeriteIds = holerites.map((h: any) => h.id).filter(Boolean);
@@ -1326,8 +1370,11 @@ export async function getWorkerTariffDossiers(
     const workerMap = new Map<string, any>();
     (workersRes.data || []).forEach((w: any) => workerMap.set(w.id, w));
 
+    const tarifaMap = new Map<string, number>();
+    (settingsRes.data || []).forEach((s: any) => tarifaMap.set(s.worker_id, Number(s.tarifa_hora || 0)));
+
     const assignByWorker = new Map<string, any[]>();
-    (assignmentsRes.data || []).forEach((a: any) => {
+    assignments.forEach((a: any) => {
         const list = assignByWorker.get(a.worker_id) || [];
         list.push(a);
         assignByWorker.set(a.worker_id, list);
@@ -1336,36 +1383,122 @@ export async function getWorkerTariffDossiers(
     const holeritesByWorker = new Map<string, any[]>();
     holerites.forEach((h: any) => {
         const list = holeritesByWorker.get(h.worker_id) || [];
-        if (list.length < 4) list.push(h);
+        list.push(h);
         holeritesByWorker.set(h.worker_id, list);
+    });
+
+    const horasByWorker = new Map<string, any[]>();
+    horasRows.forEach((r: any) => {
+        const list = horasByWorker.get(r.worker_id) || [];
+        list.push(r);
+        horasByWorker.set(r.worker_id, list);
     });
 
     for (const wid of workerIds) {
         const w = workerMap.get(wid);
         const assigns = assignByWorker.get(wid) || [];
         const hList = holeritesByWorker.get(wid) || [];
+        const wHoras = horasByWorker.get(wid) || [];
+        const currentTarifa = tarifaMap.get(wid) || 0;
 
         const admissionStr = w?.data_ingresso || w?.created_at || null;
         const tempoCasaDias = admissionStr
             ? Math.max(0, Math.floor((nowMs - new Date(admissionStr).getTime()) / dayMs))
             : null;
 
+        // Build client history (empresas passadas) from horas_trabalhadas + worker_assignments
+        const clientStats = new Map<
+            string,
+            { nome: string; minDate: string | null; maxDate: string | null; totalHoras: number }
+        >();
+
+        wHoras.forEach((r: any) => {
+            const cName = (r.client_id && clientNameMap.get(r.client_id)) || w?.cliente || 'Cliente';
+            const dt = r.data_trabalho ? String(r.data_trabalho).slice(0, 10) : null;
+            const prev = clientStats.get(cName) || { nome: cName, minDate: dt, maxDate: dt, totalHoras: 0 };
+            prev.totalHoras += Number(r.horas_totais || 0);
+            if (dt && (!prev.minDate || dt < prev.minDate)) prev.minDate = dt;
+            if (dt && (!prev.maxDate || dt > prev.maxDate)) prev.maxDate = dt;
+            clientStats.set(cName, prev);
+        });
+
+        assigns.forEach((a: any) => {
+            const cName = (a.client_id && clientNameMap.get(a.client_id)) || null;
+            if (!cName) return;
+            const startDt = (a.start_date || a.planned_start_date) ? String(a.start_date || a.planned_start_date).slice(0, 10) : null;
+            const endDt = a.end_date ? String(a.end_date).slice(0, 10) : null;
+            const prev = clientStats.get(cName) || { nome: cName, minDate: startDt, maxDate: endDt || startDt, totalHoras: 0 };
+            if (startDt && (!prev.minDate || startDt < prev.minDate)) prev.minDate = startDt;
+            if (endDt && (!prev.maxDate || endDt > prev.maxDate)) prev.maxDate = endDt;
+            clientStats.set(cName, prev);
+        });
+
+        const empresasPassadas: WorkerClientHistory[] = Array.from(clientStats.values())
+            .map(cs => {
+                const startMs = cs.minDate ? new Date(cs.minDate).getTime() : nowMs;
+                const endMs = cs.maxDate ? new Date(cs.maxDate).getTime() : nowMs;
+                const dias = Math.max(1, Math.floor((endMs - startMs) / dayMs) + 1);
+                return {
+                    cliente_nome: cs.nome,
+                    primeira_data: cs.minDate,
+                    ultima_data: cs.maxDate,
+                    dias_no_cliente: dias,
+                    total_horas: Math.round(cs.totalHoras * 100) / 100
+                };
+            })
+            .sort((a, b) => (b.ultima_data || '').localeCompare(a.ultima_data || ''));
+
         const activeAssign = assigns.find((a: any) => a.status === 'active') || assigns[0];
-        const clientStartStr = activeAssign?.start_date || activeAssign?.planned_start_date || null;
+        const clientStartStr = activeAssign?.start_date || activeAssign?.planned_start_date || empresasPassadas[0]?.primeira_data || null;
         const tempoClienteDias = clientStartStr
             ? Math.max(0, Math.floor((nowMs - new Date(clientStartStr).getTime()) / dayMs))
             : null;
 
-        const ultimosHolerites: WorkerHoleriteSummary[] = hList.map((h: any) => {
-            const horas = Number(h.horas_trabalhadas || 0) > 0
-                ? Number(h.horas_trabalhadas)
-                : Number(horasEventoMap.get(h.id) || 0);
+        // Aggregate horas_trabalhadas by month YYYY-MM
+        const monthHoursMap = new Map<string, { horas: number; clients: Set<string> }>();
+        wHoras.forEach((r: any) => {
+            if (!r.data_trabalho) return;
+            const mes = String(r.data_trabalho).slice(0, 7);
+            const cur = monthHoursMap.get(mes) || { horas: 0, clients: new Set<string>() };
+            cur.horas += Number(r.horas_totais || 0);
+            const cName = (r.client_id && clientNameMap.get(r.client_id)) || w?.cliente;
+            if (cName) cur.clients.add(cName);
+            monthHoursMap.set(mes, cur);
+        });
+
+        const holeriteByMonth = new Map<string, any>();
+        hList.forEach((h: any) => {
+            const mes = String(h.mes_referencia).slice(0, 7);
+            if (!holeriteByMonth.has(mes)) holeriteByMonth.set(mes, h);
+        });
+
+        const allMonths = Array.from(
+            new Set([...Array.from(monthHoursMap.keys()), ...Array.from(holeriteByMonth.keys())])
+        )
+            .sort((a, b) => b.localeCompare(a))
+            .slice(0, 6);
+
+        const ultimosHolerites: WorkerHoleriteSummary[] = allMonths.map(mes => {
+            const h = holeriteByMonth.get(mes);
+            const mh = monthHoursMap.get(mes);
+            const horasHolerite = h
+                ? Number(h.horas_trabalhadas || 0) > 0
+                    ? Number(h.horas_trabalhadas)
+                    : Number(horasEventoMap.get(h.id) || 0)
+                : 0;
+            const horas = horasHolerite > 0 ? horasHolerite : Math.round((mh?.horas || 0) * 100) / 100;
+            const estimatedGross = horas * currentTarifa;
+            const proventos = h && Number(h.total_proventos || 0) > 0 ? Number(h.total_proventos) : estimatedGross;
+            const liquido = h && Number(h.valor_liquido || 0) > 0 ? Number(h.valor_liquido) : estimatedGross;
+            const status = h?.status === 'pago' ? 'Pago' : h ? 'Lançado' : 'Horas Lançadas';
+
             return {
-                mes_referencia: String(h.mes_referencia).slice(0, 7),
+                mes_referencia: mes,
                 horas_trabalhadas: horas,
-                total_proventos: Number(h.total_proventos || 0),
-                valor_liquido: Number(h.valor_liquido || 0),
-                status: h.status || undefined
+                total_proventos: Math.round(proventos * 100) / 100,
+                valor_liquido: Math.round(liquido * 100) / 100,
+                status,
+                clientes: mh ? Array.from(mh.clients) : undefined
             };
         });
 
@@ -1376,10 +1509,11 @@ export async function getWorkerTariffDossiers(
             worker_id: wid,
             data_ingresso: admissionStr,
             tempo_casa_dias: tempoCasaDias,
-            cliente_atual: w?.cliente || null,
+            cliente_atual: w?.cliente || empresasPassadas[0]?.cliente_nome || null,
             tempo_cliente_dias: tempoClienteDias,
             total_horas_ultimos_meses: Math.round(totalHoras * 100) / 100,
             media_horas_mensal: Math.round(mediaHoras * 10) / 10,
+            empresas_passadas: empresasPassadas,
             ultimos_holerites: ultimosHolerites
         });
     }
@@ -1395,20 +1529,26 @@ export function formatDossierSummaryText(workerName: string, dossier?: WorkerTar
             `• Tempo na empresa: ${dossier.tempo_casa_dias ?? 0} dias (desde ${new Date(dossier.data_ingresso).toLocaleDateString('pt-PT')})`
         );
     }
-    if (dossier.cliente_atual) {
-        lines.push(
-            `• Cliente atual: ${dossier.cliente_atual}${dossier.tempo_cliente_dias != null ? ` (${dossier.tempo_cliente_dias} dias nesta alocação)` : ''}`
-        );
+    if (dossier.empresas_passadas && dossier.empresas_passadas.length > 0) {
+        lines.push(`• Empresas/Clientes por onde passou:`);
+        dossier.empresas_passadas.forEach(emp => {
+            const period = emp.primeira_data && emp.ultima_data
+                ? `${new Date(emp.primeira_data).toLocaleDateString('pt-PT')} a ${new Date(emp.ultima_data).toLocaleDateString('pt-PT')}`
+                : '';
+            lines.push(
+                `  - ${emp.cliente_nome}: ${emp.dias_no_cliente} dias${period ? ` (${period})` : ''} • ${emp.total_horas}h`
+            );
+        });
     }
     if (dossier.ultimos_holerites.length > 0) {
-        lines.push(`• Média de horas: ${dossier.media_horas_mensal}h/mês (últimos ${dossier.ultimos_holerites.length} holerites):`);
+        lines.push(`• Média de horas: ${dossier.media_horas_mensal}h/mês (últimos ${dossier.ultimos_holerites.length} meses):`);
         dossier.ultimos_holerites.forEach(h => {
             lines.push(
-                `  - ${h.mes_referencia}: ${h.horas_trabalhadas}h | Proventos: € ${h.total_proventos.toFixed(2)} | Líquido: € ${h.valor_liquido.toFixed(2)}`
+                `  - ${h.mes_referencia}: ${h.horas_trabalhadas}h | Est./Líquido: € ${h.valor_liquido.toFixed(2)} (${h.status || '-'})`
             );
         });
     } else {
-        lines.push('• Sem holerites anteriores registrados.');
+        lines.push('• Sem horas ou holerites anteriores registrados.');
     }
     return lines.join('\n');
 }

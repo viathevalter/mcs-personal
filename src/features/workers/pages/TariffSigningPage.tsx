@@ -88,7 +88,7 @@ export function TariffSigningPage() {
                     const missingDossierIds: string[] = [];
                     (data.itens_solicitacao || []).forEach(item => {
                         initialApproved[item.worker_id] = Number(item.tarifa_nova || 0).toFixed(2);
-                        if (!item.dossie && item.worker_id) {
+                        if ((!item.dossie || !item.dossie.empresas_passadas) && item.worker_id) {
                             missingDossierIds.push(item.worker_id);
                         }
                     });
@@ -581,10 +581,10 @@ export function TariffSigningPage() {
                                 </h3>
                                 <div className="space-y-2">
                                     {items.map((item, idx) => {
-                                        const d = item.dossie || liveDossiers.get(item.worker_id);
+                                        const d = liveDossiers.get(item.worker_id) || item.dossie;
                                         if (!d) return null;
                                         return (
-                                            <div key={idx} className="p-3 rounded-lg border bg-slate-50/70 dark:bg-slate-800/40 text-xs space-y-2">
+                                            <div key={idx} className="p-3 rounded-lg border bg-slate-50/70 dark:bg-slate-800/40 text-xs space-y-2.5">
                                                 <div className="flex flex-wrap items-center justify-between gap-2">
                                                     <span className="font-bold text-slate-900 dark:text-slate-100">{item.worker_nome}</span>
                                                     <div className="flex flex-wrap gap-2 text-[11px]">
@@ -599,15 +599,39 @@ export function TariffSigningPage() {
                                                         </Badge>
                                                     </div>
                                                 </div>
+
+                                                {d.empresas_passadas && d.empresas_passadas.length > 0 && (
+                                                    <div className="space-y-1">
+                                                        <span className="text-[10px] font-semibold uppercase text-muted-foreground">
+                                                            Empresas / Clientes por onde passou:
+                                                        </span>
+                                                        <div className="flex flex-wrap gap-1.5">
+                                                            {d.empresas_passadas.map((emp, eIdx) => (
+                                                                <span
+                                                                    key={eIdx}
+                                                                    className="px-2 py-0.5 rounded border bg-white dark:bg-slate-900 text-[11px] text-slate-700 dark:text-slate-300"
+                                                                >
+                                                                    <strong>{emp.cliente_nome}</strong>: {emp.dias_no_cliente} dias • {emp.total_horas}h
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    </div>
+                                                )}
+
                                                 {d.ultimos_holerites.length > 0 && (
-                                                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                                                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
                                                         {d.ultimos_holerites.map((h, hIdx) => (
-                                                            <div key={hIdx} className="p-1.5 rounded bg-white dark:bg-slate-900 border text-[11px]">
-                                                                <div className="font-bold text-indigo-700 flex items-center gap-1">
-                                                                    <FileSpreadsheet className="w-3 h-3" />
-                                                                    {h.mes_referencia}
+                                                            <div key={hIdx} className="p-2 rounded bg-white dark:bg-slate-900 border text-[11px]">
+                                                                <div className="font-bold text-indigo-700 flex items-center justify-between gap-1">
+                                                                    <span className="flex items-center gap-1">
+                                                                        <FileSpreadsheet className="w-3 h-3" />
+                                                                        {h.mes_referencia}
+                                                                    </span>
+                                                                    <span className="text-[9px] font-normal px-1 rounded bg-slate-50 dark:bg-slate-800 border">
+                                                                        {h.status || '-'}
+                                                                    </span>
                                                                 </div>
-                                                                <div className="font-mono text-slate-700 dark:text-slate-300">
+                                                                <div className="font-mono text-slate-700 dark:text-slate-300 mt-0.5">
                                                                     {h.horas_trabalhadas}h • € {h.valor_liquido.toFixed(2)}
                                                                 </div>
                                                             </div>
