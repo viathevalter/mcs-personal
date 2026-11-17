@@ -30,6 +30,8 @@ import {
   MapPin
 } from 'lucide-react';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useRole } from '@/app/providers/RoleProvider';
+import { useNavigate } from 'react-router-dom';
 import { useHiringReport, formatStandardContratante, formatStandardContratador } from './hooks/useHiringReport';
 import type { HiringReportFilters, WorkerDisplayStatus } from './hooks/useHiringReport';
 import * as XLSX from 'xlsx';
@@ -97,6 +99,8 @@ function getPresetDates(preset: string): { startDate: string; endDate: string } 
 
 export function HiringReportPage() {
   const { selectedEmpresaId, isHolding } = useEmpresa();
+  const { canViewFeature } = useRole();
+  const navigate = useNavigate();
 
   // Date Preset State
   const [presetFilter, setPresetFilter] = useState<string>('this_month');
@@ -320,6 +324,26 @@ export function HiringReportPage() {
     if (field !== currentField) return <ArrowUpDown className="h-3 w-3 text-slate-300 opacity-0 group-hover:opacity-100 transition-opacity" />;
     return direction === 'asc' ? <ArrowUp className="h-3 w-3 text-indigo-600" /> : <ArrowDown className="h-3 w-3 text-indigo-600" />;
   };
+
+  if (!canViewFeature('contratacao.relatorio', true)) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[500px] text-center p-6 space-y-4">
+        <div className="h-14 w-14 rounded-full bg-red-100 dark:bg-red-950/40 text-red-600 flex items-center justify-center">
+          <ShieldAlert className="h-7 w-7" />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Acesso Restrito</h2>
+        <p className="text-sm text-slate-500 dark:text-slate-400 max-w-md">
+          Seu perfil não possui permissão para acessar o relatório de Controle de Contratações e Permanência.
+        </p>
+        <button
+          onClick={() => navigate('/contratacao/vagas')}
+          className="px-4 py-2 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-sm font-semibold transition-colors"
+        >
+          Ir para Contratação Inicial
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 p-4 md:p-6 bg-slate-50 dark:bg-slate-950 min-h-screen">

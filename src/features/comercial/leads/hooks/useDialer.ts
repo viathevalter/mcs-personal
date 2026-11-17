@@ -5,6 +5,7 @@ import { useCommercialScope, getCommercialProfileByUser, COMMERCIAL_DEPARTMENT_I
 import type { 
   DialerCampaign, 
   DialerQueueItem, 
+  GlobalLeadAppointment,
   LeadCallLog, 
   SalesScript, 
   CallOutcome, 
@@ -74,6 +75,117 @@ export function extractTagsFromAppointment(
     }
   }
   return Array.from(result);
+}
+
+function mergeScheduledNotesHtml(primary?: string | null, secondary?: string | null): string | null {
+  const p = (primary || '').trim();
+  const s = (secondary || '').trim();
+  if (!p && !s) return null;
+  if (!p) return s;
+  if (!s) return p;
+  if (p.includes(s)) return p;
+  if (s.includes(p)) return s;
+  return `${s}<br/>${p}`;
+}
+
+async function fetchGlobalAppointmentsByLeadIds(leadIds: string[]): Promise<Map<string, GlobalLeadAppointment>> {
+  const map = new Map<string, GlobalLeadAppointment>();
+  const uniqueIds = Array.from(new Set(leadIds.filter(Boolean)));
+  if (uniqueIds.length === 0) return map;
+
+  const chunkSize = 400;
+  const rows: any[] = [];
+  for (let i = 0; i < uniqueIds.length; i += chunkSize) {
+    const slice = uniqueIds.slice(i, i + chunkSize);
+    const { data } = await supabase
+      .schema('core_comercial')
+      .from('dialer_queue_items')
+      .select(`
+        id,
+        campaign_id,
+        lead_id,
+        status,
+        priority,
+        scheduled_for,
+        scheduled_notes,
+        tags,
+        origin_campaign_title,
+        updated_at,
+        campaign:dialer_campaigns!campaign_id ( title )
+      `)
+      .in('lead_id', slice)
+      .not('scheduled_for', 'is', null)
+      .order('updated_at', { ascending: false });
+
+    if (data && data.length > 0) {
+      rows.push(...data);
+    }
+  }
+
+  for (const r of rows) {
+    if (!r.lead_id || !r.scheduled_for) continue;
+    const rowTags = extractTagsFromAppointment(r.tags, r.scheduled_notes);
+    const originTitle = r.origin_campaign_title || r.campaign?.title || null;
+    const existing = map.get(r.lead_id);
+
+    if (!existing) {
+      map.set(r.lead_id, {
+        queue_item_id: r.id,
+        campaign_id: r.campaign_id || null,
+        scheduled_for: r.scheduled_for,
+        scheduled_notes: r.scheduled_notes || null,
+        priority: r.priority || 'normal',
+        tags: rowTags,
+        status: r.status || 'scheduled',
+        origin_campaign_title: originTitle,
+      });
+    } else {
+      // Prefer active 'scheduled' status over already closed appointments, while merging notes & tags
+      const preferThis = existing.status !== 'scheduled' && r.status === 'scheduled';
+      const mergedTags = Array.from(new Set([...(existing.tags || []), ...rowTags]));
+      const mergedNotes = preferThis
+        ? mergeScheduledNotesHtml(r.scheduled_notes, existing.scheduled_notes)
+        : mergeScheduledNotesHtml(existing.scheduled_notes, r.scheduled_notes);
+
+      map.set(r.lead_id, {
+        queue_item_id: preferThis ? r.id : existing.queue_item_id,
+        campaign_id: preferThis ? r.campaign_id || null : existing.campaign_id,
+        scheduled_for: preferThis ? r.scheduled_for : existing.scheduled_for,
+        scheduled_notes: mergedNotes,
+        priority: (preferThis ? r.priority : existing.priority) || 'normal',
+        tags: mergedTags,
+        status: preferThis ? r.status : existing.status,
+        origin_campaign_title: (preferThis ? originTitle : existing.origin_campaign_title) || originTitle,
+      });
+    }
+  }
+
+  return map;
+}
+
+async function enrichQueueItemsWithGlobalSchedule(items: DialerQueueItem[]): Promise<DialerQueueItem[]> {
+  if (!items || items.length === 0) return [];
+  const globalMap = await fetchGlobalAppointmentsByLeadIds(items.map(i => i.lead_id));
+  return items.map(it => {
+    const globalAppt = globalMap.get(it.lead_id) || null;
+    const hasActiveGlobal = globalAppt && globalAppt.status === 'scheduled';
+    const mergedTags = extractTagsFromAppointment(
+      it.tags && it.tags.length > 0 ? it.tags : globalAppt?.tags,
+      it.scheduled_notes || globalAppt?.scheduled_notes
+    );
+    return {
+      ...it,
+      scheduled_for: it.scheduled_for || (hasActiveGlobal ? globalAppt.scheduled_for : null),
+      scheduled_notes: it.scheduled_notes || (hasActiveGlobal ? globalAppt.scheduled_notes : null),
+      priority: it.priority || (hasActiveGlobal ? globalAppt.priority : 'normal'),
+      tags: mergedTags,
+      origin_campaign_title:
+        it.origin_campaign_title ||
+        it.campaign?.title ||
+        (hasActiveGlobal ? globalAppt.origin_campaign_title : null),
+      global_appointment: globalAppt,
+    };
+  });
 }
 
 export function useDialerAgenda() {
@@ -146,15 +258,46 @@ export function useDialerAgenda() {
       const userMap = new Map<string, any>();
       (users || []).forEach(u => userMap.set(u.id, u));
 
-      return filtered.map((it: any) => ({
-        ...it,
-        priority: it.priority || "normal",
-        tags: extractTagsFromAppointment(it.tags, it.scheduled_notes),
-        origin_campaign_title: it.origin_campaign_title || it.campaign?.title || null,
-        assigned_user: (it.assigned_to || it.campaign?.assigned_to)
-          ? userMap.get(it.assigned_to || it.campaign?.assigned_to) || null
-          : null,
-      })) as ScheduledAppointmentItem[];
+      // Deduplicate globally by lead_id so 1 client NEVER shows 2 duplicate appointments in the Agenda
+      const byLeadMap = new Map<string, ScheduledAppointmentItem>();
+      for (const raw of filtered) {
+        const mapped: ScheduledAppointmentItem = {
+          ...raw,
+          priority: raw.priority || 'normal',
+          tags: extractTagsFromAppointment(raw.tags, raw.scheduled_notes),
+          origin_campaign_title: raw.origin_campaign_title || raw.campaign?.title || null,
+          assigned_user: (raw.assigned_to || raw.campaign?.assigned_to)
+            ? userMap.get(raw.assigned_to || raw.campaign?.assigned_to) || null
+            : null,
+        };
+
+        const leadKey = raw.lead_id || raw.id;
+        const prev = byLeadMap.get(leadKey);
+        if (!prev) {
+          byLeadMap.set(leadKey, mapped);
+        } else {
+          // Prefer active 'scheduled' status, then latest updated_at, while merging notes & tags
+          const prevIsScheduled = prev.status === 'scheduled';
+          const curIsScheduled = mapped.status === 'scheduled';
+          const curNewer = new Date(mapped.updated_at).getTime() > new Date(prev.updated_at).getTime();
+          const pickCur = (!prevIsScheduled && curIsScheduled) || (prevIsScheduled === curIsScheduled && curNewer);
+          const mergedTags = Array.from(new Set([...(prev.tags || []), ...(mapped.tags || [])]));
+          const mergedNotes = pickCur
+            ? mergeScheduledNotesHtml(mapped.scheduled_notes, prev.scheduled_notes)
+            : mergeScheduledNotesHtml(prev.scheduled_notes, mapped.scheduled_notes);
+
+          const winner = pickCur ? mapped : prev;
+          byLeadMap.set(leadKey, {
+            ...winner,
+            tags: mergedTags,
+            scheduled_notes: mergedNotes,
+          });
+        }
+      }
+
+      return Array.from(byLeadMap.values()).sort(
+        (a, b) => new Date(a.scheduled_for).getTime() - new Date(b.scheduled_for).getTime()
+      );
     },
     enabled: !!selectedEmpresaId,
   });
@@ -458,7 +601,8 @@ export function useDialerQueue(campaignId?: string | null, userId?: string | nul
       const { data, error } = await query;
       if (error) throw error;
 
-      const items = (data || []) as DialerQueueItem[];
+      const rawItems = (data || []) as DialerQueueItem[];
+      const items = await enrichQueueItemsWithGlobalSchedule(rawItems);
 
       const now = new Date().getTime();
 
@@ -510,10 +654,11 @@ export function useDialerDirectQueueItems(queueItemIds?: string[]) {
         .in('id', cleanIds);
 
       if (error) throw error;
-      const items = (data || []).map((it: any) => ({
+      const rawItems = (data || []).map((it: any) => ({
         ...it,
         tags: extractTagsFromAppointment(it.tags, it.scheduled_notes),
       })) as DialerQueueItem[];
+      const items = await enrichQueueItemsWithGlobalSchedule(rawItems);
 
       // Preserve order of cleanIds if specified, or sort by scheduled_for
       const orderMap = new Map<string, number>();
@@ -526,6 +671,99 @@ export function useDialerDirectQueueItems(queueItemIds?: string[]) {
       });
     },
     enabled: cleanIds.length > 0,
+  });
+}
+
+export function useAllDialerQueueItems(enabled = true) {
+  const { selectedEmpresaId } = useEmpresa();
+  const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
+
+  const targetUserId = isCommercialOperator
+    ? loggedCommercialProfile?.userId || null
+    : activeCommercialProfile?.userId || null;
+
+  return useQuery({
+    queryKey: ['dialer_all_queue_items', selectedEmpresaId, targetUserId || 'all'],
+    queryFn: async () => {
+      if (!selectedEmpresaId) return [];
+
+      // 1. Fetch visible campaigns for this operator/scope
+      let campQuery = supabase
+        .schema('core_comercial')
+        .from('dialer_campaigns')
+        .select('id, title, status, assigned_to, empresa_id, created_at')
+        .order('created_at', { ascending: false });
+
+      if (targetUserId) {
+        campQuery = campQuery.eq('assigned_to', targetUserId);
+      }
+
+      const { data: camps } = await campQuery;
+      const campMap = new Map<string, any>();
+      (camps || []).forEach(c => campMap.set(c.id, c));
+      const campIds = Array.from(campMap.keys());
+
+      const collected: any[] = [];
+      const pageSize = 1000;
+
+      // 2. Fetch all queue items across all visible campaigns
+      if (campIds.length > 0) {
+        let fromIdx = 0;
+        while (true) {
+          const { data: chunk, error } = await supabase
+            .schema('core_comercial')
+            .from('dialer_queue_items')
+            .select(`
+              *,
+              lead:leads(*)
+            `)
+            .in('campaign_id', campIds)
+            .order('sort_order', { ascending: true })
+            .range(fromIdx, fromIdx + pageSize - 1);
+
+          if (error || !chunk || chunk.length === 0) break;
+          chunk.forEach((row: any) => {
+            collected.push({
+              ...row,
+              campaign: row.campaign_id ? campMap.get(row.campaign_id) || null : null,
+            });
+          });
+          if (chunk.length < pageSize) break;
+          fromIdx += pageSize;
+        }
+      }
+
+      // 3. Also fetch standalone scheduled / direct items (campaign_id IS NULL) belonging to this operator
+      let orphanQuery = supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select(`
+          *,
+          lead:leads(*)
+        `)
+        .is('campaign_id', null);
+
+      if (targetUserId) {
+        orphanQuery = orphanQuery.eq('assigned_to', targetUserId);
+      }
+
+      const { data: orphanItems } = await orphanQuery;
+      if (orphanItems && orphanItems.length > 0) {
+        orphanItems.forEach((row: any) => {
+          if (row.lead) {
+            collected.push({
+              ...row,
+              campaign: null,
+            });
+          }
+        });
+      }
+
+      const validItems = collected.filter(it => Boolean(it.lead)) as DialerQueueItem[];
+      return enrichQueueItemsWithGlobalSchedule(validItems);
+    },
+    enabled: Boolean(selectedEmpresaId) && enabled,
+    staleTime: 15000,
   });
 }
 
@@ -1300,6 +1538,64 @@ export function useMutateDialer() {
 
       if (updateQueueError) throw updateQueueError;
 
+      // 3b. Global Single-Appointment Sync across ALL works for this lead_id:
+      // Ensures 1 lead NEVER ends up with 2 duplicate appointments in the Agenda!
+      if (nextStatus === 'scheduled' && nextScheduledFor) {
+        const { data: siblingRows } = await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .select('id, status, scheduled_for, scheduled_notes, tags')
+          .eq('lead_id', leadId)
+          .neq('id', queueItemId);
+
+        const scheduledSiblings = (siblingRows || []).filter(r => Boolean(r.scheduled_for) || r.status === 'scheduled');
+        if (scheduledSiblings.length > 0) {
+          let combinedNotes = queueUpdateData.scheduled_notes || null;
+          let combinedTags = queueUpdateData.tags || [];
+          for (const sib of scheduledSiblings) {
+            combinedNotes = mergeScheduledNotesHtml(combinedNotes, sib.scheduled_notes);
+            combinedTags = Array.from(
+              new Set([...combinedTags, ...extractTagsFromAppointment(sib.tags, sib.scheduled_notes)])
+            );
+          }
+
+          // Persist merged notes & tags onto the single canonical appointment row
+          await supabase
+            .schema('core_comercial')
+            .from('dialer_queue_items')
+            .update({
+              scheduled_notes: combinedNotes,
+              tags: combinedTags,
+            })
+            .eq('id', queueItemId);
+
+          // Clear duplicate scheduled_for on older sibling rows so Agenda stays 100% unique
+          const sibIdsToClear = scheduledSiblings.map(s => s.id);
+          await supabase
+            .schema('core_comercial')
+            .from('dialer_queue_items')
+            .update({
+              scheduled_for: null,
+              status: 'skipped',
+              updated_at: new Date().toISOString(),
+            })
+            .in('id', sibIdsToClear);
+        }
+      } else if (nextStatus === 'converted' || nextStatus === 'rejected') {
+        // Close any active scheduled appointments on sibling works when converted or blacklisted
+        await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .update({
+            status: nextStatus,
+            scheduled_for: nextStatus === 'rejected' ? null : undefined,
+            updated_at: new Date().toISOString(),
+          })
+          .eq('lead_id', leadId)
+          .neq('id', queueItemId)
+          .eq('status', 'scheduled');
+      }
+
       // 4. Update Lead Record
       const leadUpdatePayload: Record<string, any> = {
         last_called_at: new Date().toISOString(),
@@ -1438,6 +1734,7 @@ export function useMutateDialer() {
         queryClient.invalidateQueries({ queryKey: ['dialer_campaign', vars.campaignId] });
       }
       queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_all_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['lead_call_logs', vars.leadId] });
       queryClient.invalidateQueries({ queryKey: ['dialer_supervisor_kpis'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_today_session_stats'] });
@@ -1871,12 +2168,37 @@ export function useMutateDialer() {
         .single();
 
       if (error) throw error;
+
+      // Global Single-Appointment Sync: clear duplicate scheduled_for on any other row of the same lead_id
+      if (data?.lead_id && data?.scheduled_for) {
+        const { data: dupRows } = await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .select('id')
+          .eq('lead_id', data.lead_id)
+          .neq('id', queueItemId)
+          .not('scheduled_for', 'is', null);
+
+        if (dupRows && dupRows.length > 0) {
+          await supabase
+            .schema('core_comercial')
+            .from('dialer_queue_items')
+            .update({
+              scheduled_for: null,
+              status: 'skipped',
+              updated_at: new Date().toISOString(),
+            })
+            .in('id', dupRows.map(d => d.id));
+        }
+      }
+
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_all_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_campaign'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_campaigns'] });
     },
@@ -1884,6 +2206,13 @@ export function useMutateDialer() {
 
   const deleteAppointment = useMutation({
     mutationFn: async (queueItemId: string) => {
+      const { data: targetRow } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select('lead_id')
+        .eq('id', queueItemId)
+        .maybeSingle();
+
       const { error } = await supabase
         .schema('core_comercial')
         .from('dialer_queue_items')
@@ -1895,11 +2224,27 @@ export function useMutateDialer() {
         .eq('id', queueItemId);
 
       if (error) throw error;
+
+      // Clear any duplicate scheduled_for across all works for this lead_id so cancelled appointments never come back
+      if (targetRow?.lead_id) {
+        await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .update({
+            scheduled_for: null,
+            status: 'skipped',
+            updated_at: new Date().toISOString(),
+          })
+          .eq('lead_id', targetRow.lead_id)
+          .neq('id', queueItemId)
+          .not('scheduled_for', 'is', null);
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_all_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_campaign'] });
     },
   });
@@ -1987,17 +2332,20 @@ export function useMutateDialer() {
 
       if (leadErr) throw leadErr;
 
-      // 3. If queue item is scheduled (or already has scheduled_notes), append note WITHOUT touching status, scheduled_for, attempts_count, or sort_order
-      if (queueItemId) {
-        const { data: qItem } = await supabase
-          .schema('core_comercial')
-          .from('dialer_queue_items')
-          .select('status, scheduled_notes')
-          .eq('id', queueItemId)
-          .maybeSingle();
+      // 3. Append note to ANY scheduled appointment row of this lead_id (across all works) WITHOUT touching status or scheduled_for
+      const { data: schedRows } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select('id, status, scheduled_for, scheduled_notes')
+        .eq('lead_id', leadId);
 
-        if (qItem && (qItem.status === 'scheduled' || qItem.scheduled_notes)) {
-          const prevSchedNotes = (qItem.scheduled_notes || '').trim();
+      const rowsToAnnotate = (schedRows || []).filter(
+        r => r.status === 'scheduled' || Boolean(r.scheduled_for) || r.id === queueItemId
+      );
+
+      for (const r of rowsToAnnotate) {
+        if (r.status === 'scheduled' || Boolean(r.scheduled_for) || r.scheduled_notes) {
+          const prevSchedNotes = (r.scheduled_notes || '').trim();
           const updatedSchedNotes = prevSchedNotes
             ? `${prevSchedNotes}<br/>[${stamp}] ${cleanNotes}`
             : `[${stamp}] ${cleanNotes}`;
@@ -2009,7 +2357,7 @@ export function useMutateDialer() {
               scheduled_notes: updatedSchedNotes,
               updated_at: new Date().toISOString(),
             })
-            .eq('id', queueItemId);
+            .eq('id', r.id);
         }
       }
     },
@@ -2019,8 +2367,73 @@ export function useMutateDialer() {
         queryClient.invalidateQueries({ queryKey: ['dialer_queue_items', vars.campaignId] });
       }
       queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_all_queue_items'] });
       queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
       queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+
+  const ensureQueueItemForLead = useMutation({
+    mutationFn: async ({
+      leadId,
+      preferredCampaignId,
+    }: {
+      leadId: string;
+      preferredCampaignId?: string | null;
+    }) => {
+      const { data: authData } = await supabase.auth.getUser();
+      const effectiveUserId =
+        loggedCommercialProfile?.userId ||
+        activeCommercialProfile?.userId ||
+        authData?.user?.id ||
+        null;
+
+      // 1. Check if this lead already has a queue item (prefer preferredCampaignId, then active scheduled, then latest)
+      const { data: existingRows } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .select('id, campaign_id, status, scheduled_for, updated_at')
+        .eq('lead_id', leadId)
+        .order('updated_at', { ascending: false });
+
+      if (existingRows && existingRows.length > 0) {
+        const inPreferred = preferredCampaignId
+          ? existingRows.find(r => r.campaign_id === preferredCampaignId)
+          : null;
+        const activeSched = existingRows.find(r => r.status === 'scheduled' && Boolean(r.scheduled_for));
+        const chosen = inPreferred || activeSched || existingRows[0];
+        return {
+          queueItemId: chosen.id as string,
+          campaignId: (chosen.campaign_id as string | null) || preferredCampaignId || null,
+        };
+      }
+
+      // 2. Otherwise create a standalone direct queue item so ANY CRM lead can be opened immediately on the Cockpit screen
+      const { data: created, error } = await supabase
+        .schema('core_comercial')
+        .from('dialer_queue_items')
+        .insert({
+          campaign_id: null,
+          lead_id: leadId,
+          assigned_to: effectiveUserId,
+          status: 'pending',
+          attempts_count: 0,
+          max_attempts: 3,
+          sort_order: 1,
+          origin_campaign_title: 'Atendimento Direto / Receptivo',
+        })
+        .select('id, campaign_id')
+        .single();
+
+      if (error) throw error;
+      return {
+        queueItemId: created.id as string,
+        campaignId: preferredCampaignId || null,
+      };
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_all_queue_items'] });
     },
   });
 
@@ -2039,6 +2452,8 @@ export function useMutateDialer() {
     isLoggingCall: logCallAndAdvance.isPending,
     saveLeadObservation: saveLeadObservation.mutateAsync,
     isSavingLeadObservation: saveLeadObservation.isPending,
+    ensureQueueItemForLead: ensureQueueItemForLead.mutateAsync,
+    isEnsuringQueueItem: ensureQueueItemForLead.isPending,
     createQuickPresupuesto: createQuickPresupuesto.mutateAsync,
     isCreatingPresupuesto: createQuickPresupuesto.isPending,
     saveSalesScript: saveSalesScript.mutateAsync,

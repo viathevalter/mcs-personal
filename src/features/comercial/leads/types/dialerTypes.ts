@@ -95,6 +95,17 @@ export interface DialerCampaign {
   };
 }
 
+export interface GlobalLeadAppointment {
+  queue_item_id: string;
+  campaign_id?: string | null;
+  scheduled_for: string;
+  scheduled_notes?: string | null;
+  priority: 'high' | 'normal' | 'low';
+  tags: string[];
+  status: string;
+  origin_campaign_title?: string | null;
+}
+
 export interface DialerQueueItem {
   id: string;
   campaign_id: string | null;
@@ -115,6 +126,7 @@ export interface DialerQueueItem {
   // Relations
   lead: Lead;
   campaign?: DialerCampaign;
+  global_appointment?: GlobalLeadAppointment | null;
 }
 
 export interface LeadCallLog {

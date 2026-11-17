@@ -771,7 +771,8 @@ export function SendMaterialModal({
   const { user } = useAuth();
   const { selectedEmpresaId } = useEmpresa();
   const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
-  const { data: dbTemplates = [] } = useMarketingTemplates();
+  const { data: dbTemplatesData } = useMarketingTemplates();
+  const dbTemplates = useMemo(() => dbTemplatesData ?? [], [dbTemplatesData]);
 
   // Resolve initial commercial operator key based on logged user -> lead.assigned_to -> active scope -> company
   const resolvedDefaultOwnerKey = useMemo<CommercialOwnerKey>(() => {
@@ -946,19 +947,30 @@ export function SendMaterialModal({
     }
   };
 
-  // Update Subject & HTML whenever selected material, sender or lead changes
+  // Update Subject & HTML only when selected material, sender, or lead identity actually changes (never while typing!)
+  const lastTemplateSyncKeyRef = useRef<string>('');
   useEffect(() => {
-    applyDefaultTemplate();
-  }, [selectedId, selectedSourceType, builtinMaterials, lead, senderName, senderEmail, senderPhone, dbTemplates]);
+    if (!isOpen) {
+      lastTemplateSyncKeyRef.current = '';
+      return;
+    }
+    const syncKey = `${selectedSourceType}:${selectedId}:${lead?.id || 'none'}:${selectedSenderKey}:${dbTemplates.length}`;
+    if (lastTemplateSyncKeyRef.current !== syncKey) {
+      lastTemplateSyncKeyRef.current = syncKey;
+      applyDefaultTemplate();
+    }
+  }, [isOpen, selectedId, selectedSourceType, lead?.id, selectedSenderKey, dbTemplates.length]);
 
-  // Sync visual editor when switching from HTML mode back to Visual mode or opening modal
+  // Sync visual editor when switching from HTML mode back to Visual mode
+  const prevEditorModeRef = useRef<'visual' | 'html'>(editorMode);
   useEffect(() => {
-    if (isOpen && editorMode === 'visual' && visualEditorRef.current) {
+    if (isOpen && editorMode === 'visual' && prevEditorModeRef.current === 'html' && visualEditorRef.current) {
       if (visualEditorRef.current.innerHTML !== emailHtml) {
         visualEditorRef.current.innerHTML = emailHtml;
       }
     }
-  }, [isOpen, editorMode]);
+    prevEditorModeRef.current = editorMode;
+  }, [isOpen, editorMode, emailHtml]);
 
   // Live-update only the extra-note slot when user types in extraNote without losing custom edits in the rest of the email
   const handleExtraNoteChange = (nextNote: string) => {
@@ -1596,11 +1608,14 @@ export function SendMaterialModal({
                   }}
                   contentEditable={isVisualEditable}
                   suppressContentEditableWarning
+                  dir="ltr"
+                  translate="no"
+                  style={{ direction: 'ltr', unicodeBidi: 'normal', textAlign: 'left' }}
                   onInput={(e) => {
                     setEmailHtml(e.currentTarget.innerHTML);
                     setHasCustomEdits(true);
                   }}
-                  className="outline-none focus:ring-2 focus:ring-blue-500/60 rounded-2xl transition-shadow cursor-text"
+                  className="notranslate outline-none focus:ring-2 focus:ring-blue-500/60 rounded-2xl transition-shadow cursor-text"
                 />
               ) : (
                 <Textarea
