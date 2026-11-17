@@ -375,7 +375,7 @@ export function HoleritesPage() {
             : <ArrowDown className="ml-1 h-3.5 w-3.5 text-indigo-600" />;
     };
 
-    const { data: workers, isLoading: isLoadingWorkers } = useWorkersForHolerites(selectedEmpresaId || undefined);
+    const { data: workers, isLoading: isLoadingWorkers } = useWorkersForHolerites(selectedEmpresaId || undefined, mesReferencia);
     const { data: eventos, isLoading: isLoadingEventos } = useHoleriteEventos(mesReferencia);
     const { data: holeritesStatusMap, isLoading: isLoadingStatus } = useHoleritesStatus(mesReferencia);
     const { marcarPagos, isMarcarPagosLoading, estornarPagamento, isEstornarLoading } = usePaymentMutations();

@@ -1,14 +1,16 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import { 
     getTariffAuthorizationByToken, 
     approveAndApplyTariffAuthorization, 
+    formatMesVigenciaLabel,
     type TariffAuthorizationRequest 
 } from '../api/tariffGovernanceApi';
-import { Loader2, FileText, CheckCircle2, Lock, Smartphone, ShieldCheck, PenTool, Building2, UserCheck, AlertCircle } from 'lucide-react';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { supabase } from '@/shared/supabase/client';
+import { Loader2, FileText, CheckCircle2, Lock, ShieldCheck, PenTool, UserCheck, AlertCircle, Calendar, LogIn, LogOut } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,17 +18,19 @@ import { Badge } from '@/components/ui/badge';
 
 export function TariffSigningPage() {
     const { token } = useParams<{ token: string }>();
+    const navigate = useNavigate();
+    const { user, loading: authLoading } = useAuth();
     const canvasRef = useRef<HTMLCanvasElement>(null);
 
     const [request, setRequest] = useState<TariffAuthorizationRequest | null>(null);
     const [loading, setLoading] = useState(true);
     const [submitting, setSubmitting] = useState(false);
     const [success, setSuccess] = useState(false);
+    const [appliedImmediately, setAppliedImmediately] = useState<boolean | null>(null);
 
     // Canvas drawing state
     const [isDrawing, setIsDrawing] = useState(false);
     const [hasSigned, setHasSigned] = useState(false);
-    const [signerName, setSignerName] = useState('');
 
     useEffect(() => {
         if (!token) {
@@ -39,7 +43,6 @@ export function TariffSigningPage() {
                 const data = await getTariffAuthorizationByToken(token!);
                 if (data) {
                     setRequest(data);
-                    setSignerName(data.gerente_nome || '');
                     if (data.status === 'APROVADO') {
                         setSuccess(true);
                     }
@@ -101,7 +104,7 @@ export function TariffSigningPage() {
     };
 
     const handleApprove = async () => {
-        if (!request || !token) return;
+        if (!request || !token || !user?.email) return;
         if (!hasSigned) {
             toast.error("Por favor, desenhe sua assinatura digital antes de confirmar.");
             return;
@@ -112,12 +115,14 @@ export function TariffSigningPage() {
 
         setSubmitting(true);
         try {
-            await approveAndApplyTariffAuthorization({
+            const res = await approveAndApplyTariffAuthorization({
                 token,
-                assinaturaBase64
+                assinaturaBase64: signatureBase64,
+                signerEmail: user.email
             });
+            setAppliedImmediately(res.appliedImmediately);
             setSuccess(true);
-            toast.success("Autorização de tarifa registrada e aplicada com sucesso!");
+            toast.success("Autorização de tarifa registrada e tarefa finalizada com sucesso!");
         } catch (err: any) {
             console.error("Failed to approve tariff authorization:", err);
             toast.error(err.message || "Erro ao processar assinatura de autorização.");
@@ -126,7 +131,7 @@ export function TariffSigningPage() {
         }
     };
 
-    if (loading) {
+    if (loading || authLoading) {
         return (
             <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
                 <div className="flex flex-col items-center gap-3">
@@ -162,7 +167,7 @@ export function TariffSigningPage() {
                             <CheckCircle2 className="w-10 h-10 text-emerald-600 dark:text-emerald-400" />
                         </div>
                         <Badge variant="outline" className="w-fit mx-auto border-emerald-500 text-emerald-700 bg-emerald-50 mb-2">
-                            Aprovado & Aplicado em Produção
+                            Aprovado & Tarefa Concluída
                         </Badge>
                         <CardTitle className="text-2xl font-bold text-slate-900 dark:text-white">
                             Termo de Autorização Assinado
@@ -182,14 +187,85 @@ export function TariffSigningPage() {
                                 <span className="font-semibold text-emerald-700 dark:text-emerald-400">{request.gerente_nome}</span>
                             </div>
                             <div className="flex justify-between">
+                                <span className="text-muted-foreground">Início da Vigência:</span>
+                                <span className="font-semibold text-indigo-700 dark:text-indigo-400">
+                                    {formatMesVigenciaLabel(request.mes_vigencia)}
+                                </span>
+                            </div>
+                            <div className="flex justify-between">
                                 <span className="text-muted-foreground">Data da Assinatura:</span>
                                 <span className="font-semibold">{new Date().toLocaleString('pt-BR')}</span>
                             </div>
                         </div>
 
                         <p className="text-xs text-center text-muted-foreground">
-                            As tarifas dos trabalhadores listados foram atualizadas automaticamente na folha de pagamento do sistema MCS.
+                            {appliedImmediately === false
+                                ? `As novas tarifas estão agendadas e entrarão em vigor automaticamente na folha de ${formatMesVigenciaLabel(request.mes_vigencia)}, sem afetar os meses anteriores.`
+                                : 'As tarifas dos trabalhadores listados foram registradas e a tarefa na Super Gaveta Operacional foi finalizada automaticamente.'}
                         </p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    // Require authentication
+    if (!user) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+                <Card className="max-w-md w-full border-indigo-200 shadow-lg">
+                    <CardHeader className="text-center space-y-2">
+                        <Lock className="w-10 h-10 text-indigo-600 mx-auto" />
+                        <CardTitle className="text-lg">Autenticação Necessária</CardTitle>
+                        <CardDescription className="text-xs">
+                            Para assinar o termo <strong>{request.codigo_termo}</strong>, é necessário estar logado com seu e-mail corporativo
+                            {request.gerente_email ? ` (${request.gerente_email})` : ''}.
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center">
+                        <Button
+                            className="bg-indigo-600 hover:bg-indigo-700 gap-2 text-xs font-semibold"
+                            onClick={() => navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`)}
+                        >
+                            <LogIn className="w-4 h-4" />
+                            Entrar com minha conta
+                        </Button>
+                    </CardContent>
+                </Card>
+            </div>
+        );
+    }
+
+    // Require matching authorizer email
+    if (request.gerente_email && user.email?.toLowerCase() !== request.gerente_email.toLowerCase()) {
+        return (
+            <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center p-4">
+                <Card className="max-w-md w-full border-amber-200 shadow-lg">
+                    <CardHeader className="text-center space-y-2">
+                        <AlertCircle className="w-10 h-10 text-amber-500 mx-auto" />
+                        <CardTitle className="text-lg text-amber-800">Autorizador Divergente</CardTitle>
+                        <CardDescription className="text-xs space-y-2">
+                            <p>
+                                Este termo (<strong>{request.codigo_termo}</strong>) foi direcionado exclusivamente para{' '}
+                                <strong>{request.gerente_nome}</strong> ({request.gerente_email}).
+                            </p>
+                            <p>
+                                Você está logado atualmente como <strong>{user.email}</strong>.
+                            </p>
+                        </CardDescription>
+                    </CardHeader>
+                    <CardContent className="flex justify-center gap-2">
+                        <Button
+                            variant="outline"
+                            className="gap-2 text-xs"
+                            onClick={async () => {
+                                await supabase.auth.signOut();
+                                navigate(`/login?redirect=${encodeURIComponent(window.location.pathname)}`);
+                            }}
+                        >
+                            <LogOut className="w-3.5 h-3.5" />
+                            Trocar de Conta
+                        </Button>
                     </CardContent>
                 </Card>
             </div>
@@ -223,7 +299,7 @@ export function TariffSigningPage() {
 
                     <CardContent className="p-6 space-y-6">
                         {/* Governance Details */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
                             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border space-y-1">
                                 <span className="text-muted-foreground uppercase font-semibold text-[10px]">Solicitante</span>
                                 <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
@@ -232,10 +308,17 @@ export function TariffSigningPage() {
                                 </div>
                             </div>
                             <div className="p-3 bg-slate-50 dark:bg-slate-800 rounded-lg border space-y-1">
-                                <span className="text-muted-foreground uppercase font-semibold text-[10px]">Gerente Autorizador</span>
+                                <span className="text-muted-foreground uppercase font-semibold text-[10px]">Autorizador</span>
                                 <div className="font-bold text-slate-900 dark:text-white text-sm flex items-center gap-2">
                                     <ShieldCheck className="w-4 h-4 text-emerald-600" />
                                     {request.gerente_nome}
+                                </div>
+                            </div>
+                            <div className="p-3 bg-indigo-50/70 dark:bg-indigo-950/40 rounded-lg border border-indigo-200 dark:border-indigo-900 space-y-1">
+                                <span className="text-indigo-700 dark:text-indigo-300 uppercase font-semibold text-[10px]">Início da Vigência</span>
+                                <div className="font-bold text-indigo-900 dark:text-indigo-200 text-sm flex items-center gap-2">
+                                    <Calendar className="w-4 h-4 text-indigo-600" />
+                                    {formatMesVigenciaLabel(request.mes_vigencia)}
                                 </div>
                             </div>
                         </div>

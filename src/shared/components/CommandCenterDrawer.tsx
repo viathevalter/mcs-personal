@@ -1530,6 +1530,17 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                               </p>
                             )}
 
+                            {task.metadata?.signing_url && task.status !== 'completed' && (
+                              <div className="mb-3">
+                                <a
+                                  href={task.metadata.signing_url}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
+                                >
+                                  Abrir Termo para Assinar ({task.metadata.codigo_termo || 'Tarifa'})
+                                </a>
+                              </div>
+                            )}
+
                             {/* Metadados de Trabalhador, Pedido e Agendamento */}
                             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-3">
                               {worker && (

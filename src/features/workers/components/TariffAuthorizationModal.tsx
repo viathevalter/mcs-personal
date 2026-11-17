@@ -14,17 +14,36 @@ import { Textarea } from '@/components/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Combobox } from '@/components/ui/combobox';
-import { Loader2, ShieldCheck, Copy, Check, MessageSquare, Send, Bold, List, Heading, Sparkles } from 'lucide-react';
+import {
+    Loader2,
+    ShieldCheck,
+    Copy,
+    Check,
+    MessageSquare,
+    Send,
+    Bold,
+    List,
+    Heading,
+    Sparkles,
+    Calendar,
+    Mail,
+    CheckCircle2,
+    AlertTriangle,
+    ClipboardList
+} from 'lucide-react';
 import { toast } from 'sonner';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Worker } from '@/shared/types/corePersonal';
-import { 
-    createTariffAuthorizationRequest, 
-    listSystemUsers, 
-    type TariffItemRequest, 
-    type SystemUser 
+import {
+    createTariffAuthorizationRequest,
+    listSystemUsers,
+    listTariffAuthorizers,
+    getCurrentYearMonth,
+    formatMesVigenciaLabel,
+    type TariffItemRequest,
 } from '../api/tariffGovernanceApi';
 import { useAuth } from '@/app/providers/AuthProvider';
+import { useEmpresa } from '@/app/providers/EmpresaProvider';
 
 interface TariffAuthorizationModalProps {
     open: boolean;
@@ -35,56 +54,85 @@ interface TariffAuthorizationModalProps {
 
 export function TariffAuthorizationModal({ open, onOpenChange, workers, onSuccess }: TariffAuthorizationModalProps) {
     const { user } = useAuth();
+    const { selectedEmpresaId } = useEmpresa();
+    const queryClient = useQueryClient();
 
-    const { data: systemUsers } = useQuery({
+    const { data: systemUsers = [] } = useQuery({
         queryKey: ['system-users-for-tariffs'],
         queryFn: listSystemUsers,
         enabled: open,
         refetchOnWindowFocus: false
     });
-    
+
+    const { data: authorizers = [], isLoading: loadingAuthorizers } = useQuery({
+        queryKey: ['tariff-authorizers', 'active'],
+        queryFn: () => listTariffAuthorizers(true),
+        enabled: open,
+        refetchOnWindowFocus: false
+    });
+
     const [solicitanteNome, setSolicitanteNome] = useState('');
-    const [gerenteNome, setGerenteNome] = useState('');
-    const [gerentePhone, setGerentePhone] = useState('');
+    const [solicitanteEmail, setSolicitanteEmail] = useState('');
+    const [selectedAuthorizerEmail, setSelectedAuthorizerEmail] = useState('');
+    const [mesVigencia, setMesVigencia] = useState<string>(getCurrentYearMonth());
     const [motivoAlteracao, setMotivoAlteracao] = useState('');
-    
+
     // Map of worker_id -> proposed new tariff
     const [proposedTariffs, setProposedTariffs] = useState<Record<string, string>>({});
 
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [generatedResult, setGeneratedResult] = useState<{ token: string; url: string; codigoTermo: string } | null>(null);
+    const [generatedResult, setGeneratedResult] = useState<{
+        token: string;
+        url: string;
+        codigoTermo: string;
+        taskCreated: boolean;
+        emailSent: boolean;
+        emailError?: string;
+        gerenteNome: string;
+        gerenteEmail: string;
+        gerentePhone?: string;
+        mesVigencia: string;
+    } | null>(null);
     const [copied, setCopied] = useState(false);
 
     useEffect(() => {
-        if (user?.email && systemUsers && systemUsers.length > 0) {
+        if (user?.email) {
             const currentEmail = user.email.toLowerCase();
+            setSolicitanteEmail(currentEmail);
             const matched = systemUsers.find(u => u.email.toLowerCase() === currentEmail);
-            if (matched) {
-                setSolicitanteNome(matched.nome);
-            }
+            setSolicitanteNome(matched?.nome || user.user_metadata?.full_name || user.email);
         }
     }, [user, systemUsers]);
 
+    // Pre-select default authorizer when modal opens
     useEffect(() => {
-        if (workers && workers.length > 0) {
+        if (open && authorizers.length > 0) {
+            const alreadyValid = authorizers.some(a => a.email.toLowerCase() === selectedAuthorizerEmail.toLowerCase());
+            if (!alreadyValid) {
+                const defaultAuth = authorizers.find(a => a.is_default) || authorizers[0];
+                if (defaultAuth) {
+                    setSelectedAuthorizerEmail(defaultAuth.email);
+                }
+            }
+        }
+    }, [open, authorizers, selectedAuthorizerEmail]);
+
+    useEffect(() => {
+        if (open && workers && workers.length > 0) {
             const initialMap: Record<string, string> = {};
             workers.forEach(w => {
                 const current = w.worker_beneficios_settings?.tarifa_hora ?? 0;
                 initialMap[w.id] = Number(current).toFixed(2);
             });
             setProposedTariffs(initialMap);
+            setMesVigencia(getCurrentYearMonth());
+            setMotivoAlteracao('');
         }
-    }, [workers]);
+    }, [open, workers]);
 
-    const handleSelectGerente = (value: string) => {
-        setGerenteNome(value);
-        if (systemUsers) {
-            const matched = systemUsers.find(u => u.nome === value);
-            if (matched && matched.phone) {
-                setGerentePhone(matched.phone);
-            }
-        }
-    };
+    const selectedAuthorizer = authorizers.find(
+        a => a.email.toLowerCase() === selectedAuthorizerEmail.toLowerCase()
+    );
 
     const handleTariffChange = (workerId: string, value: string) => {
         setProposedTariffs(prev => ({
@@ -93,7 +141,6 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         }));
     };
 
-    // Rich text helper shortcuts for justification text
     const insertFormatting = (prefix: string, suffix: string = '') => {
         setMotivoAlteracao(prev => {
             if (!prev) return `${prefix}Justificativa...${suffix}`;
@@ -104,13 +151,23 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
     const handleGenerateRequest = async (e: React.FormEvent) => {
         e.preventDefault();
 
-        if (!solicitanteNome.trim()) {
-            toast.error("Selecione ou informe o nome do solicitante.");
+        if (!solicitanteNome.trim() || !solicitanteEmail.trim()) {
+            toast.error('Não foi possível identificar o usuário solicitante logado.');
             return;
         }
 
-        if (!gerenteNome.trim()) {
-            toast.error("Selecione ou informe o nome do gerente autorizador.");
+        if (!selectedAuthorizer) {
+            toast.error('Selecione o gerente autorizador (configure os autorizadores se a lista estiver vazia).');
+            return;
+        }
+
+        if (!mesVigencia || !/^\d{4}-\d{2}$/.test(mesVigencia)) {
+            toast.error('Informe o mês de início da vigência.');
+            return;
+        }
+
+        if (!motivoAlteracao.trim()) {
+            toast.error('Informe a justificativa do reajuste de tarifa.');
             return;
         }
 
@@ -132,24 +189,40 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         setIsSubmitting(true);
         try {
             const result = await createTariffAuthorizationRequest({
+                solicitanteId: user?.id,
                 solicitanteNome,
-                gerenteNome,
-                gerentePhone,
+                solicitanteEmail,
+                gerenteUserId: selectedAuthorizer.user_id || undefined,
+                gerenteNome: selectedAuthorizer.nome,
+                gerenteEmail: selectedAuthorizer.email,
+                gerentePhone: selectedAuthorizer.phone || undefined,
+                mesVigencia,
                 motivoAlteracao,
-                itens: items
+                itens: items,
+                empresaId: selectedEmpresaId || null
             });
 
             setGeneratedResult({
                 token: result.token,
                 url: result.url,
-                codigoTermo: result.request.codigo_termo
+                codigoTermo: result.request.codigo_termo,
+                taskCreated: result.taskCreated,
+                emailSent: result.emailSent,
+                emailError: result.emailError,
+                gerenteNome: selectedAuthorizer.nome,
+                gerenteEmail: selectedAuthorizer.email,
+                gerentePhone: selectedAuthorizer.phone || undefined,
+                mesVigencia
             });
 
-            toast.success("Termo de Autorização criado com sucesso!");
+            queryClient.invalidateQueries({ queryKey: ['worker-tariff-status-badges'] });
+            queryClient.invalidateQueries({ queryKey: ['tariff-authorization-requests'] });
+
+            toast.success('Termo gerado e enviado para autorização!');
             if (onSuccess) onSuccess();
         } catch (err: any) {
-            console.error("Error creating tariff authorization request:", err);
-            toast.error("Erro ao gerar termo de autorização.");
+            console.error('Error creating tariff authorization request:', err);
+            toast.error(err?.message || 'Erro ao gerar termo de autorização.');
         } finally {
             setIsSubmitting(false);
         }
@@ -159,7 +232,7 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         if (!generatedResult) return;
         navigator.clipboard.writeText(generatedResult.url);
         setCopied(true);
-        toast.success("Link de autorização copiado!");
+        toast.success('Link de autorização copiado!');
         setTimeout(() => setCopied(false), 2500);
     };
 
@@ -167,15 +240,15 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         if (!generatedResult) return;
         const msg = encodeURIComponent(
             `*MCS GLOBAL - Solicitação de Autorização de Tarifa*\n\n` +
-            `Olá *${gerenteNome}*,\n` +
-            `Foi solicitada uma alteração de tarifas para colaboradores (Termo *${generatedResult.codigoTermo}*).\n\n` +
-            `Por favor, acesse o link abaixo para revisar e assinar a autorização:\n` +
+            `Olá *${generatedResult.gerenteNome}*,\n` +
+            `Foi solicitada uma alteração de tarifas (Termo *${generatedResult.codigoTermo}*) com vigência a partir de *${formatMesVigenciaLabel(generatedResult.mesVigencia)}*.\n\n` +
+            `Por favor, acesse o link abaixo (logado com seu e-mail) para revisar e assinar:\n` +
             `${generatedResult.url}`
         );
 
         let whatsappUrl = `https://wa.me/?text=${msg}`;
-        if (gerentePhone) {
-            const cleanPhone = gerentePhone.replace(/\D/g, '');
+        if (generatedResult.gerentePhone) {
+            const cleanPhone = generatedResult.gerentePhone.replace(/\D/g, '');
             if (cleanPhone.length > 8) {
                 whatsappUrl = `https://wa.me/${cleanPhone}?text=${msg}`;
             }
@@ -191,10 +264,9 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
         onOpenChange(newOpen);
     };
 
-    // User options for comboboxes
-    const userComboboxOptions = (systemUsers || []).map(u => ({
-        value: u.nome,
-        label: `${u.nome} (${u.email || 'Usuário'})`
+    const authorizerOptions = authorizers.map(a => ({
+        value: a.email,
+        label: `${a.nome} (${a.email})${a.is_default ? ' ★ Padrão' : ''}`
     }));
 
     if (!workers || workers.length === 0) return null;
@@ -208,27 +280,57 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                         Solicitar Termo de Autorização de Tarifa
                     </DialogTitle>
                     <DialogDescription className="text-xs">
-                        Gere um termo com link de assinatura eletrônica para o gerente aprovar o reajuste das tarifas dos colaboradores selecionados.
+                        A alteração de tarifa só passa a valer após a assinatura eletrônica do autorizador e respeitará o mês de início da vigência.
                     </DialogDescription>
                 </DialogHeader>
 
                 {generatedResult ? (
-                    <div className="py-4 space-y-5">
+                    <div className="py-4 space-y-4">
                         <div className="p-4 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 rounded-lg space-y-2 text-center">
                             <Badge className="bg-emerald-600 text-white font-mono text-xs">
                                 Termo Gerado: {generatedResult.codigoTermo}
                             </Badge>
                             <h3 className="font-bold text-slate-900 dark:text-white text-base">
-                                Solicitação Criada com Sucesso!
+                                Solicitação Enviada para Autorização!
                             </h3>
                             <p className="text-xs text-muted-foreground">
-                                Envie o link abaixo para o gerente autorizador assinar eletronicamente. As tarifas serão aplicadas automaticamente após a assinatura.
+                                Vigência programada: <strong>{formatMesVigenciaLabel(generatedResult.mesVigencia)}</strong> • Autorizador: <strong>{generatedResult.gerenteNome}</strong> ({generatedResult.gerenteEmail})
                             </p>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+                            <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${generatedResult.taskCreated ? 'bg-indigo-50/60 border-indigo-200 text-indigo-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                                <ClipboardList className="w-4 h-4 shrink-0 mt-0.5" />
+                                <div>
+                                    <div className="font-semibold">Tarefa na Super Gaveta</div>
+                                    <div className="text-[11px] opacity-85">
+                                        {generatedResult.taskCreated
+                                            ? `Tarefa criada e atribuída para ${generatedResult.gerenteNome}.`
+                                            : 'Não foi possível criar a tarefa automaticamente.'}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className={`p-3 rounded-lg border flex items-start gap-2.5 ${generatedResult.emailSent ? 'bg-emerald-50/60 border-emerald-200 text-emerald-900' : 'bg-amber-50 border-amber-200 text-amber-900'}`}>
+                                {generatedResult.emailSent ? (
+                                    <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-600" />
+                                ) : (
+                                    <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-amber-600" />
+                                )}
+                                <div>
+                                    <div className="font-semibold">Notificação por E-mail</div>
+                                    <div className="text-[11px] opacity-85">
+                                        {generatedResult.emailSent
+                                            ? `E-mail enviado para ${generatedResult.gerenteEmail}.`
+                                            : `Falha no envio automático (${generatedResult.emailError || 'verifique o servidor de e-mail'}). Use o link abaixo.`}
+                                    </div>
+                                </div>
+                            </div>
                         </div>
 
                         <div className="space-y-2">
                             <Label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                Link Único de Assinatura Eletrônica:
+                                Link de Assinatura Eletrônica:
                             </Label>
                             <div className="flex gap-2">
                                 <Input
@@ -244,16 +346,16 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                         </div>
 
                         <div className="flex flex-col sm:flex-row gap-2 pt-2">
-                            <Button 
-                                onClick={handleSendWhatsApp} 
+                            <Button
+                                onClick={handleSendWhatsApp}
                                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-2 text-xs font-semibold h-10"
                             >
                                 <MessageSquare className="w-4 h-4" />
-                                Enviar via WhatsApp para Gerente
+                                Enviar também via WhatsApp
                             </Button>
-                            <Button 
-                                variant="outline" 
-                                onClick={() => handleClose(false)} 
+                            <Button
+                                variant="outline"
+                                onClick={() => handleClose(false)}
                                 className="h-10 text-xs"
                             >
                                 Concluir
@@ -262,42 +364,55 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                     </div>
                 ) : (
                     <form onSubmit={handleGenerateRequest} className="space-y-4 py-2">
-                        {/* Users selection section */}
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        {/* Solicitante, Autorizador e Vigência */}
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
                             <div className="space-y-1">
-                                <Label className="text-xs font-semibold">Solicitante (Usuário do Sistema)</Label>
-                                <Combobox
-                                    className="w-full h-9 text-xs bg-white dark:bg-slate-900"
-                                    options={userComboboxOptions}
-                                    value={solicitanteNome}
-                                    onChange={(v) => setSolicitanteNome(v)}
-                                    placeholder="Buscar usuário solicitante..."
-                                    emptyText="Nenhum usuário encontrado."
-                                />
-                            </div>
-
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold">Gerente Autorizador (Usuário do Sistema)</Label>
-                                <Combobox
-                                    className="w-full h-9 text-xs bg-white dark:bg-slate-900"
-                                    options={userComboboxOptions}
-                                    value={gerenteNome}
-                                    onChange={handleSelectGerente}
-                                    placeholder="Buscar gerente autorizador..."
-                                    emptyText="Nenhum usuário encontrado."
-                                />
-                            </div>
-                        </div>
-
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                            <div className="space-y-1">
-                                <Label className="text-xs font-semibold">WhatsApp do Gerente (Opcional)</Label>
+                                <Label className="text-xs font-semibold">Solicitante (Logado)</Label>
                                 <Input
-                                    value={gerentePhone}
-                                    onChange={(e) => setGerentePhone(e.target.value)}
-                                    placeholder="+351 912 345 678"
-                                    className="h-9 text-xs"
+                                    readOnly
+                                    value={`${solicitanteNome} (${solicitanteEmail})`}
+                                    className="h-9 text-xs bg-slate-50 dark:bg-slate-900 text-slate-600"
                                 />
+                                <p className="text-[10px] text-muted-foreground">O e-mail será enviado em nome deste usuário.</p>
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold">Autorizador Responsável *</Label>
+                                {loadingAuthorizers ? (
+                                    <div className="h-9 border rounded-md px-3 flex items-center text-xs text-muted-foreground gap-2">
+                                        <Loader2 className="w-3.5 h-3.5 animate-spin" /> Carregando...
+                                    </div>
+                                ) : authorizers.length === 0 ? (
+                                    <div className="p-2 rounded-md border border-amber-300 bg-amber-50 text-amber-800 text-[11px]">
+                                        Nenhum autorizador configurado. Use <strong>Configurar Autorizadores</strong> na tela de Tarifas.
+                                    </div>
+                                ) : (
+                                    <Combobox
+                                        className="w-full h-9 text-xs bg-white dark:bg-slate-900"
+                                        options={authorizerOptions}
+                                        value={selectedAuthorizerEmail}
+                                        onChange={setSelectedAuthorizerEmail}
+                                        placeholder="Selecione o autorizador..."
+                                        emptyText="Nenhum autorizador encontrado."
+                                    />
+                                )}
+                            </div>
+
+                            <div className="space-y-1">
+                                <Label className="text-xs font-semibold flex items-center gap-1">
+                                    <Calendar className="w-3.5 h-3.5 text-indigo-600" />
+                                    Início da Vigência (Folha) *
+                                </Label>
+                                <Input
+                                    type="month"
+                                    value={mesVigencia}
+                                    onChange={(e) => setMesVigencia(e.target.value)}
+                                    className="h-9 text-xs font-semibold"
+                                    required
+                                />
+                                <p className="text-[10px] text-muted-foreground">
+                                    Ex: <strong>12/2026</strong> não altera as horas de novembro.
+                                </p>
                             </div>
                         </div>
 
@@ -306,7 +421,7 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             <Label className="text-xs font-bold text-slate-700 dark:text-slate-300">
                                 Definir Novas Tarifas Propostas ({workers.length} Colaborador(es)):
                             </Label>
-                            <div className="border rounded-md max-h-48 overflow-y-auto bg-white dark:bg-slate-900">
+                            <div className="border rounded-md max-h-52 overflow-y-auto bg-white dark:bg-slate-900">
                                 <Table>
                                     <TableHeader className="bg-slate-50 dark:bg-slate-800">
                                         <TableRow>
@@ -334,8 +449,9 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                                             <Input
                                                                 type="text"
                                                                 className="pl-6 h-8 text-xs font-bold font-mono text-indigo-700 dark:text-indigo-400 text-right"
-                                                                value={proposedTariffs[w.id] || '0.00'}
+                                                                value={proposedTariffs[w.id] ?? '0.00'}
                                                                 onChange={(e) => handleTariffChange(w.id, e.target.value)}
+                                                                autoFocus={workers.length === 1}
                                                             />
                                                         </div>
                                                     </TableCell>
@@ -347,53 +463,37 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             </div>
                         </div>
 
-                        {/* Expanded Rich Formatting Justification Textarea */}
-                        <div className="space-y-1.5 pt-2">
+                        {/* Justification */}
+                        <div className="space-y-1.5 pt-1">
                             <div className="flex justify-between items-center">
                                 <Label className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
                                     <Sparkles className="w-3.5 h-3.5 text-indigo-600" />
-                                    Justificativa Completa / Motivo do Reajuste de Tarifa:
+                                    Justificativa / Motivo do Reajuste *
                                 </Label>
                                 <div className="flex gap-1">
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={() => insertFormatting('### ')}
-                                    >
+                                    <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => insertFormatting('### ')}>
                                         <Heading className="w-3 h-3 mr-1" /> Título
                                     </Button>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={() => insertFormatting('**', '**')}
-                                    >
+                                    <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => insertFormatting('**', '**')}>
                                         <Bold className="w-3 h-3 mr-1" /> Negrito
                                     </Button>
-                                    <Button
-                                        type="button"
-                                        variant="outline"
-                                        size="sm"
-                                        className="h-6 px-2 text-[10px]"
-                                        onClick={() => insertFormatting('• ')}
-                                    >
+                                    <Button type="button" variant="outline" size="sm" className="h-6 px-2 text-[10px]" onClick={() => insertFormatting('• ')}>
                                         <List className="w-3 h-3 mr-1" /> Tópico
                                     </Button>
                                 </div>
                             </div>
 
                             <Textarea
-                                rows={5}
+                                rows={4}
                                 value={motivoAlteracao}
                                 onChange={(e) => setMotivoAlteracao(e.target.value)}
-                                placeholder="Descreva aqui o motivo detalhado do reajuste de tarifa (ex: Aditivo contratual com o cliente, reajuste por mérito/função, reajuste anual acordado em convenção...)"
+                                placeholder="Descreva aqui o motivo detalhado do reajuste de tarifa (ex: Aditivo contratual com o cliente, reajuste por mérito/função...)"
                                 className="text-xs bg-white dark:bg-slate-900 border-indigo-100 dark:border-indigo-900/50 leading-relaxed font-sans"
+                                required
                             />
-                            <p className="text-[10px] text-muted-foreground">
-                                Este texto será impresso no corpo do Termo de Autorização apresentado ao gerente autorizador para assinatura.
+                            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+                                <Mail className="w-3 h-3 text-indigo-500" />
+                                Ao gerar, será criada uma tarefa na Super Gaveta e enviado um e-mail automático para <strong>{selectedAuthorizer?.email || 'o autorizador'}</strong>.
                             </p>
                         </div>
 
@@ -401,16 +501,20 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                             <Button type="button" variant="outline" onClick={() => handleClose(false)} className="h-9 text-xs">
                                 Cancelar
                             </Button>
-                            <Button type="submit" disabled={isSubmitting} className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 font-semibold gap-1.5">
+                            <Button
+                                type="submit"
+                                disabled={isSubmitting || authorizers.length === 0 || !selectedAuthorizer}
+                                className="h-9 text-xs bg-indigo-600 hover:bg-indigo-700 font-semibold gap-1.5"
+                            >
                                 {isSubmitting ? (
                                     <>
                                         <Loader2 className="w-4 h-4 animate-spin" />
-                                        Gerando Termo...
+                                        Gerando Termo & Enviando...
                                     </>
                                 ) : (
                                     <>
                                         <Send className="w-4 h-4" />
-                                        Gerar Termo & Link de Assinatura
+                                        Gerar Termo, Tarefa & Enviar E-mail
                                     </>
                                 )}
                             </Button>

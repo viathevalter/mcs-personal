@@ -42,7 +42,6 @@ export const BankTab = forwardRef<BankTabRef, BankTabProps>(({ workerId }, ref) 
             const audits: AuditPayload[] = [];
             const oldIban = beneficios?.iban || "";
             const oldTarifa = beneficios?.tarifa_hora || 0;
-            const newTarifaNum = Number(tarifaHora) || 0;
 
             if (iban !== oldIban) {
                 if (!documentFile && iban !== "") {
@@ -57,20 +56,12 @@ export const BankTab = forwardRef<BankTabRef, BankTabProps>(({ workerId }, ref) 
                 });
             }
 
-            if (newTarifaNum !== oldTarifa) {
-                audits.push({
-                    change_type: 'tarifa_update',
-                    old_value: oldTarifa.toString(),
-                    new_value: newTarifaNum.toString()
-                });
-            }
-
             await updateBeneficios({
                 settings: {
                     worker_id: workerId,
                     iban: iban || null,
                     banco: banco || null,
-                    tarifa_hora: newTarifaNum,
+                    tarifa_hora: oldTarifa,
                     recebe_auxilio_moradia: beneficios?.recebe_auxilio_moradia || false,
                     auxilio_moradia_base: beneficios?.auxilio_moradia_base || 0
                 },
@@ -164,10 +155,14 @@ export const BankTab = forwardRef<BankTabRef, BankTabProps>(({ workerId }, ref) 
                             <Input
                                 type="number"
                                 step="0.01"
-                                placeholder="Ex: 10.50"
+                                readOnly
+                                disabled
+                                className="bg-muted cursor-not-allowed"
                                 value={tarifaHora}
-                                onChange={(e) => setTarifaHora(e.target.value)}
                             />
+                            <p className="text-[11px] text-muted-foreground">
+                                Somente leitura. Para reajustar a tarifa, utilize o módulo <strong>Gestão de Tarifas</strong> (exige Termo de Autorização assinado).
+                            </p>
                         </div>
                     </div>
                 </div>

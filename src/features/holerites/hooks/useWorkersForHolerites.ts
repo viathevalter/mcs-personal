@@ -1,12 +1,13 @@
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import type { Worker } from '@/shared/types/corePersonal';
+import { getEffectiveTariffsMapForMonth } from '@/features/workers/api/tariffGovernanceApi';
 
 export const WORKERS_HOLERITES_QUERY_KEY = 'workers_holerites';
 
-export function useWorkersForHolerites(empresaId: string | undefined) {
+export function useWorkersForHolerites(empresaId: string | undefined, mesReferencia?: string) {
     return useQuery({
-        queryKey: [WORKERS_HOLERITES_QUERY_KEY, empresaId || 'all'],
+        queryKey: [WORKERS_HOLERITES_QUERY_KEY, empresaId || 'all', mesReferencia || 'current'],
         queryFn: async () => {
             // Direct query on core_personal.workers to fetch ALL workers (both active and inactive who worked during the period)
             const { data: rawWorkers, error } = await supabase
@@ -53,10 +54,23 @@ export function useWorkersForHolerites(empresaId: string | undefined) {
                 }
             }
 
-            return allWorkersData.map(w => ({
-                ...w,
-                worker_beneficios_settings: settingsMap.get(w.id) || null
-            })) as (Worker & { worker_beneficios_settings?: any })[];
+            const scheduledTariffsMap = mesReferencia
+                ? await getEffectiveTariffsMapForMonth(mesReferencia)
+                : new Map<string, number>();
+
+            return allWorkersData.map(w => {
+                const baseSettings = settingsMap.get(w.id) || null;
+                const scheduledTarifa = scheduledTariffsMap.get(w.id);
+                const resolvedSettings =
+                    scheduledTarifa !== undefined
+                        ? { ...(baseSettings || { worker_id: w.id }), tarifa_hora: scheduledTarifa }
+                        : baseSettings;
+
+                return {
+                    ...w,
+                    worker_beneficios_settings: resolvedSettings
+                };
+            }) as (Worker & { worker_beneficios_settings?: any })[];
         },
         staleTime: 60 * 1000,
     });

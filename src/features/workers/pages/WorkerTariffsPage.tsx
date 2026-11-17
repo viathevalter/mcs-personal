@@ -49,11 +49,11 @@ import { Combobox } from '@/components/ui/combobox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { ImportTarifasDialog } from '../components/ImportTarifasDialog';
 import { ExportTarifasDialog } from '../components/ExportTarifasDialog';
-import { EditTariffDialog } from '../components/EditTariffDialog';
 import { TariffAuthorizationModal } from '../components/TariffAuthorizationModal';
 import { TariffAuditLogDialog } from '../components/TariffAuditLogDialog';
+import { TariffGovernanceConfigDialog } from '../components/TariffGovernanceConfigDialog';
+import { getWorkerTariffStatusBadges } from '../api/tariffGovernanceApi';
 import type { Worker } from '@/shared/types/corePersonal';
 import { toast } from 'sonner';
 
@@ -128,8 +128,11 @@ export function WorkerTariffsPage() {
     const sortDirection = (searchParams.get('sortDirection') as 'asc' | 'desc') || 'asc';
 
     const [portalNode, setPortalNode] = useState<HTMLElement | null>(null);
-    const [editOpen, setEditOpen] = useState(false);
-    const [selectedWorker, setSelectedWorker] = useState<(Worker & { worker_beneficios_settings?: any }) | null>(null);
+    const { data: tariffBadges } = useQuery({
+        queryKey: ['worker-tariff-status-badges'],
+        queryFn: getWorkerTariffStatusBadges,
+        staleTime: 30 * 1000
+    });
     const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
     const [copiedIbanId, setCopiedIbanId] = useState<string | null>(null);
 
@@ -436,8 +439,8 @@ export function WorkerTariffsPage() {
     };
 
     const openEditDialog = (worker: Worker & { worker_beneficios_settings?: any }) => {
-        setSelectedWorker(worker);
-        setEditOpen(true);
+        setAuthModalWorkers([worker]);
+        setAuthModalOpen(true);
     };
 
     // Prepare filter options
@@ -540,16 +543,7 @@ export function WorkerTariffsPage() {
                         selectedWorkerIds={selectedWorkerIds}
                         totalFilteredCount={totalCount}
                     />
-                    {canEditTariffs && (
-                        <ImportTarifasDialog 
-                            trigger={
-                                <Button className="bg-indigo-600 hover:bg-indigo-700 h-9 text-xs font-medium">
-                                    <DownloadCloud className="w-4 h-4 mr-2" />
-                                    Importar Tarifas (Excel)
-                                </Button>
-                            }
-                        />
-                    )}
+                    {canEditTariffs && <TariffGovernanceConfigDialog />}
                     <Badge variant="secondary" className="px-3 py-1 text-xs font-semibold bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300 border border-indigo-100 dark:border-indigo-900/50">
                         {totalCount} Trabalhador(es)
                     </Badge>
@@ -933,15 +927,27 @@ export function WorkerTariffsPage() {
                                                     </Badge>
                                                 </TableCell>
                                                 <TableCell className="text-right font-mono font-bold text-slate-900 dark:text-slate-100">
-                                                    {tariff > 0 ? (
-                                                        <span className="text-emerald-600 dark:text-emerald-400">
-                                                            € {tariff.toFixed(2)}
-                                                        </span>
-                                                    ) : (
-                                                        <span className="text-amber-500 font-normal">
-                                                            € 0.00
-                                                        </span>
-                                                    )}
+                                                    <div className="flex flex-col items-end gap-0.5">
+                                                        {tariff > 0 ? (
+                                                            <span className="text-emerald-600 dark:text-emerald-400">
+                                                                € {tariff.toFixed(2)}
+                                                            </span>
+                                                        ) : (
+                                                            <span className="text-amber-500 font-normal">
+                                                                € 0.00
+                                                            </span>
+                                                        )}
+                                                        {tariffBadges?.get(worker.id)?.scheduled && (
+                                                            <span className="text-[10px] font-sans font-semibold px-1.5 py-0.5 rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                                                Agendada: € {tariffBadges.get(worker.id)!.scheduled!.tarifa.toFixed(2)} ({tariffBadges.get(worker.id)!.scheduled!.mesInicio})
+                                                            </span>
+                                                        )}
+                                                        {tariffBadges?.get(worker.id)?.pending && (
+                                                            <span className="text-[10px] font-sans font-semibold px-1.5 py-0.5 rounded bg-amber-50 text-amber-700 border border-amber-200">
+                                                                Pendente: € {tariffBadges.get(worker.id)!.pending!.tarifa.toFixed(2)} ({tariffBadges.get(worker.id)!.pending!.mesVigencia})
+                                                            </span>
+                                                        )}
+                                                    </div>
                                                 </TableCell>
                                                 <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
                                                     {canEditTariffs && (
@@ -1148,17 +1154,6 @@ export function WorkerTariffsPage() {
                     </div>
                 </div>
             </div>
-
-            {/* Edit Dialog */}
-            <EditTariffDialog 
-                open={editOpen}
-                onOpenChange={setEditOpen}
-                worker={selectedWorker}
-                onOpenAuthorization={(w) => {
-                    setAuthModalWorkers([w]);
-                    setAuthModalOpen(true);
-                }}
-            />
 
             {/* Tariff Authorization Term Modal */}
             <TariffAuthorizationModal
