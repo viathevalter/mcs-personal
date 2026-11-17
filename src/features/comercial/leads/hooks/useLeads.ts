@@ -455,6 +455,22 @@ export function useLeads(options?: UseLeadsOptions) {
           }
         }
       }
+      if (!isGlobal && targetEmpresaId === '4a507974-f922-409f-83c0-9ef8cbf982cb' && (!assignedTo || assignedTo === '9cba947d-432d-4622-89f0-18c5750581d9')) {
+        const { data: ayslanCross } = await supabase
+          .schema('core_comercial')
+          .from('leads')
+          .select('*')
+          .contains('tags', ['Mailing Ayslan']);
+        if (ayslanCross && ayslanCross.length > 0) {
+          const existingIds = new Set(allLeads.map(l => l.id));
+          for (const row of ayslanCross) {
+            if (!existingIds.has(row.id)) {
+              allLeads.push(row as Lead);
+              existingIds.add(row.id);
+            }
+          }
+        }
+      }
       return allLeads;
     },
     staleTime: 5 * 60 * 1000,

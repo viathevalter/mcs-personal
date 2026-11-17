@@ -366,6 +366,7 @@ export function CampaignsPage() {
   const isTriangulo = empresaCanonical === 'TRIANGULO' || rawEmpresaName.toUpperCase().includes('TRIANGULO') || rawEmpresaName.toUpperCase().includes('TRIÂNGULO');
   const isLuminous = empresaCanonical === 'LUMINOUS' || rawEmpresaName.toUpperCase().includes('LUMINOUS');
   const isWiseowe = empresaCanonical === 'WISEOWE' || rawEmpresaName.toUpperCase().includes('WISE');
+  const isGenio = empresaCanonical === 'GENIO' || rawEmpresaName.toUpperCase().includes('GENIO') || rawEmpresaName.toUpperCase().includes('GÉNIO') || selectedEmpresaId === '4a507974-f922-409f-83c0-9ef8cbf982cb';
   const isStocco = empresaCanonical === 'STOCCO' || rawEmpresaName.toUpperCase().includes('STOCCO');
   const isKotrik = empresaCanonical === 'KOTRIK & ROSAS' || rawEmpresaName.toUpperCase().includes('KOTRIK');
 
@@ -795,6 +796,18 @@ export function CampaignsPage() {
       }
     });
     const priorityTags = [
+      'BUSCA DE CLIENTES CATALUNYA - Ayslan',
+      'Sin Correo - BUSCA DE CLIENTES CATALUNYA - Ayslan',
+      'Sem E-mail - BUSCA DE CLIENTES CATALUNYA - Ayslan',
+      'CATALUNYA - Ayslan',
+      'ZARAGOZA - Ayslan',
+      'Barcelona - Ayslan',
+      'Tarragona - Ayslan',
+      'Zaragoza - Ayslan',
+      'Mailing Ayslan - Catalunya & Zaragoza 2026',
+      'Mailing Ayslan Inéditos - Catalunya & Zaragoza 2026',
+      'Sin Correo - Ayslan',
+      'Sem E-mail - Ayslan',
       'Cataluña - Liseth',
       'Sin Correo - Cataluña - Liseth',
       'Sem E-mail - Cataluña - Liseth',
@@ -910,6 +923,12 @@ export function CampaignsPage() {
       }
       return result;
     };
+
+    // 0. EMPRESA: GÉNIO MONTAGENS (Ayslan / Espanha)
+    if (isGenio || effectiveOwnerKey === 'ayslan') {
+      const ayslanAllStrategic = ALL_STRATEGIC_AUDIENCES.filter(a => a.ownerKey === 'ayslan');
+      return mergeUniqueById(ayslanAllStrategic, []);
+    }
 
     // 1. EMPRESA: TRIÂNGULO (Alba / Espanha)
     // Mostra estritamente públicos de Triângulo (incluindo os PDFs de Asturias, Baleares, Andalucía, Aragón e os 5 públicos de 1.000 da Alba)
@@ -3477,7 +3496,7 @@ export function CampaignsPage() {
         created_at: new Date().toISOString()
       }
     ]);
-  }, [isTriangulo, isWiseowe, isLuminous, isStocco, isKotrik]);
+  }, [isGenio, isTriangulo, isWiseowe, isLuminous, isStocco, isKotrik, effectiveOwnerKey]);
 
   useEffect(() => {
     if (selectedEmpresaId) {
@@ -3595,9 +3614,11 @@ export function CampaignsPage() {
             ? 'fatumata'
             : assigned === 'ca69863d-998b-4bad-865a-19720e7a1f67'
               ? 'alba'
-              : assigned === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
-                ? 'alex'
-                : effectiveOwnerKey;
+              : assigned === '9cba947d-432d-4622-89f0-18c5750581d9'
+                ? 'ayslan'
+                : assigned === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
+                  ? 'alex'
+                  : effectiveOwnerKey;
 
     return savedAudiences
       .filter((aud: any) => {
@@ -4064,9 +4085,11 @@ export function CampaignsPage() {
             ? 'fatumata'
             : overrideOwnerUserId === 'ca69863d-998b-4bad-865a-19720e7a1f67'
               ? 'alba'
-              : overrideOwnerUserId === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
-                ? 'alex'
-                : activeCommercialProfile?.key) ||
+              : overrideOwnerUserId === '9cba947d-432d-4622-89f0-18c5750581d9'
+                ? 'ayslan'
+                : overrideOwnerUserId === 'efc6c631-f22a-4ce6-b662-9309a50a4cb7'
+                  ? 'alex'
+                  : activeCommercialProfile?.key) ||
       null;
     const effectiveEmpresaId =
       (isCommercialOperator && loggedCommercialProfile?.empresaId) ||
@@ -4144,6 +4167,25 @@ export function CampaignsPage() {
           if (albaData && albaData.length > 0) {
             const existingIds = new Set(allFetchedLeads.map(l => l.id));
             for (const row of albaData) {
+              if (!existingIds.has(row.id)) {
+                allFetchedLeads.push(row);
+                existingIds.add(row.id);
+              }
+            }
+          }
+        }
+
+        // Also include Ayslan's tagged leads when viewing Génio Montagens
+        if (isGenio && (!scopedOwnerKey || scopedOwnerKey === 'ayslan')) {
+          const { data: ayslanData } = await supabase
+            .schema('core_comercial')
+            .from('leads')
+            .select('id, name, company_name, email, phone, stage_id, origen_lead, tags, sector, servicio_producto, cargo, city, province, region, country_id, company_size, notes, assigned_to')
+            .contains('tags', ['Mailing Ayslan']);
+
+          if (ayslanData && ayslanData.length > 0) {
+            const existingIds = new Set(allFetchedLeads.map(l => l.id));
+            for (const row of ayslanData) {
               if (!existingIds.has(row.id)) {
                 allFetchedLeads.push(row);
                 existingIds.add(row.id);
