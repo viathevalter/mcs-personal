@@ -176,6 +176,12 @@ export const PERMISSIONS_CATALOG: ModulePermissionGroup[] = [
         moduleTitle: 'MCS Contratação',
         items: [
             {
+                key: 'contratacao.relatorio',
+                label: '🔒 Menu: Controle de Contratações (Relatório & Permanência)',
+                description: 'Relatório gerencial de contratados, retenção, tarifas acordadas e inteligência comercial.',
+                isCritical: true,
+            },
+            {
                 key: 'contratacao.vagas',
                 label: 'Menu: Contratação Inicial (Vagas)',
             },
@@ -198,10 +204,6 @@ export const PERMISSIONS_CATALOG: ModulePermissionGroup[] = [
             {
                 key: 'contratacao.alocados',
                 label: 'Menu: Trabalhadores Alocados',
-            },
-            {
-                key: 'contratacao.relatorio',
-                label: 'Menu: Controle de Contratações (Relatório)',
             },
         ],
     },

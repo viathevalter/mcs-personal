@@ -19,10 +19,6 @@ import {
   Users, 
   User,
   MapPin,
-  Bold,
-  Italic,
-  Underline,
-  List,
   Tag,
   Plus,
   X,
@@ -57,7 +53,7 @@ import {
   isBefore,
   startOfToday
 } from 'date-fns';
-import { ptBR, es, fr } from 'date-fns/locale';
+import { ptBR, es, fr, it } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { useAuth } from '@/app/providers/AuthProvider';
 import {
@@ -69,15 +65,22 @@ import {
 } from './hooks/useDialer';
 import { useSalespeople, useCommercialScope } from './hooks/useLeads';
 import { useComercialLanguage } from './utils/comercialI18n';
+import { RichTextNotesEditor } from './components/RichTextNotesEditor';
 
 const CUSTOM_TAGS_STORAGE_KEY = 'mcs_dialer_custom_callback_tags';
 
 export function DialerAgendaPage() {
   const { tr, lang } = useComercialLanguage();
-  const dateLocale = lang === 'fr' ? fr : lang === 'es' ? es : ptBR;
+  const dateLocale = lang === 'fr' ? fr : lang === 'it' ? it : lang === 'es' ? es : ptBR;
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isCommercialOperator, activeProfile } = useCommercialScope();
+  const {
+    isCommercialOperator,
+    activeProfile,
+    allProfiles,
+    selectedCommercialKey,
+    setSelectedCommercialKey,
+  } = useCommercialScope();
   const { data: agenda = [] } = useDialerAgenda();
   const { data: salespeople = [] } = useSalespeople();
   const { data: scripts = [] } = useSalesScripts();
@@ -110,8 +113,17 @@ export function DialerAgendaPage() {
   ], [tr]);
 
   const [viewMode, setViewMode] = useState<'calendar' | 'list'>('calendar');
-  const [operatorScope, setOperatorScope] = useState<'mine' | 'all'>('mine');
+  const [operatorScope, setOperatorScope] = useState<'mine' | 'all'>(() =>
+    isCommercialOperator ? 'mine' : 'all'
+  );
   const [selectedOperatorId, setSelectedOperatorId] = useState<string>('all');
+
+  // Ensure Admins / Super Admins always see global appointments unless they explicitly pick an operator
+  useEffect(() => {
+    if (!isCommercialOperator) {
+      setOperatorScope('all');
+    }
+  }, [isCommercialOperator]);
   const [statusFilter, setStatusFilter] = useState<'all' | 'today' | 'overdue' | 'upcoming' | 'completed'>('all');
   const [priorityFilter, setPriorityFilter] = useState<string>('all');
   const [tagFilter, setTagFilter] = useState<string>('all');
@@ -135,7 +147,8 @@ export function DialerAgendaPage() {
   const [editCustomTagInput, setEditCustomTagInput] = useState('');
   const [editAssignedTo, setEditAssignedTo] = useState('');
   const [editStatus, setEditStatus] = useState('scheduled');
-  const editEditorRef = useRef<HTMLDivElement>(null);
+  const [editSessionId, setEditSessionId] = useState<number>(0);
+  const editEditorRef = useRef<HTMLDivElement | null>(null);
 
   // Create Queue from Agenda Modal State
   const [isCreateQueueModalOpen, setIsCreateQueueModalOpen] = useState(false);
@@ -273,13 +286,6 @@ export function DialerAgendaPage() {
   const startDayOfWeek = getDay(monthStart);
   const startOffset = (startDayOfWeek + 6) % 7; // Monday start
 
-  // Sync Rich Text in Edit Modal
-  useEffect(() => {
-    if (isEditModalOpen && editEditorRef.current) {
-      editEditorRef.current.innerHTML = editNotes || '';
-    }
-  }, [isEditModalOpen]);
-
   const handleToggleSelectId = (id: string) => {
     setSelectedIds(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]));
   };
@@ -310,32 +316,6 @@ export function DialerAgendaPage() {
     setNewGlobalTagInput('');
     setIsAddingGlobalTag(false);
     toast.success(tr(`Tag #${raw} criada e pronta para uso!`, `¡Etiqueta #${raw} creada!`, `Tag #${raw} créé !`));
-  };
-
-  const handleFormatEditCommand = (command: string, value: string | undefined = undefined) => {
-    document.execCommand(command, false, value);
-    if (editEditorRef.current) {
-      setEditNotes(editEditorRef.current.innerHTML);
-    }
-  };
-
-  const handleHighlightEditColor = (bgColor: string, textColor: string) => {
-    const selection = window.getSelection();
-    if (!selection || selection.rangeCount === 0 || selection.isCollapsed) {
-      toast.info(
-        tr(
-          'Selecione o texto que deseja destacar com cor.',
-          'Seleccione el texto que desea resaltar con color.',
-          'Sélectionnez le texte que vous souhaitez surligner.'
-        )
-      );
-      return;
-    }
-    document.execCommand('backColor', false, bgColor);
-    document.execCommand('foreColor', false, textColor);
-    if (editEditorRef.current) {
-      setEditNotes(editEditorRef.current.innerHTML);
-    }
   };
 
   const handleToggleEditTag = (tagText: string) => {
@@ -390,9 +370,7 @@ export function DialerAgendaPage() {
     setEditNotes(noteText);
     setEditTags(extractTagsFromAppointment(item.tags, item.scheduled_notes));
     setEditCustomTagInput('');
-    if (editEditorRef.current) {
-      editEditorRef.current.innerHTML = noteText;
-    }
+    setEditSessionId(prev => prev + 1);
     setEditAssignedTo(item.assigned_to || user?.id || '');
     setEditStatus(item.status || 'scheduled');
     setIsEditModalOpen(true);
@@ -674,8 +652,77 @@ export function DialerAgendaPage() {
             <PhoneCall className="w-3.5 h-3.5" />
             {selectedIds.length > 0
               ? tr(`Ligar Selecionados (${selectedIds.length})`, `Llamar Seleccionados (${selectedIds.length})`, `Appeler Sélectionnés (${selectedIds.length})`)
-              : tr('Atender no Cockpit', 'Atender en Cockpit', 'Appeler dans le Cockpit')}
+              : tr('Atender no Cockpit', 'Atender en Cockpit', 'Appeler dans le Cockpit', 'Apri nel Cockpit')}
           </Button>
+        </div>
+      </div>
+
+      {/* Global Commercial Isolation Bar */}
+      <div className="p-3 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/40 flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wider flex items-center gap-1.5">
+            <User className="w-3.5 h-3.5" />
+            {tr(
+              'Agenda Global por Comercial:',
+              'Agenda Global por Comercial:',
+              'Agenda Global par Commercial :',
+              'Agenda Globale per Commerciale:'
+            )}
+          </span>
+          {isCommercialOperator && activeProfile ? (
+            <div className="px-3 py-1 rounded-lg bg-amber-600 text-white text-xs font-bold flex items-center gap-2 shadow-sm">
+              <span>{activeProfile.flag}</span>
+              <span>{activeProfile.displayName}</span>
+              <span className="px-1.5 py-0.5 rounded bg-white/20 text-[10px]">{activeProfile.empresaName}</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedCommercialKey('all');
+                  setOperatorScope('all');
+                  setSelectedOperatorId('all');
+                }}
+                className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border ${
+                  selectedCommercialKey === 'all'
+                    ? 'bg-slate-800 text-white border-slate-800 shadow-sm'
+                    : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100'
+                }`}
+              >
+                {tr('Todos os Comerciais', 'Todos los Comerciales', 'Tous les Commerciaux', 'Tutti i Commerciali')}
+              </button>
+              {allProfiles.map((prof) => {
+                const isActive = selectedCommercialKey === prof.key;
+                return (
+                  <button
+                    key={prof.key}
+                    type="button"
+                    onClick={() => {
+                      setSelectedCommercialKey(prof.key);
+                      setOperatorScope('all');
+                      setSelectedOperatorId('all');
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all border flex items-center gap-1.5 ${
+                      isActive
+                        ? 'bg-amber-600 text-white border-amber-600 shadow-sm'
+                        : 'bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:bg-amber-50 dark:hover:bg-amber-950/40'
+                    }`}
+                  >
+                    <span>{prof.flag}</span>
+                    <span>{prof.shortName}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded ${
+                        isActive ? 'bg-white/20 text-white' : 'bg-slate-100 dark:bg-slate-800 text-slate-500'
+                      }`}
+                    >
+                      {prof.empresaName}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
 
@@ -1701,93 +1748,24 @@ export function DialerAgendaPage() {
                 {tr(
                   'Instruções & Observações do Agendamento (Rich Text)',
                   'Instrucciones y Observaciones del Agendamiento (Rich Text)',
-                  'Instructions & Observations du Rendez-vous (Rich Text)'
+                  'Instructions & Observations du Rendez-vous (Rich Text)',
+                  "Istruzioni e Note dell'Appuntamento (Rich Text)"
                 )}
               </Label>
-              <div className="rounded-2xl border border-border bg-background shadow-sm overflow-hidden flex flex-col">
-                {/* Formatting Toolbar */}
-                <div className="p-2 border-b border-border bg-muted/40 flex flex-wrap items-center gap-1">
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleFormatEditCommand('bold')}
-                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Bold"
-                  >
-                    <Bold className="w-3.5 h-3.5 font-bold" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleFormatEditCommand('italic')}
-                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Italic"
-                  >
-                    <Italic className="w-3.5 h-3.5" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleFormatEditCommand('underline')}
-                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="Underline"
-                  >
-                    <Underline className="w-3.5 h-3.5" />
-                  </Button>
-
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => handleFormatEditCommand('insertUnorderedList')}
-                    className="h-7 w-7 p-0 text-foreground hover:bg-muted"
-                    title="List"
-                  >
-                    <List className="w-3.5 h-3.5" />
-                  </Button>
-
-                  <div className="h-4 w-px bg-border mx-1" />
-
-                  {/* Color Highlighters */}
-                  <div className="flex items-center gap-1">
-                    <button
-                      type="button"
-                      onClick={() => handleHighlightEditColor('#fef08a', '#854d0e')}
-                      className="w-5 h-5 rounded-full bg-yellow-300 border border-yellow-500 hover:scale-110 transition-transform"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleHighlightEditColor('#bbf7d0', '#166534')}
-                      className="w-5 h-5 rounded-full bg-emerald-300 border border-emerald-500 hover:scale-110 transition-transform"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleHighlightEditColor('#fecdd3', '#9f1239')}
-                      className="w-5 h-5 rounded-full bg-rose-300 border border-rose-500 hover:scale-110 transition-transform"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleHighlightEditColor('#bfdbfe', '#1e40af')}
-                      className="w-5 h-5 rounded-full bg-blue-300 border border-blue-500 hover:scale-110 transition-transform"
-                    />
-                  </div>
-                </div>
-
-                {/* Editable Area */}
-                <div
-                  ref={editEditorRef}
-                  contentEditable
-                  onInput={() => {
-                    if (editEditorRef.current) setEditNotes(editEditorRef.current.innerHTML);
-                  }}
-                  className="p-3.5 min-h-[120px] max-h-[200px] overflow-y-auto text-xs text-foreground leading-relaxed focus:outline-none"
-                />
-              </div>
+              <RichTextNotesEditor
+                editorKey={`agenda-edit-${editingItem?.id || 'none'}-${editSessionId}`}
+                initialHtml={editNotes}
+                onChange={setEditNotes}
+                editorRef={editEditorRef}
+                minHeightClass="min-h-[125px]"
+                maxHeightClass="max-h-[210px]"
+                placeholder={tr(
+                  'Escreva os detalhes combinados para este agendamento...',
+                  'Escriba los detalles acordados para esta cita...',
+                  'Notez les détails convenus pour ce rendez-vous...',
+                  'Scrivi i dettagli concordati per questo appuntamento...'
+                )}
+              />
             </div>
 
             <DialogFooter className="p-4 border-t border-border bg-muted/20 flex justify-between items-center">

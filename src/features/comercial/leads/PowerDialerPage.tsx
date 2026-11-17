@@ -31,7 +31,8 @@ import {
   Square,
   RotateCcw,
   Timer,
-  Plus
+  Plus,
+  Search
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -65,6 +66,7 @@ import { GatekeeperModal } from './components/GatekeeperModal';
 import { CollectProjectDemandModal } from './components/CollectProjectDemandModal';
 import { CollectFiscalDataModal } from './components/CollectFiscalDataModal';
 import { EditLeadModal } from './components/EditLeadModal';
+import { DialerQueueExplorerModal } from './components/DialerQueueExplorerModal';
 import type { Lead } from '../estimaciones/types';
 import type { CallOutcome, RejectionReason, DialerQueueItem } from './types/dialerTypes';
 
@@ -278,7 +280,20 @@ export function PowerDialerPage() {
   const [isDemandModalOpen, setIsDemandModalOpen] = useState(false);
   const [isFiscalModalOpen, setIsFiscalModalOpen] = useState(false);
   const [isEditLeadModalOpen, setIsEditLeadModalOpen] = useState(false);
+  const [isQueueExplorerOpen, setIsQueueExplorerOpen] = useState(false);
   const [activeLeadOverride, setActiveLeadOverride] = useState<Lead | null>(null);
+
+  // Ctrl+K / Cmd+K shortcut to open Queue List & Instant Client Search
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setIsQueueExplorerOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   const [lockedCallbackTarget, setLockedCallbackTarget] = useState<{
     queueItem: DialerQueueItem;
     lead: Lead;
@@ -1113,8 +1128,8 @@ export function PowerDialerPage() {
             </div>
           )}
 
-          {/* Campaign Selector */}
-          <div className="flex items-center gap-1.5">
+          {/* Campaign Selector + Instant Queue List / Client Finder */}
+          <div className="flex items-center gap-1.5 flex-wrap">
             <Select value={activeCampaignId || ''} onValueChange={handleSelectCampaign}>
               <SelectTrigger className="bg-background text-foreground border-input text-xs h-8 w-[210px] sm:w-[270px]">
                 <SelectValue placeholder={tr('Selecione o Trabalho / Fila...', 'Seleccione el Trabajo / Cola...', 'Sélectionnez le Lot / File...', 'Seleziona Lavoro / Coda...')} />
@@ -1133,6 +1148,22 @@ export function PowerDialerPage() {
                 })}
               </SelectContent>
             </Select>
+
+            <Button
+              type="button"
+              size="sm"
+              onClick={() => setIsQueueExplorerOpen(true)}
+              className="h-8 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5 px-3 shadow-sm"
+              title="Ctrl+K"
+            >
+              <Search className="w-3.5 h-3.5" />
+              {tr(
+                'Ver Fila / Buscar Cliente',
+                'Ver Cola / Buscar Cliente',
+                'Voir File / Chercher Client',
+                'Vedi Coda / Cerca Cliente'
+              )}
+            </Button>
           </div>
         </div>
 
@@ -1277,9 +1308,19 @@ export function PowerDialerPage() {
               <span className="text-[11px] font-bold text-muted-foreground uppercase">
                 {tr('Restam:', 'Restan:', 'Restent :', 'Restano:')}
               </span>
-              <span className="text-sm font-black text-foreground px-2.5 py-0.5 rounded-xl bg-muted/60 border border-border">
+              <button
+                type="button"
+                onClick={() => setIsQueueExplorerOpen(true)}
+                className="text-sm font-black text-foreground px-2.5 py-0.5 rounded-xl bg-muted/60 hover:bg-indigo-500/15 border border-border hover:border-indigo-500/40 transition-colors cursor-pointer"
+                title={tr(
+                  'Clique para abrir a lista completa deste trabalho e de todos os trabalhos',
+                  'Clic para abrir la lista completa de este trabajo y de todos los trabajos',
+                  'Cliquez pour ouvrir la liste complète de ce lot et de tous les lots',
+                  'Clicca per aprire la lista completa di questo lavoro e di tutti i lavori'
+                )}
+              >
                 {totalQueue > 0 ? `${currentQueueIndex + 1} ${tr('de', 'de', 'sur', 'di')} ${totalQueue}` : '0'}
-              </span>
+              </button>
               {!isDirectAgendaMode && totalCampaignLeads > 0 && (
                 <Badge variant="outline" className="font-mono text-[11px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25">
                   ✓ {completedCount}/{totalCampaignLeads} {tr('concluídos', 'completados', 'traités', 'completati')}
@@ -1812,55 +1853,74 @@ export function PowerDialerPage() {
                   </div>
                 </div>
 
-                {/* Scheduled Callback Alert Box if lead was scheduled */}
-                {currentQueueItem.scheduled_for && (
+                {/* Scheduled Callback Alert Box if lead has an active appointment (in this work OR globally across any work!) */}
+                {(currentQueueItem.scheduled_for || currentQueueItem.global_appointment?.scheduled_for) && (
                   <div className="p-3 rounded-xl bg-amber-500/10 border-2 border-amber-500/40 text-xs space-y-2 shadow-xs">
-                    <div className="flex items-center justify-between">
+                    <div className="flex items-center justify-between gap-1.5 flex-wrap">
                       <span className="font-black text-amber-700 dark:text-amber-300 flex items-center gap-1.5 uppercase text-[11px]">
                         <Calendar className="w-3.5 h-3.5 text-amber-500" />
-                        {tr('Retorno Agendado', 'Seguimiento Agendado', 'Rappel Planifié', 'Richiamo Pianificato')}
+                        {tr('Agendamento Global Ativo', 'Cita Global Activa', 'RDV Global Actif', 'Appuntamento Globale Attivo')}
                       </span>
-                      <Badge className={
-                        currentQueueItem.priority === 'high' 
-                          ? 'bg-rose-500 text-white text-[10px]' 
-                          : 'bg-amber-500 text-white text-[10px]'
-                      }>
-                        {currentQueueItem.priority === 'high'
-                          ? tr('🔥 Alta', '🔥 Alta', '🔥 Haute', '🔥 Alta')
-                          : tr('⚡ Agendado', '⚡ Agendado', '⚡ Planifié', '⚡ Pianificato')}
-                      </Badge>
+                      <div className="flex items-center gap-1">
+                        <Badge
+                          className={
+                            (currentQueueItem.global_appointment?.priority || currentQueueItem.priority) === 'high'
+                              ? 'bg-rose-500 text-white text-[10px]'
+                              : 'bg-amber-500 text-white text-[10px]'
+                          }
+                        >
+                          {(currentQueueItem.global_appointment?.priority || currentQueueItem.priority) === 'high'
+                            ? tr('🔥 Alta', '🔥 Alta', '🔥 Haute', '🔥 Alta')
+                            : tr('⚡ Agendado', '⚡ Agendado', '⚡ Planifié', '⚡ Pianificato')}
+                        </Badge>
+                        <button
+                          type="button"
+                          onClick={() => setIsCallbackModalOpen(true)}
+                          className="px-2 py-0.5 rounded-md bg-background hover:bg-muted border border-amber-500/40 text-[10px] font-bold text-amber-800 dark:text-amber-200 transition-colors"
+                        >
+                          {tr('Reagendar / Editar', 'Reagendar / Editar', 'Modifier RDV', 'Modifica')}
+                        </button>
+                      </div>
                     </div>
 
                     <div className="flex items-center justify-between gap-2 flex-wrap">
                       <div className="flex items-center gap-1.5 text-xs font-bold text-foreground font-mono">
                         <Clock className="w-3.5 h-3.5 text-amber-500" />
                         {(() => {
+                          const rawDate =
+                            currentQueueItem.global_appointment?.scheduled_for ||
+                            currentQueueItem.scheduled_for!;
                           try {
-                            const d = typeof currentQueueItem.scheduled_for === 'string'
-                              ? parseISO(currentQueueItem.scheduled_for)
-                              : new Date(currentQueueItem.scheduled_for);
+                            const d = typeof rawDate === 'string' ? parseISO(rawDate) : new Date(rawDate);
                             return format(d, "dd/MM/yyyy '•' HH:mm");
                           } catch {
-                            return String(currentQueueItem.scheduled_for);
+                            return String(rawDate);
                           }
                         })()}
                       </div>
-                      {currentQueueItem.origin_campaign_title && (
+                      {(currentQueueItem.global_appointment?.origin_campaign_title ||
+                        currentQueueItem.origin_campaign_title) && (
                         <span className="text-[10px] font-medium text-muted-foreground bg-background/80 px-2 py-0.5 rounded-md border border-border truncate max-w-full">
-                          {currentQueueItem.origin_campaign_title}
+                          {currentQueueItem.global_appointment?.origin_campaign_title ||
+                            currentQueueItem.origin_campaign_title}
                         </span>
                       )}
                     </div>
 
                     {(() => {
+                      const effNotes =
+                        currentQueueItem.global_appointment?.scheduled_notes ||
+                        currentQueueItem.scheduled_notes;
                       const itemTags = extractTagsFromAppointment(
-                        currentQueueItem.tags,
-                        currentQueueItem.scheduled_notes
+                        currentQueueItem.global_appointment?.tags?.length
+                          ? currentQueueItem.global_appointment.tags
+                          : currentQueueItem.tags,
+                        effNotes
                       );
                       if (itemTags.length === 0) return null;
                       return (
                         <div className="flex flex-wrap gap-1 pt-0.5">
-                          {itemTags.map(tag => (
+                          {itemTags.map((tag) => (
                             <Badge
                               key={tag}
                               className="bg-indigo-600/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 text-[10px] font-bold px-2 py-0.5 flex items-center gap-1"
@@ -1873,11 +1933,19 @@ export function PowerDialerPage() {
                       );
                     })()}
 
-                    {currentQueueItem.scheduled_notes && (
+                    {(currentQueueItem.global_appointment?.scheduled_notes ||
+                      currentQueueItem.scheduled_notes) && (
                       <div className="pt-1.5 border-t border-amber-500/20 space-y-1">
-                        <div 
-                          className="p-2 rounded-lg bg-background/90 border border-border text-foreground text-[11px] leading-relaxed max-h-28 overflow-y-auto"
-                          dangerouslySetInnerHTML={{ __html: currentQueueItem.scheduled_notes }}
+                        <div
+                          dir="ltr"
+                          translate="no"
+                          className="notranslate p-2 rounded-lg bg-background/90 border border-border text-foreground text-[11px] leading-relaxed max-h-32 overflow-y-auto"
+                          dangerouslySetInnerHTML={{
+                            __html:
+                              currentQueueItem.global_appointment?.scheduled_notes ||
+                              currentQueueItem.scheduled_notes ||
+                              '',
+                          }}
                         />
                       </div>
                     )}
@@ -2107,8 +2175,72 @@ export function PowerDialerPage() {
           setLockedCallbackTarget(null);
         }}
         lead={lockedCallbackTarget?.lead || currentLead}
+        existingAppointment={
+          (lockedCallbackTarget?.queueItem || currentQueueItem)?.global_appointment ||
+          ((lockedCallbackTarget?.queueItem || currentQueueItem)?.scheduled_for
+            ? {
+                queue_item_id: (lockedCallbackTarget?.queueItem || currentQueueItem)!.id,
+                campaign_id: (lockedCallbackTarget?.queueItem || currentQueueItem)!.campaign_id,
+                scheduled_for: (lockedCallbackTarget?.queueItem || currentQueueItem)!.scheduled_for!,
+                scheduled_notes: (lockedCallbackTarget?.queueItem || currentQueueItem)!.scheduled_notes || null,
+                priority: (lockedCallbackTarget?.queueItem || currentQueueItem)!.priority || 'high',
+                tags: extractTagsFromAppointment(
+                  (lockedCallbackTarget?.queueItem || currentQueueItem)!.tags,
+                  (lockedCallbackTarget?.queueItem || currentQueueItem)!.scheduled_notes
+                ),
+                status: (lockedCallbackTarget?.queueItem || currentQueueItem)!.status,
+                origin_campaign_title:
+                  (lockedCallbackTarget?.queueItem || currentQueueItem)!.origin_campaign_title || null,
+              }
+            : null)
+        }
+        initialCallNotes={lockedCallbackTarget?.materialNotes || callNotes}
+        overrideLang={operatorLangOverride}
         onConfirm={handleConfirmScheduleCallback}
         isSubmitting={isLoggingCall}
+      />
+
+      {/* Queue List & Global Client Finder Modal */}
+      <DialerQueueExplorerModal
+        isOpen={isQueueExplorerOpen}
+        onClose={() => setIsQueueExplorerOpen(false)}
+        activeCampaign={activeCampaign}
+        currentCampaignQueue={campaignQueue}
+        currentQueueItemId={currentQueueItem?.id || null}
+        overrideLang={operatorLangOverride}
+        onSelectQueueItem={(item) => {
+          setIsCalling(false);
+          setCallDuration(0);
+          const idxInCallable = queue.findIndex((q) => q.id === item.id);
+          if (idxInCallable !== -1 && !isDirectAgendaMode) {
+            setCurrentQueueIndex(idxInCallable);
+            const next = new URLSearchParams(searchParams);
+            next.delete('fromAgenda');
+            next.delete('queueItemIds');
+            if (activeCampaignId) next.set('campaignId', activeCampaignId);
+            next.set('queueItemId', item.id);
+            setSearchParams(next);
+          } else {
+            const next = new URLSearchParams();
+            next.set('fromAgenda', '1');
+            if (item.campaign_id || activeCampaignId) {
+              next.set('campaignId', (item.campaign_id || activeCampaignId)!);
+            }
+            next.set('queueItemId', item.id);
+            setCurrentQueueIndex(0);
+            setSearchParams(next);
+          }
+        }}
+        onSelectDirectQueueItem={(qItemId, campId) => {
+          setIsCalling(false);
+          setCallDuration(0);
+          setCurrentQueueIndex(0);
+          const next = new URLSearchParams();
+          next.set('fromAgenda', '1');
+          if (campId) next.set('campaignId', campId);
+          next.set('queueItemId', qItemId);
+          setSearchParams(next);
+        }}
       />
 
       {/* Send Commercial Material Modal (M365 Direct) */}
