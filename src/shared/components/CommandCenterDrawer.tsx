@@ -420,7 +420,10 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
       if (statusFilter === 'OPEN' && (t.status === 'completed' || t.status === 'cancelled')) return false;
       if (statusFilter === 'COMPLETED' && t.status !== 'completed') return false;
       if (statusFilter === 'MY_TASKS') {
-        const isMine = t.assigned_to === user?.id || t.assigned_to_user_id === user?.id;
+        const isMine =
+          t.assigned_to === user?.id ||
+          t.assigned_to_user_id === user?.id ||
+          (user?.email && t.assigned_to_email && t.assigned_to_email.toLowerCase() === user.email.toLowerCase());
         if (!isMine) return false;
       }
       if (deptFilter !== 'ALL') {
@@ -1506,7 +1509,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                               <div className="flex items-center gap-2">
                                 {/* Seletor rápido de pessoa responsável */}
                                 <select
-                                  value={task.assigned_to_user_id || ''}
+                                  value={task.assigned_to_user_id || task.assigned_to || ''}
                                   onChange={e => handleAssignTaskPerson(task.id, e.target.value)}
                                   className="px-2 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                                   title="Direcionar para uma pessoa específica"
