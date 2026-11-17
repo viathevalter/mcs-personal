@@ -770,3 +770,110 @@ export async function getEffectiveTariffsMapForMonth(mesReferencia: string): Pro
     }
     return map;
 }
+
+export async function updatePendingTariffAuthorizationRequest(payload: {
+    requestId: string;
+    mesVigencia: string;
+    motivoAlteracao: string;
+    itens: TariffItemRequest[];
+}): Promise<void> {
+    const { data: existing, error: fetchErr } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .select('*')
+        .eq('id', payload.requestId)
+        .single();
+
+    if (fetchErr || !existing) {
+        throw new Error('Termo não encontrado.');
+    }
+
+    if (existing.status !== 'PENDENTE') {
+        throw new Error('Apenas termos com status PENDENTE podem ser editados.');
+    }
+
+    const cleanMotivo = payload.motivoAlteracao.trim() || 'Ajuste de tarifa de remuneração horária';
+    const nowIso = new Date().toISOString();
+
+    const { error: updateErr } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .update({
+            mes_vigencia: payload.mesVigencia,
+            motivo_alteracao: cleanMotivo,
+            itens_solicitacao: payload.itens,
+            updated_at: nowIso
+        })
+        .eq('id', payload.requestId);
+
+    if (updateErr) throw updateErr;
+
+    // Sync linked Super Gaveta task (without creating a new task or sending a new email)
+    if (existing.task_id) {
+        try {
+            const vigenciaLabel = formatMesVigenciaLabel(payload.mesVigencia);
+            const signingUrl = `${window.location.origin}/tariffs/authorization/${existing.token_assinatura}`;
+            const workersSummaryLines = payload.itens
+                .map(i => `• ${i.worker_nome} (${i.cod_colab || '-'}): € ${Number(i.tarifa_anterior).toFixed(2)} -> € ${Number(i.tarifa_nova).toFixed(2)}`)
+                .join('\n');
+
+            const taskTitle = `Autorizar Tarifa (${existing.codigo_termo}) - Vigência ${vigenciaLabel}`;
+            const taskDesc = [
+                `Solicitante: ${existing.solicitante_nome} (${existing.solicitante_email || '-'})`,
+                `Vigência: ${vigenciaLabel}`,
+                ``,
+                `Trabalhadores:`,
+                workersSummaryLines,
+                ``,
+                `Justificativa: ${cleanMotivo}`,
+                ``,
+                `Link para assinatura: ${signingUrl}`
+            ].join('\n');
+
+            await supabase.schema('core_operacoes').rpc('atualizar_tarefa_termo_tarifa', {
+                p_task_id: existing.task_id,
+                p_title: taskTitle,
+                p_description: taskDesc,
+                p_mes_vigencia: payload.mesVigencia
+            });
+        } catch (taskErr) {
+            console.error('Error syncing linked Super Gaveta task:', taskErr);
+        }
+    }
+}
+
+export async function deletePendingTariffAuthorizationRequest(requestId: string): Promise<void> {
+    const { data: existing, error: fetchErr } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .select('id, status, task_id, codigo_termo')
+        .eq('id', requestId)
+        .single();
+
+    if (fetchErr || !existing) {
+        throw new Error('Termo não encontrado.');
+    }
+
+    if (existing.status !== 'PENDENTE') {
+        throw new Error('Apenas termos com status PENDENTE podem ser excluídos.');
+    }
+
+    if (existing.task_id) {
+        try {
+            await supabase.schema('core_operacoes').rpc('cancelar_tarefa_termo_tarifa', {
+                p_task_id: existing.task_id,
+                p_reason: `Termo ${existing.codigo_termo} excluído pelo solicitante.`
+            });
+        } catch (taskErr) {
+            console.error('Error cancelling linked Super Gaveta task:', taskErr);
+        }
+    }
+
+    const { error: delErr } = await supabase
+        .schema('core_personal')
+        .from('tariff_authorization_requests')
+        .delete()
+        .eq('id', requestId);
+
+    if (delErr) throw delErr;
+}
