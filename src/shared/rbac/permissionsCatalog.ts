@@ -132,6 +132,12 @@ export const PERMISSIONS_CATALOG: ModulePermissionGroup[] = [
                 isCritical: true,
             },
             {
+                key: 'comercial.analises',
+                label: '🔒 Menu: Análises & Simulações',
+                description: 'Raio-X de rentabilidade por cliente, controle de prejuízos e simulador de tarifas.',
+                isCritical: true,
+            },
+            {
                 key: 'comercial.estimaciones',
                 label: 'Menu: Orçamentos / Estimaciones',
             },
@@ -162,10 +168,6 @@ export const PERMISSIONS_CATALOG: ModulePermissionGroup[] = [
             {
                 key: 'comercial.discador',
                 label: 'Menu: Cockpit Discador, Agenda & Filas',
-            },
-            {
-                key: 'comercial.analises',
-                label: 'Menu: Análises & Simulações',
             },
         ],
     },

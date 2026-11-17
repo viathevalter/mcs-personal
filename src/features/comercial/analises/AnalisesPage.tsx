@@ -30,6 +30,8 @@ import { cn } from '@/lib/utils';
 import { useClients } from '@/features/master-data/clients/hooks/useClients';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { useRole } from '@/app/providers/RoleProvider';
+import { useNavigate } from 'react-router-dom';
 
 interface WorkerCostDetail {
     id: string;
@@ -208,6 +210,8 @@ const INITIAL_CLIENTS_ANALYSIS: ClientProfitabilityData[] = [
 
 export function AnalisesPage() {
     const { data: dbClients = [] } = useClients();
+    const { canViewFeature } = useRole();
+    const navigate = useNavigate();
     
     const [selectedTab, setSelectedTab] = useState<'global' | 'simulator'>('global');
     const [period, setPeriod] = useState<string>('2026-07');
@@ -554,6 +558,26 @@ export function AnalisesPage() {
         setSelectedTab('simulator');
         setIsComboboxOpen(false);
     };
+
+    if (!canViewFeature('comercial.analises', true)) {
+        return (
+            <div className="flex flex-col items-center justify-center min-h-[500px] text-center p-6 space-y-4">
+                <div className="h-14 w-14 rounded-full bg-red-100 dark:bg-red-950/40 text-red-600 flex items-center justify-center">
+                    <AlertTriangle className="h-7 w-7" />
+                </div>
+                <h2 className="text-2xl font-bold text-slate-900 dark:text-slate-100">Acesso Restrito</h2>
+                <p className="text-sm text-muted-foreground max-w-md">
+                    Seu perfil não possui permissão para acessar Análises & Simulações Comerciais.
+                </p>
+                <button
+                    onClick={() => navigate('/comercial/estimaciones')}
+                    className="px-4 py-2 rounded-lg bg-slate-900 text-white dark:bg-white dark:text-slate-900 text-sm font-semibold"
+                >
+                    Ir para Orçamentos
+                </button>
+            </div>
+        );
+    }
 
     return (
         <div className="space-y-6 pb-12">
