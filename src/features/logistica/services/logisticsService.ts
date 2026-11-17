@@ -158,6 +158,16 @@ export const checkWorkerInativoRH = (statusTrabajador?: string, statusSeguridad?
   };
 };
 
+export interface ClienteBancoLogistica {
+  id: string;
+  codigo?: string;
+  nome: string;
+  razao_social?: string;
+  cif_nif?: string;
+  cidade?: string;
+  provincia?: string;
+}
+
 export interface Alocacao {
   id: string;
   cama_id: string;
@@ -168,6 +178,7 @@ export interface Alocacao {
   worker_id: string;
   worker_nome: string;
   codigo_colab?: string;
+  cliente_id?: string;
   cliente_nome?: string;
   obra_nome?: string;
   municipio?: string;
@@ -469,6 +480,42 @@ export const logisticsService = {
 
   async buscarTrabalhadoresParaAlocacao(query: string = ''): Promise<any[]> {
     return this.searchTrabalhadores(query);
+  },
+
+  async fetchClientesBanco(): Promise<ClienteBancoLogistica[]> {
+    try {
+      const { data, error } = await supabase
+        .schema('core_common')
+        .from('clients')
+        .select('id, codigo, trade_name, legal_name, tax_id, city, province')
+        .order('trade_name', { ascending: true })
+        .limit(1000);
+
+      if (!error && data) {
+        const seen = new Set<string>();
+        const result: ClienteBancoLogistica[] = [];
+        for (const c of data as any[]) {
+          const nome = String(c.trade_name || c.legal_name || '').trim();
+          if (!nome) continue;
+          const key = nome.toUpperCase();
+          if (seen.has(key) && !c.tax_id) continue;
+          seen.add(key);
+          result.push({
+            id: c.id,
+            codigo: c.codigo || undefined,
+            nome,
+            razao_social: c.legal_name || nome,
+            cif_nif: c.tax_id || undefined,
+            cidade: c.city || undefined,
+            provincia: c.province || undefined
+          });
+        }
+        return result.sort((a, b) => a.nome.localeCompare(b.nome));
+      }
+    } catch (e) {
+      console.warn('Erro ao buscar clientes do banco:', e);
+    }
+    return [];
   },
 
   async clearAllAlocacoes(): Promise<void> {
@@ -940,6 +987,7 @@ export const logisticsService = {
     worker_id: string;
     worker_nome: string;
     codigo_colab?: string;
+    cliente_id?: string;
     cliente_nome?: string;
     obra_nome?: string;
     pedido_id?: string;
@@ -956,6 +1004,18 @@ export const logisticsService = {
 
     try {
       const hasEndDate = Boolean(payload.data_fim && String(payload.data_fim).trim().length > 0);
+      let resolvedClienteId = isUuid(payload.cliente_id) ? payload.cliente_id : null;
+      if (!resolvedClienteId && payload.cliente_nome && payload.cliente_nome.trim()) {
+        const cleanCli = payload.cliente_nome.trim();
+        const { data: matchCli } = await supabase
+          .schema('core_common')
+          .from('clients')
+          .select('id')
+          .or(`trade_name.ilike.${cleanCli},legal_name.ilike.${cleanCli}`)
+          .limit(1)
+          .maybeSingle();
+        if (matchCli?.id) resolvedClienteId = matchCli.id;
+      }
 
       if (isUuid(payload.worker_id)) {
         // 1. Verificar se já existe um registro de Alojamiento Propio ativo ou com a mesma data de início para este trabalhador
@@ -987,6 +1047,7 @@ export const logisticsService = {
           const { data: updatedRow, error: updErr } = await client
             .from('alocacoes')
             .update({
+              cliente_id: resolvedClienteId,
               pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
               data_inicio: payload.data_inicio,
               data_fim: payload.data_fim || null,
@@ -1024,6 +1085,7 @@ export const logisticsService = {
               cama_id: null,
               alojamento_id: null,
               worker_id: payload.worker_id,
+              cliente_id: resolvedClienteId,
               pedido_id: isUuid(payload.pedido_id) ? payload.pedido_id : null,
               data_inicio: payload.data_inicio,
               data_fim: payload.data_fim || null,
@@ -1418,6 +1480,7 @@ export const logisticsService = {
       data_inicio: string;
       data_fim?: string;
       observacoes?: string;
+      cliente_id?: string;
       cliente_nome?: string;
       obra_nome?: string;
       isPropio?: boolean;
@@ -1455,8 +1518,22 @@ export const logisticsService = {
       if (params.observacoes !== undefined) {
         updatePayload.observacoes = params.observacoes || null;
       }
+      if (params.cliente_id && isUuid(params.cliente_id)) {
+        updatePayload.cliente_id = params.cliente_id;
+      }
       if (params.cliente_nome !== undefined && params.cliente_nome.trim()) {
         updatePayload.cliente_obra_nome = params.cliente_nome.trim();
+        if (!updatePayload.cliente_id) {
+          const cleanCli = params.cliente_nome.trim();
+          const { data: matchCli } = await supabase
+            .schema('core_common')
+            .from('clients')
+            .select('id')
+            .or(`trade_name.ilike.${cleanCli},legal_name.ilike.${cleanCli}`)
+            .limit(1)
+            .maybeSingle();
+          if (matchCli?.id) updatePayload.cliente_id = matchCli.id;
+        }
       }
       if (params.obra_nome !== undefined && params.obra_nome.trim()) {
         updatePayload.project_name = params.obra_nome.trim();
