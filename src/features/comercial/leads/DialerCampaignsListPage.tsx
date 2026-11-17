@@ -1,5 +1,6 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { format, parseISO } from 'date-fns';
 import { 
   PhoneCall, 
   Play, 
@@ -11,7 +12,10 @@ import {
   Layers, 
   Loader2,
   User,
-  CheckCircle2
+  CheckCircle2,
+  Globe2,
+  CalendarDays,
+  ListFilter
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,11 +28,11 @@ import {
   DialogDescription,
   DialogFooter
 } from '@/components/ui/dialog';
-import { useDialerCampaigns, useDialerQueue, useMutateDialer } from './hooks/useDialer';
+import { useDialerCampaigns, useDialerQueue, useAllDialerQueueItems, useMutateDialer } from './hooks/useDialer';
 import { useCommercialScope, getCommercialProfileByUser } from './hooks/useLeads';
 import { useComercialLanguage } from './utils/comercialI18n';
 import { toast } from 'sonner';
-import type { DialerCampaign } from './types/dialerTypes';
+import type { DialerCampaign, DialerQueueItem } from './types/dialerTypes';
 
 export function DialerCampaignsListPage() {
   const { tr, lang } = useComercialLanguage();
@@ -44,9 +48,89 @@ export function DialerCampaignsListPage() {
   const { data: campaigns = [], isLoading } = useDialerCampaigns();
   const { updateCampaignStatus, completeCampaign, isCompletingCampaign, deleteCampaign } = useMutateDialer();
 
+  const [pageMode, setPageMode] = useState<'works' | 'all_clients'>('works');
   const [searchTerm, setSearchTerm] = useState('');
+  const [clientStatusFilter, setClientStatusFilter] = useState<'all' | 'callable' | 'reintento' | 'scheduled' | 'completed'>('all');
+  const [clientWorkFilter, setClientWorkFilter] = useState<string>('all');
+  const [modalSearchTerm, setModalSearchTerm] = useState('');
+  const [modalStatusFilter, setModalStatusFilter] = useState<'all' | 'callable' | 'scheduled' | 'completed'>('all');
   const [selectedCampaignForQueue, setSelectedCampaignForQueue] = useState<DialerCampaign | null>(null);
   const [isQueueModalOpen, setIsQueueModalOpen] = useState(false);
+
+  const { data: allQueueItems = [], isLoading: isLoadingAllClients } = useAllDialerQueueItems(
+    pageMode === 'all_clients'
+  );
+
+  // Deduplicate global client list by lead_id while aggregating work badges
+  const unifiedClients = useMemo(() => {
+    const map = new Map<string, DialerQueueItem & { workTitles: string[]; campaignIds: string[] }>();
+    for (const item of allQueueItems) {
+      const key = item.lead_id || item.id;
+      const wTitle = item.campaign?.title || item.origin_campaign_title || '';
+      const existing = map.get(key);
+      if (!existing) {
+        map.set(key, {
+          ...item,
+          workTitles: wTitle ? [wTitle] : [],
+          campaignIds: item.campaign_id ? [item.campaign_id] : [],
+        });
+      } else {
+        const nextTitles = wTitle && !existing.workTitles.includes(wTitle)
+          ? [...existing.workTitles, wTitle]
+          : existing.workTitles;
+        const nextIds = item.campaign_id && !existing.campaignIds.includes(item.campaign_id)
+          ? [...existing.campaignIds, item.campaign_id]
+          : existing.campaignIds;
+        const preferItem = existing.status !== 'scheduled' && item.status === 'scheduled';
+        const chosen = preferItem ? item : existing;
+        map.set(key, {
+          ...chosen,
+          global_appointment: chosen.global_appointment || existing.global_appointment || item.global_appointment,
+          workTitles: nextTitles,
+          campaignIds: nextIds,
+        });
+      }
+    }
+    return Array.from(map.values());
+  }, [allQueueItems]);
+
+  const filteredUnifiedClients = useMemo(() => {
+    return unifiedClients.filter((item) => {
+      const hasGlobalSched =
+        item.status === 'scheduled' ||
+        (item.global_appointment?.status === 'scheduled' && Boolean(item.global_appointment?.scheduled_for));
+
+      if (clientStatusFilter === 'callable' && !['pending', 'in_progress', 'no_answer'].includes(item.status)) {
+        return false;
+      }
+      if (clientStatusFilter === 'reintento' && item.status !== 'no_answer') {
+        return false;
+      }
+      if (clientStatusFilter === 'scheduled' && !hasGlobalSched) {
+        return false;
+      }
+      if (clientStatusFilter === 'completed' && !['interested', 'converted', 'rejected', 'skipped'].includes(item.status)) {
+        return false;
+      }
+      if (clientWorkFilter !== 'all' && !item.campaignIds.includes(clientWorkFilter)) {
+        return false;
+      }
+
+      if (!searchTerm.trim()) return true;
+      const q = searchTerm.toLowerCase().trim();
+      const digits = q.replace(/\D/g, '');
+      const phoneDigits = (item.lead?.phone || '').replace(/\D/g, '');
+      return (
+        (item.lead?.company_name || '').toLowerCase().includes(q) ||
+        (item.lead?.name || '').toLowerCase().includes(q) ||
+        (item.lead?.phone || '').toLowerCase().includes(q) ||
+        (digits.length >= 3 && phoneDigits.includes(digits)) ||
+        (item.lead?.city || item.lead?.province || '').toLowerCase().includes(q) ||
+        item.workTitles.some((w) => w.toLowerCase().includes(q)) ||
+        (item.tags || []).some((t) => t.toLowerCase().includes(q))
+      );
+    });
+  }, [unifiedClients, clientStatusFilter, clientWorkFilter, searchTerm]);
 
   const formatDurationShort = (secs: number) => {
     if (!secs || secs <= 0) return null;
@@ -154,8 +238,38 @@ export function DialerCampaignsListPage() {
 
   const handleOpenQueueViewer = (campaign: DialerCampaign) => {
     setSelectedCampaignForQueue(campaign);
+    setModalSearchTerm('');
+    setModalStatusFilter('all');
     setIsQueueModalOpen(true);
   };
+
+  const filteredInspectedQueue = useMemo(() => {
+    return inspectedQueue.filter((item) => {
+      const hasGlobalSched =
+        item.status === 'scheduled' ||
+        (item.global_appointment?.status === 'scheduled' && Boolean(item.global_appointment?.scheduled_for));
+      if (modalStatusFilter === 'callable' && !['pending', 'in_progress', 'no_answer'].includes(item.status)) {
+        return false;
+      }
+      if (modalStatusFilter === 'scheduled' && !hasGlobalSched) {
+        return false;
+      }
+      if (modalStatusFilter === 'completed' && !['interested', 'converted', 'rejected', 'skipped'].includes(item.status)) {
+        return false;
+      }
+      if (!modalSearchTerm.trim()) return true;
+      const q = modalSearchTerm.toLowerCase().trim();
+      const digits = q.replace(/\D/g, '');
+      const phoneDigits = (item.lead?.phone || '').replace(/\D/g, '');
+      return (
+        (item.lead?.company_name || '').toLowerCase().includes(q) ||
+        (item.lead?.name || '').toLowerCase().includes(q) ||
+        (item.lead?.phone || '').toLowerCase().includes(q) ||
+        (digits.length >= 3 && phoneDigits.includes(digits)) ||
+        (item.lead?.city || item.lead?.province || '').toLowerCase().includes(q)
+      );
+    });
+  }, [inspectedQueue, modalSearchTerm, modalStatusFilter]);
 
   // Summary Counters
   const totalCampaigns = campaigns.length;
@@ -329,30 +443,274 @@ export function DialerCampaignsListPage() {
         </div>
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="flex flex-col sm:flex-row items-center justify-between gap-3 p-3 bg-card border border-border rounded-xl shadow-sm">
-        <div className="relative w-full sm:w-96">
-          <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
-          <Input
-            value={searchTerm}
-            onChange={e => setSearchTerm(e.target.value)}
-            placeholder={tr(
-              'Buscar por nome do trabalho, operador ou script...',
-              'Buscar por nombre del trabajo, operador o guion...',
-              'Rechercher par nom du lot, opérateur ou script...',
-              'Cerca per nome lavoro, operatore o script...'
+      {/* View Switcher + Search & Filter Bar */}
+      <div className="flex flex-col gap-3 p-3.5 bg-card border border-border rounded-xl shadow-sm">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border pb-3">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <button
+              type="button"
+              onClick={() => setPageMode('works')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                pageMode === 'works'
+                  ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                  : 'bg-background text-muted-foreground hover:text-foreground border-border'
+              }`}
+            >
+              <Layers className="w-3.5 h-3.5" />
+              {tr('Por Trabalhos (Lotes)', 'Por Trabajos (Lotes)', 'Par Lots', 'Per Lavori')} ({campaigns.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setPageMode('all_clients')}
+              className={`px-3.5 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 border transition-all ${
+                pageMode === 'all_clients'
+                  ? 'bg-indigo-600 text-white border-indigo-600 shadow-sm'
+                  : 'bg-background text-muted-foreground hover:text-foreground border-border'
+              }`}
+            >
+              <Globe2 className="w-3.5 h-3.5" />
+              {tr(
+                'Lista Unificada de Clientes (Todos os Trabalhos)',
+                'Lista Unificada de Clientes (Todos los Trabajos)',
+                'Liste Unifiée des Clients (Tous les Lots)',
+                'Lista Unificata Clienti (Tutti i Lavori)'
+              )}
+              {unifiedClients.length > 0 ? ` (${unifiedClients.length})` : ''}
+            </button>
+          </div>
+
+          <span className="text-xs text-muted-foreground">
+            {pageMode === 'works' ? (
+              <>
+                {tr('Exibindo', 'Mostrando', 'Affichage de', 'Mostrando')}{' '}
+                <strong>{filteredCampaigns.length}</strong> {tr('de', 'de', 'sur', 'di')} {campaigns.length}{' '}
+                {tr('trabalhos', 'trabajos', 'lots', 'lavori')}
+              </>
+            ) : (
+              <>
+                {tr('Exibindo', 'Mostrando', 'Affichage de', 'Mostrando')}{' '}
+                <strong>{filteredUnifiedClients.length}</strong> {tr('de', 'de', 'sur', 'di')} {unifiedClients.length}{' '}
+                {tr('clientes', 'clientes', 'clients', 'clienti')}
+              </>
             )}
-            className="pl-9 bg-background border-input text-foreground text-xs h-9"
-          />
+          </span>
         </div>
 
-        <span className="text-xs text-muted-foreground">
-          {tr('Exibindo', 'Mostrando', 'Affichage de', 'Mostrando')} <strong>{filteredCampaigns.length}</strong> {tr('de', 'de', 'sur', 'di')} {campaigns.length} {tr('trabalhos', 'trabajos', 'lots', 'lavori')}
-        </span>
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+          <div className="relative flex-1 max-w-xl">
+            <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+            <Input
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder={
+                pageMode === 'works'
+                  ? tr(
+                      'Buscar por nome do trabalho, operador ou script...',
+                      'Buscar por nombre del trabajo, operador o guion...',
+                      'Rechercher par nom du lot, opérateur ou script...',
+                      'Cerca per nome lavoro, operatore o script...'
+                    )
+                  : tr(
+                      'Buscar cliente em todos os trabalhos por empresa, contato, telefone, cidade ou #tag...',
+                      'Buscar cliente en todos los trabajos por empresa, contacto, teléfono, ciudad o #etiqueta...',
+                      'Rechercher un client dans tous les lots par entreprise, contact, téléphone ou #tag...',
+                      'Cerca cliente in tutti i lavori per azienda, contatto, telefono, città o #tag...'
+                    )
+              }
+              className="pl-9 bg-background border-input text-foreground text-xs h-9"
+            />
+          </div>
+
+          {pageMode === 'all_clients' && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {(
+                [
+                  ['all', tr('Todos', 'Todos', 'Tous', 'Tutti')],
+                  ['callable', tr('Na Fila', 'En Cola', 'En File', 'In Coda')],
+                  ['reintento', tr('Fim da Fila', 'Fin de Cola', 'Fin de File', 'Fine Coda')],
+                  ['scheduled', tr('Com Agendamento', 'Con Cita', 'Planifiés', 'Pianificati')],
+                  ['completed', tr('Concluídos', 'Completados', 'Traités', 'Completati')],
+                ] as const
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setClientStatusFilter(key)}
+                  className={`px-2.5 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                    clientStatusFilter === key
+                      ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 border-slate-900 dark:border-slate-100'
+                      : 'bg-background text-muted-foreground hover:text-foreground border-border'
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+
+              {campaigns.length > 1 && (
+                <select
+                  value={clientWorkFilter}
+                  onChange={(e) => setClientWorkFilter(e.target.value)}
+                  className="h-8 rounded-lg border border-input bg-background px-2 text-xs font-semibold text-foreground max-w-[220px]"
+                >
+                  <option value="all">
+                    {tr('Todos os Trabalhos', 'Todos los Trabajos', 'Tous les Lots', 'Tutti i Lavori')}
+                  </option>
+                  {campaigns.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+                </select>
+              )}
+            </div>
+          )}
+        </div>
       </div>
 
-      {/* Campaigns Table */}
-      {isLoading ? (
+      {/* Mode B: Unified Client List Across All Works */}
+      {pageMode === 'all_clients' ? (
+        isLoadingAllClients ? (
+          <div className="p-12 text-center text-muted-foreground space-y-3 bg-card rounded-2xl border border-border">
+            <Loader2 className="w-8 h-8 animate-spin mx-auto text-indigo-500" />
+            <p className="text-sm">
+              {tr(
+                'Carregando relação unificada de clientes de todos os trabalhos...',
+                'Cargando relación unificada de clientes de todos los trabajos...',
+                'Chargement de la liste unifiée de tous les lots...',
+                'Caricamento lista unificata di tutti i lavori...'
+              )}
+            </p>
+          </div>
+        ) : filteredUnifiedClients.length === 0 ? (
+          <div className="p-12 text-center rounded-2xl border-2 border-dashed bg-card space-y-2">
+            <ListFilter className="w-10 h-10 text-muted-foreground/50 mx-auto" />
+            <p className="text-sm font-bold text-foreground">
+              {tr(
+                'Nenhum cliente encontrado para este filtro.',
+                'Ningún cliente encontrado con este filtro.',
+                'Aucun client trouvé avec ce filtre.',
+                'Nessun cliente trovato con questo filtro.'
+              )}
+            </p>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-card shadow-sm overflow-hidden">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs">
+                <thead className="bg-muted/40 text-muted-foreground uppercase font-bold border-b border-border">
+                  <tr>
+                    <th className="py-3 px-4">{tr('Empresa / Contato', 'Empresa / Contacto', 'Entreprise / Contact', 'Azienda / Contatto')}</th>
+                    <th className="py-3 px-4">{tr('Telefone', 'Teléfono', 'Téléphone', 'Telefono')}</th>
+                    <th className="py-3 px-4">{tr('Trabalho(s)', 'Trabajo(s)', 'Lot(s)', 'Lavoro/i')}</th>
+                    <th className="py-3 px-4">{tr('Agendamento Global', 'Cita Global', 'RDV Global', 'Appuntamento Globale')}</th>
+                    <th className="py-3 px-4 text-center">{tr('Status', 'Estado', 'Statut', 'Stato')}</th>
+                    <th className="py-3 px-4 text-right">{tr('Atender no Cockpit', 'Atender en Cockpit', 'Appeler au Cockpit', 'Chiama nel Cockpit')}</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border">
+                  {filteredUnifiedClients.slice(0, 300).map((item) => {
+                    const globalSched =
+                      item.global_appointment?.status === 'scheduled'
+                        ? item.global_appointment.scheduled_for
+                        : item.status === 'scheduled'
+                        ? item.scheduled_for
+                        : null;
+
+                    return (
+                      <tr key={item.id} className="hover:bg-muted/30 transition-colors">
+                        <td className="py-3 px-4">
+                          <p className="font-bold text-foreground text-sm">
+                            {item.lead?.company_name || item.lead?.name}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground">
+                            {item.lead?.name && item.lead?.company_name ? `${item.lead.name} • ` : ''}
+                            {item.lead?.city || item.lead?.province || ''}
+                            {item.attempts_count > 0 ? ` • ${item.attempts_count}x` : ''}
+                          </p>
+                        </td>
+                        <td className="py-3 px-4 font-mono font-semibold text-foreground">
+                          {item.lead?.phone || '-'}
+                        </td>
+                        <td className="py-3 px-4">
+                          {item.workTitles.length > 0 ? (
+                            <div className="flex flex-wrap gap-1">
+                              <span className="px-2 py-0.5 rounded bg-muted border border-border text-[11px] font-medium max-w-[220px] truncate">
+                                {item.workTitles[0]}
+                              </span>
+                              {item.workTitles.length > 1 && (
+                                <Badge variant="outline" className="text-[10px]">
+                                  +{item.workTitles.length - 1}
+                                </Badge>
+                              )}
+                            </div>
+                          ) : (
+                            <span className="text-[11px] text-muted-foreground">Agenda / Direto</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4">
+                          {globalSched ? (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[11px] font-bold">
+                              <CalendarDays className="w-3.5 h-3.5" />
+                              {format(parseISO(globalSched), 'dd/MM/yyyy HH:mm')}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground/50">—</span>
+                          )}
+                        </td>
+                        <td className="py-3 px-4 text-center">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                              item.status === 'converted'
+                                ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20'
+                                : item.status === 'interested'
+                                ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/25'
+                                : item.status === 'scheduled'
+                                ? 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border border-indigo-500/20'
+                                : item.status === 'no_answer'
+                                ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/25'
+                                : item.status === 'rejected'
+                                ? 'bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20'
+                                : 'bg-muted text-muted-foreground'
+                            }`}
+                          >
+                            {item.status === 'no_answer'
+                              ? tr('Fim da Fila', 'Fin de Cola', 'Fin de File', 'Fine Coda')
+                              : item.status === 'scheduled'
+                              ? tr('Agendado', 'Agendado', 'Planifié', 'Pianificato')
+                              : item.status === 'interested'
+                              ? tr('Material', 'Material', 'Doc Envoyé', 'Materiale')
+                              : item.status === 'converted'
+                              ? tr('Convertido', 'Convertido', 'Converti', 'Convertito')
+                              : item.status === 'rejected'
+                              ? tr('Recusado', 'Rechazado', 'Refusé', 'Rifiutato')
+                              : tr('Pendente', 'Pendiente', 'En Attente', 'In Attesa')}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-right">
+                          <Button
+                            size="sm"
+                            onClick={() =>
+                              navigate(
+                                `/comercial/discador?fromAgenda=1${
+                                  item.campaign_id ? `&campaignId=${item.campaign_id}` : ''
+                                }&queueItemId=${item.id}`
+                              )
+                            }
+                            className="h-8 px-3 text-xs bg-emerald-600 hover:bg-emerald-500 text-white font-bold gap-1.5 shadow-sm"
+                          >
+                            <PhoneCall className="w-3.5 h-3.5" />
+                            {tr('Chamar no Cockpit', 'Llamar en Cockpit', 'Appeler au Cockpit', 'Chiama nel Cockpit')}
+                          </Button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      ) : isLoading ? (
         <div className="p-12 text-center text-muted-foreground space-y-3">
           <Loader2 className="w-8 h-8 animate-spin mx-auto text-blue-500" />
           <p className="text-sm">{tr('Carregando trabalhos de discagem...', 'Cargando trabajos de marcado...', 'Chargement des lots d’appels...', 'Caricamento lavori di chiamata...')}</p>
@@ -561,15 +919,16 @@ export function DialerCampaignsListPage() {
                               : tr('Discar', 'Llamar', 'Appeler', 'Chiama')}
                           </Button>
 
-                          {/* View Queue Items */}
+                          {/* View Queue Items List */}
                           <Button
-                            variant="ghost"
+                            variant="outline"
                             size="sm"
                             onClick={() => handleOpenQueueViewer(camp)}
-                            className="h-8 w-8 p-0 text-muted-foreground hover:text-foreground"
-                            title={tr('Ver fila de leads', 'Ver cola de leads', 'Voir la file de leads', 'Vedi coda lead')}
+                            className="h-8 px-2.5 text-xs font-semibold gap-1 border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10"
+                            title={tr('Ver lista completa de clientes deste trabalho', 'Ver lista completa de clientes de este trabajo', 'Voir la liste complète des clients', 'Vedi lista completa clienti')}
                           >
-                            <Eye className="w-4 h-4" />
+                            <Eye className="w-3.5 h-3.5" />
+                            {tr('Ver Lista', 'Ver Lista', 'Voir Liste', 'Vedi Lista')} ({total})
                           </Button>
 
                           {/* Finalizar Trabalho */}
@@ -643,12 +1002,52 @@ export function DialerCampaignsListPage() {
           </DialogHeader>
 
           <div className="p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+              <div className="relative flex-1">
+                <Search className="w-4 h-4 text-muted-foreground absolute left-3 top-1/2 -translate-y-1/2" />
+                <Input
+                  value={modalSearchTerm}
+                  onChange={(e) => setModalSearchTerm(e.target.value)}
+                  placeholder={tr(
+                    'Buscar cliente neste trabalho por empresa, contato ou telefone...',
+                    'Buscar cliente en este trabajo por empresa, contacto o teléfono...',
+                    'Rechercher un client dans ce lot...',
+                    'Cerca cliente in questo lavoro...'
+                  )}
+                  className="pl-9 h-8 text-xs bg-background border-input"
+                />
+              </div>
+              <div className="flex items-center gap-1 flex-wrap">
+                {(
+                  [
+                    ['all', tr('Todos', 'Todos', 'Tous', 'Tutti')],
+                    ['callable', tr('Na Fila', 'En Cola', 'En File', 'In Coda')],
+                    ['scheduled', tr('Agendados', 'Agendados', 'Planifiés', 'Pianificati')],
+                    ['completed', tr('Concluídos', 'Completados', 'Traités', 'Completati')],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => setModalStatusFilter(key)}
+                    className={`px-2 py-1 rounded-lg text-[11px] font-bold border transition-all ${
+                      modalStatusFilter === key
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-background text-muted-foreground hover:text-foreground border-border'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             {loadingQueue ? (
               <div className="p-8 text-center text-muted-foreground">
                 <Loader2 className="w-6 h-6 animate-spin mx-auto text-blue-500 mb-2" />
                 {tr('Carregando leads da fila...', 'Cargando leads de la cola...', 'Chargement des leads de la file...', 'Caricamento lead della coda...')}
               </div>
-            ) : inspectedQueue.length === 0 ? (
+            ) : filteredInspectedQueue.length === 0 ? (
               <div className="p-8 text-center text-muted-foreground text-xs">
                 {tr('Nenhum lead nesta fila.', 'Ningún lead en esta cola.', 'Aucun lead dans cette file.', 'Nessun lead in questa coda.')}
               </div>
@@ -660,13 +1059,19 @@ export function DialerCampaignsListPage() {
                       <th className="py-2.5 px-3">#</th>
                       <th className="py-2.5 px-3">{tr('Empresa', 'Empresa', 'Entreprise', 'Azienda')}</th>
                       <th className="py-2.5 px-3">{tr('Telefone', 'Teléfono', 'Téléphone', 'Telefono')}</th>
-                      <th className="py-2.5 px-3 text-center">{tr('Tentativas', 'Intentos', 'Tentatives', 'Tentativi')}</th>
+                      <th className="py-2.5 px-3">{tr('Agendamento Global', 'Cita Global', 'RDV Global', 'Appuntamento')}</th>
                       <th className="py-2.5 px-3 text-center">{tr('Status', 'Estado', 'Statut', 'Stato')}</th>
                       <th className="py-2.5 px-3 text-right">{tr('Ação', 'Acción', 'Action', 'Azione')}</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border">
-                    {inspectedQueue.map((item, idx) => {
+                    {filteredInspectedQueue.map((item, idx) => {
+                      const globalSched =
+                        item.global_appointment?.status === 'scheduled'
+                          ? item.global_appointment.scheduled_for
+                          : item.status === 'scheduled'
+                          ? item.scheduled_for
+                          : null;
                       const statusLabel =
                         item.status === 'converted'
                           ? tr('Convertido', 'Convertido', 'Converti', 'Convertito')
@@ -677,7 +1082,7 @@ export function DialerCampaignsListPage() {
                           : item.status === 'rejected'
                           ? tr('Sem Interesse', 'Sin Interés', 'Refusé', 'Rifiutato')
                           : item.status === 'no_answer'
-                          ? tr('Reintento', 'Reintento', 'Relance', 'Riprova')
+                          ? tr('Fim da Fila / Reintento', 'Fin de Cola / Reintento', 'Fin de File / Relance', 'Fine Coda / Riprova')
                           : item.status === 'skipped'
                           ? tr('Encerrado', 'Cerrado', 'Clôturé', 'Chiuso')
                           : item.status === 'in_progress'
@@ -691,10 +1096,20 @@ export function DialerCampaignsListPage() {
                             {item.lead.company_name || item.lead.name}
                             <p className="text-[10px] text-muted-foreground font-normal">
                               {item.lead.city || item.lead.province || tr('Espanha', 'España', 'Espagne', 'Spagna')} • {item.lead.sector || tr('Industrial', 'Industrial', 'Industriel', 'Industriale')}
+                              {item.attempts_count > 0 ? ` • ${item.attempts_count}x` : ''}
                             </p>
                           </td>
                           <td className="py-2.5 px-3 font-mono text-foreground">{item.lead.phone || '-'}</td>
-                          <td className="py-2.5 px-3 text-center font-bold text-foreground">{item.attempts_count}</td>
+                          <td className="py-2.5 px-3">
+                            {globalSched ? (
+                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-500/15 text-amber-800 dark:text-amber-300 border border-amber-500/30 text-[10px] font-bold">
+                                <CalendarDays className="w-3 h-3" />
+                                {format(parseISO(globalSched), 'dd/MM HH:mm')}
+                              </span>
+                            ) : (
+                              <span className="text-muted-foreground/50">—</span>
+                            )}
+                          </td>
                           <td className="py-2.5 px-3 text-center">
                             <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
                               item.status === 'converted'
