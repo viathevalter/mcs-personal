@@ -20,7 +20,8 @@ export type CallOutcome =
   | 'no_answer' 
   | 'busy' 
   | 'wrong_number' 
-  | 'gatekeeper_blocked';
+  | 'gatekeeper_blocked'
+  | 'note_saved';
 
 export type RejectionReason = 
   | 'has_own_team' 

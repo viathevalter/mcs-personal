@@ -349,6 +349,7 @@ export function useDialerCampaigns() {
             .from("lead_call_logs")
             .select("campaign_id, duration_seconds")
             .in("campaign_id", campaignIds)
+            .neq("outcome", "note_saved")
             .range(logFrom, logFrom + pageSize - 1);
           if (lErr || !logChunk || logChunk.length === 0) break;
           logChunk.forEach((lg: any) => {
@@ -588,6 +589,7 @@ export function useDialerTodaySessionStats() {
         .schema('core_comercial')
         .from('lead_call_logs')
         .select('id, campaign_id, duration_seconds, outcome, created_at')
+        .neq('outcome', 'note_saved')
         .gte('created_at', startOfDayIso);
 
       if (targetUserId) {
@@ -666,6 +668,7 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
           *,
           lead:leads!lead_id ( id, name, company_name, phone, city )
         `)
+        .neq('outcome', 'note_saved')
         .order('created_at', { ascending: false });
 
       if (targetUserId) {
@@ -1901,6 +1904,126 @@ export function useMutateDialer() {
     },
   });
 
+  const saveLeadObservation = useMutation({
+    mutationFn: async ({
+      queueItemId,
+      campaignId,
+      leadId,
+      notes,
+      phoneCalled,
+      contactPerson,
+    }: {
+      queueItemId?: string | null;
+      campaignId?: string | null;
+      leadId: string;
+      notes: string;
+      phoneCalled?: string | null;
+      contactPerson?: string | null;
+    }) => {
+      const cleanNotes = notes.trim();
+      if (!cleanNotes) throw new Error('Digite uma anotação antes de salvar.');
+
+      const { data: authData } = await supabase.auth.getUser();
+      const effectiveUserId =
+        loggedCommercialProfile?.userId ||
+        activeCommercialProfile?.userId ||
+        authData?.user?.id ||
+        null;
+
+      const effectiveEmpresaId =
+        loggedCommercialProfile?.empresaId ||
+        activeCommercialProfile?.empresaId ||
+        selectedEmpresaId;
+
+      if (!effectiveEmpresaId) throw new Error('Empresa não selecionada');
+
+      const stamp = new Intl.DateTimeFormat('pt-PT', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date());
+
+      // 1. Insert note-only log entry into lead_call_logs so it appears immediately in Historial de Contactos (excluded from call count KPIs)
+      const { error: logError } = await supabase
+        .schema('core_comercial')
+        .from('lead_call_logs')
+        .insert({
+          empresa_id: effectiveEmpresaId,
+          lead_id: leadId,
+          campaign_id: campaignId || null,
+          queue_item_id: queueItemId || null,
+          user_id: effectiveUserId,
+          outcome: 'note_saved',
+          duration_seconds: 0,
+          notes: cleanNotes,
+          phone_called: phoneCalled || null,
+          contact_person: contactPerson || null,
+        });
+
+      if (logError) throw logError;
+
+      // 2. Prepend timestamped note onto leads.notes so it stays visible right at the top of "Notas del Lead" now and in all future calls
+      const { data: leadRow } = await supabase
+        .schema('core_comercial')
+        .from('leads')
+        .select('notes')
+        .eq('id', leadId)
+        .maybeSingle();
+
+      const existingLeadNotes = (leadRow?.notes || '').trim();
+      const newLeadNotes = existingLeadNotes
+        ? `[${stamp}] ${cleanNotes}\n${existingLeadNotes}`
+        : `[${stamp}] ${cleanNotes}`;
+
+      const { error: leadErr } = await supabase
+        .schema('core_comercial')
+        .from('leads')
+        .update({
+          notes: newLeadNotes,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', leadId);
+
+      if (leadErr) throw leadErr;
+
+      // 3. If queue item is scheduled (or already has scheduled_notes), append note WITHOUT touching status, scheduled_for, attempts_count, or sort_order
+      if (queueItemId) {
+        const { data: qItem } = await supabase
+          .schema('core_comercial')
+          .from('dialer_queue_items')
+          .select('status, scheduled_notes')
+          .eq('id', queueItemId)
+          .maybeSingle();
+
+        if (qItem && (qItem.status === 'scheduled' || qItem.scheduled_notes)) {
+          const prevSchedNotes = (qItem.scheduled_notes || '').trim();
+          const updatedSchedNotes = prevSchedNotes
+            ? `${prevSchedNotes}<br/>[${stamp}] ${cleanNotes}`
+            : `[${stamp}] ${cleanNotes}`;
+
+          await supabase
+            .schema('core_comercial')
+            .from('dialer_queue_items')
+            .update({
+              scheduled_notes: updatedSchedNotes,
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', queueItemId);
+        }
+      }
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ['lead_call_logs', vars.leadId] });
+      if (vars.campaignId) {
+        queryClient.invalidateQueries({ queryKey: ['dialer_queue_items', vars.campaignId] });
+      }
+      queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+    },
+  });
+
   return {
     createCampaign: createCampaign.mutateAsync,
     isCreatingCampaign: createCampaign.isPending,
@@ -1914,6 +2037,8 @@ export function useMutateDialer() {
     isDeletingCampaign: deleteCampaign.isPending,
     logCallAndAdvance: logCallAndAdvance.mutateAsync,
     isLoggingCall: logCallAndAdvance.isPending,
+    saveLeadObservation: saveLeadObservation.mutateAsync,
+    isSavingLeadObservation: saveLeadObservation.isPending,
     createQuickPresupuesto: createQuickPresupuesto.mutateAsync,
     isCreatingPresupuesto: createQuickPresupuesto.isPending,
     saveSalesScript: saveSalesScript.mutateAsync,
