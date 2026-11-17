@@ -41,6 +41,7 @@ const DOC_TYPES = [
     { value: 'carta_laboral', label: 'Carta Laboral' },
     { value: 'prova_vida', label: 'Prova de Vida' },
     { value: 'nomina', label: 'Recibo de Vencimento (Nómina)' },
+    { value: 'comprovante_pagamento', label: 'Comprovante de Pagamento (Folha/Holerite)' },
     { value: 'identificacao', label: 'Doc. Identificação Genérica' },
     { value: 'a1', label: 'Certificado A1' },
     { value: 'apto_medico', label: 'Apto Médico' },

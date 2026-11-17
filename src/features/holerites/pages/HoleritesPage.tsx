@@ -28,7 +28,10 @@ import {
     FileSpreadsheet,
     FileArchive,
     Trash2,
-    Pencil
+    Pencil,
+    Paperclip,
+    Landmark,
+    ExternalLink
 } from 'lucide-react';
 import {
     Card,
@@ -82,7 +85,7 @@ import { useDeleteDiscount } from '../../discounts/hooks/useDiscountMutations';
 import { isHolding, isHoldingId } from '@/shared/utils/empresaUtils';
 import { useHoleritesStatus } from '../hooks/useHoleritesStatus';
 import { usePaymentMutations } from '../hooks/usePaymentMutations';
-import { PaymentConfirmModal } from '../components/PaymentConfirmModal';
+import { PaymentConfirmModal, type PaymentConfirmData } from '../components/PaymentConfirmModal';
 import { exportBankTransferSpreadsheet } from '../utils/exportBankTransfer';
 import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
 
@@ -1612,7 +1615,7 @@ export function HoleritesPage() {
         toast.success(`Planilha bancária exportada com ${items.length} itens de folha.`);
     };
 
-    const handleMarcarPagosConfirm = (data: { dataPagamento: string; metodoPagamento: string }) => {
+    const handleMarcarPagosConfirm = (data: PaymentConfirmData) => {
         const targetWorkerIds = Array.from(new Set(Array.from(selectedWorkerIds).map(k => k.split('_')[0])));
         if (targetWorkerIds.length === 0) {
             toast.error('Nenhum trabalhador selecionado.');
@@ -1624,6 +1627,13 @@ export function HoleritesPage() {
             mesReferencia,
             dataPagamento: data.dataPagamento,
             metodoPagamento: data.metodoPagamento,
+            bancoId: data.bancoId,
+            bancoPagamento: data.bancoPagamento,
+            comprovanteUrl: data.comprovanteUrl,
+            comprovanteNome: data.comprovanteNome,
+            comprovanteSize: data.comprovanteSize,
+            comprovanteMime: data.comprovanteMime,
+            observacaoPagamento: data.observacaoPagamento,
             empresaId: selectedEmpresaId || undefined
         }, {
             onSuccess: () => {
@@ -2168,15 +2178,39 @@ export function HoleritesPage() {
 
                                                             if (isPago) {
                                                                 return (
-                                                                    <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 w-fit shadow-xs">
-                                                                        <CheckCircle2 className="h-3 w-3" />
-                                                                        Pago
-                                                                        {hStatus?.data_pagamento && (
-                                                                            <span className="text-[9px] opacity-90 font-normal">
-                                                                                ({formatDateClean(hStatus.data_pagamento)})
+                                                                    <div className="flex flex-col gap-1 items-start">
+                                                                        <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-0.5 px-2 flex items-center gap-1 w-fit shadow-xs">
+                                                                            <CheckCircle2 className="h-3 w-3" />
+                                                                            Pago
+                                                                            {hStatus?.data_pagamento && (
+                                                                                <span className="text-[9px] opacity-90 font-normal">
+                                                                                    ({formatDateClean(hStatus.data_pagamento)})
+                                                                                </span>
+                                                                            )}
+                                                                        </Badge>
+                                                                        {(hStatus?.banco_pagamento || hStatus?.metodo_pagamento) && (
+                                                                            <span
+                                                                                className="text-[10px] text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1 max-w-[160px] truncate"
+                                                                                title={hStatus.banco_pagamento || hStatus.metodo_pagamento || ''}
+                                                                            >
+                                                                                <Landmark className="h-2.5 w-2.5 text-indigo-500 shrink-0" />
+                                                                                {hStatus.banco_pagamento || hStatus.metodo_pagamento}
                                                                             </span>
                                                                         )}
-                                                                    </Badge>
+                                                                        {hStatus?.comprovante_url && (
+                                                                            <a
+                                                                                href={hStatus.comprovante_url}
+                                                                                target="_blank"
+                                                                                rel="noopener noreferrer"
+                                                                                onClick={(e) => e.stopPropagation()}
+                                                                                className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline bg-emerald-50 dark:bg-emerald-950/60 px-1.5 py-0.5 rounded border border-emerald-200 dark:border-emerald-800"
+                                                                                title={hStatus.comprovante_nome || 'Abrir comprovante de pagamento'}
+                                                                            >
+                                                                                <Paperclip className="h-2.5 w-2.5" />
+                                                                                Comprovante
+                                                                            </a>
+                                                                        )}
+                                                                    </div>
                                                                 );
                                                             }
 
@@ -2296,17 +2330,32 @@ export function HoleritesPage() {
 
                                                                 if (isPago) {
                                                                     return (
-                                                                        <Button
-                                                                            variant="ghost"
-                                                                            size="sm"
-                                                                            onClick={() => estornarPagamento({ workerId: row.workerId, holeriteId: hStatus?.id, mesReferencia })}
-                                                                            disabled={isEstornarLoading}
-                                                                            className="h-8 px-2 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/40"
-                                                                            title="Estornar status de pago para rascunho / lançado"
-                                                                        >
-                                                                            <RotateCcw className="h-3 w-3 mr-1" />
-                                                                            Estornar
-                                                                        </Button>
+                                                                        <div className="flex items-center gap-1">
+                                                                            <Button
+                                                                                variant="outline"
+                                                                                size="sm"
+                                                                                onClick={() => {
+                                                                                    setSelectedWorkerIds(new Set([rowKey]));
+                                                                                    setIsPaymentModalOpen(true);
+                                                                                }}
+                                                                                className="h-8 px-2 text-[11px] font-semibold border-emerald-200 text-emerald-700 bg-emerald-50/50 hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-300 dark:bg-emerald-950/30"
+                                                                                title={hStatus?.comprovante_url ? 'Ver / alterar banco pagador ou comprovante de pagamento' : 'Anexar comprovante ou informar banco pagador'}
+                                                                            >
+                                                                                <Paperclip className="h-3 w-3 mr-1 text-emerald-600" />
+                                                                                {hStatus?.comprovante_url ? 'Comprovante' : '+ Comprovante'}
+                                                                            </Button>
+                                                                            <Button
+                                                                                variant="ghost"
+                                                                                size="sm"
+                                                                                onClick={() => estornarPagamento({ workerId: row.workerId, holeriteId: hStatus?.id, mesReferencia })}
+                                                                                disabled={isEstornarLoading}
+                                                                                className="h-8 px-2 text-[11px] font-semibold text-amber-700 hover:bg-amber-50 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-950/40"
+                                                                                title="Estornar status de pago para rascunho / lançado"
+                                                                            >
+                                                                                <RotateCcw className="h-3 w-3 mr-1" />
+                                                                                Estornar
+                                                                            </Button>
+                                                                        </div>
                                                                     );
                                                                 }
 
@@ -2419,6 +2468,64 @@ export function HoleritesPage() {
                                                                                 <span>Nenhum IBAN ativo cadastrado para este colaborador.</span>
                                                                             </div>
                                                                         )}
+
+                                                                        {/* Dados da Liquidação / Comprovante */}
+                                                                        {(() => {
+                                                                            const hStatus = holeritesStatusMap?.get(row.workerId);
+                                                                            if (hStatus?.status !== 'pago') return null;
+                                                                            return (
+                                                                                <div className="mt-3 pt-3 border-t border-emerald-200/70 dark:border-emerald-800/60 space-y-2">
+                                                                                    <div className="flex items-center justify-between">
+                                                                                        <span className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400 uppercase tracking-wide flex items-center gap-1.5">
+                                                                                            <CheckCircle2 className="h-3.5 w-3.5" />
+                                                                                            Pagamento Consolidado ({formatDateClean(hStatus.data_pagamento)})
+                                                                                        </span>
+                                                                                        <Button
+                                                                                            size="sm"
+                                                                                            variant="ghost"
+                                                                                            className="h-6 px-2 text-[11px] text-indigo-600 hover:bg-indigo-50"
+                                                                                            onClick={() => {
+                                                                                                setSelectedWorkerIds(new Set([rowKey]));
+                                                                                                setIsPaymentModalOpen(true);
+                                                                                            }}
+                                                                                        >
+                                                                                            <Pencil className="h-3 w-3 mr-1" />
+                                                                                            Editar / Comprovante
+                                                                                        </Button>
+                                                                                    </div>
+                                                                                    <div className="grid grid-cols-2 gap-2 text-xs bg-emerald-50/40 dark:bg-emerald-950/20 p-2.5 rounded-lg border border-emerald-100 dark:border-emerald-900/50">
+                                                                                        <div>
+                                                                                            <span className="text-[10px] text-muted-foreground block">Forma de Pagamento</span>
+                                                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                                                                {hStatus.metodo_pagamento || 'Transferência Bancária'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        <div>
+                                                                                            <span className="text-[10px] text-muted-foreground block">Banco Pagador</span>
+                                                                                            <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                                                                                {hStatus.banco_pagamento || 'Não informado'}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        {hStatus.comprovante_url && (
+                                                                                            <div className="col-span-2 pt-1 flex items-center justify-between border-t border-emerald-200/50">
+                                                                                                <span className="text-[11px] text-emerald-800 dark:text-emerald-300 font-medium truncate">
+                                                                                                    Comprovante: {hStatus.comprovante_nome || 'Arquivo anexado'}
+                                                                                                </span>
+                                                                                                <a
+                                                                                                    href={hStatus.comprovante_url}
+                                                                                                    target="_blank"
+                                                                                                    rel="noopener noreferrer"
+                                                                                                    className="inline-flex items-center gap-1 text-xs font-bold text-indigo-600 hover:underline shrink-0"
+                                                                                                >
+                                                                                                    <ExternalLink className="h-3 w-3" />
+                                                                                                    Abrir Comprovante
+                                                                                                </a>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                </div>
+                                                                            );
+                                                                        })()}
                                                                     </div>
 
                                                                     {/* Financial Breakdown Card */}
@@ -2737,6 +2844,24 @@ export function HoleritesPage() {
                 workerCount={selectedWorkerIds.size}
                 totalAmount={selectedTotalLiquido}
                 mesReferencia={mesReferencia}
+                selectedWorkersInfo={selectedRowsList.map(r => {
+                    const bInfo = workerIbansMap?.get(r.workerId);
+                    return {
+                        id: r.workerId,
+                        nome: r.worker.nome,
+                        cod_colab: r.worker.cod_colab,
+                        empresaName: r.empresaName,
+                        liquido: r.liquido,
+                        iban: bInfo?.iban,
+                        banco: bInfo?.banco
+                    };
+                })}
+                defaultEmpresaName={contratanteFilter !== 'all' ? contratanteFilter : undefined}
+                initialPaymentInfo={
+                    selectedRowsList.length === 1
+                        ? holeritesStatusMap?.get(selectedRowsList[0].workerId) || null
+                        : null
+                }
                 onConfirm={handleMarcarPagosConfirm}
                 isLoading={isMarcarPagosLoading}
             />
