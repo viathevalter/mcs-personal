@@ -21,7 +21,11 @@ import {
     Check,
     Send,
     Bold,
+    Italic,
+    Underline,
     List,
+    ListOrdered,
+    Link2,
     Heading,
     Sparkles,
     Mail,
@@ -104,6 +108,7 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
     const [emailEditedManually, setEmailEditedManually] = useState(false);
     const [customSubject, setCustomSubject] = useState('');
     const [customBody, setCustomBody] = useState('');
+    const emailEditorRef = React.useRef<HTMLDivElement>(null);
 
     // Map of worker_id -> intended tariff
     const [proposedTariffs, setProposedTariffs] = useState<Record<string, string>>({});
@@ -200,6 +205,28 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
             syncEmailFromTemplate();
         }
     }, [open, emailEditedManually, governanceSettings, syncEmailFromTemplate]);
+
+    useEffect(() => {
+        if (showEmailEditor && emailEditorRef.current && !emailEditedManually) {
+            emailEditorRef.current.innerHTML = customBody;
+        }
+    }, [showEmailEditor, customBody, emailEditedManually]);
+
+    const handleEmailFormat = (command: string, value?: string) => {
+        if (emailEditorRef.current) {
+            emailEditorRef.current.focus();
+            document.execCommand(command, false, value);
+            setEmailEditedManually(true);
+            setCustomBody(emailEditorRef.current.innerHTML);
+        }
+    };
+
+    const handleEmailInsertLink = () => {
+        const url = window.prompt('Insira a URL do link:');
+        if (url) {
+            handleEmailFormat('createLink', url);
+        }
+    };
 
     const handleTariffChange = (workerId: string, value: string) => {
         setProposedTariffs(prev => ({
@@ -686,16 +713,70 @@ export function TariffAuthorizationModal({ open, onOpenChange, workers, onSucces
                                         className="h-8 text-xs bg-white dark:bg-slate-900"
                                     />
 
-                                    <Label className="text-[11px] font-semibold block">Corpo do E-mail (HTML)</Label>
-                                    <Textarea
-                                        rows={6}
-                                        value={customBody}
-                                        onChange={(e) => {
-                                            setEmailEditedManually(true);
-                                            setCustomBody(e.target.value);
-                                        }}
-                                        className="text-[11px] font-mono bg-white dark:bg-slate-900 leading-relaxed"
-                                    />
+                                    <div className="space-y-0">
+                                        <Label className="text-[11px] font-semibold block mb-1.5">Corpo do E-mail</Label>
+                                        <div className="flex items-center space-x-1 border border-b-0 rounded-t-lg bg-slate-100/80 dark:bg-slate-900 p-1.5">
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEmailFormat('bold')}
+                                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                title="Negrito"
+                                            >
+                                                <Bold className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEmailFormat('italic')}
+                                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                title="Itálico"
+                                            >
+                                                <Italic className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEmailFormat('underline')}
+                                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                title="Sublinhado"
+                                            >
+                                                <Underline className="h-3.5 w-3.5" />
+                                            </button>
+                                            <span className="w-[1px] h-4 bg-slate-300 dark:bg-slate-700 mx-1.5"></span>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEmailFormat('insertUnorderedList')}
+                                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                title="Lista Marcadores"
+                                            >
+                                                <List className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={() => handleEmailFormat('insertOrderedList')}
+                                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                title="Lista Numerada"
+                                            >
+                                                <ListOrdered className="h-3.5 w-3.5" />
+                                            </button>
+                                            <button
+                                                type="button"
+                                                onClick={handleEmailInsertLink}
+                                                className="p-1 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300"
+                                                title="Inserir Link"
+                                            >
+                                                <Link2 className="h-3.5 w-3.5" />
+                                            </button>
+                                        </div>
+                                        <div
+                                            ref={emailEditorRef}
+                                            contentEditable
+                                            onInput={(e) => {
+                                                setEmailEditedManually(true);
+                                                setCustomBody(e.currentTarget.innerHTML);
+                                            }}
+                                            className="w-full min-h-[200px] max-h-[320px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_p]:mb-2.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ul]:my-1.5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-indigo-600 [&_a]:underline"
+                                            style={{ outline: 'none' }}
+                                        />
+                                    </div>
                                     <p className="text-[10px] text-muted-foreground">
                                         As variáveis <code>{'{{codigo}}'}</code> e <code>{'{{link}}'}</code> serão substituídas automaticamente ao enviar.
                                     </p>
