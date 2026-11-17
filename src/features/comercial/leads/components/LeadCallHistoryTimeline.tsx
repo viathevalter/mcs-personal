@@ -10,7 +10,8 @@ import {
   Clock, 
   Ban, 
   User,
-  Mail
+  Mail,
+  FileText
 } from 'lucide-react';
 import type { LeadCallLog } from '../types/dialerTypes';
 import { useComercialLanguage, type SupportedComercialLang } from '../utils/comercialI18n';
@@ -101,6 +102,12 @@ export function LeadCallHistoryTimeline({ logs, isLoading, overrideLang }: LeadC
           label: tr('Recepção / Filtro', 'Recepción / Filtro', 'Standard / Filtre', 'Reception / Filtro'),
           icon: PhoneForwarded,
           color: 'bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20',
+        };
+      case 'note_saved':
+        return {
+          label: tr('Nota Salva', 'Nota Guardada', 'Note Enregistrée', 'Nota Salvata'),
+          icon: FileText,
+          color: 'bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/25',
         };
       default:
         return {

@@ -222,7 +222,15 @@ export function PowerDialerPage() {
     return callableCampaignQueue;
   }, [isDirectAgendaMode, directQueueItems, queueItemIdParam, campaignQueue, callableCampaignQueue]);
 
-  const { logCallAndAdvance, isLoggingCall, createQuickPresupuesto, completeCampaign, isCompletingCampaign } = useMutateDialer();
+  const {
+    logCallAndAdvance,
+    isLoggingCall,
+    saveLeadObservation,
+    isSavingLeadObservation,
+    createQuickPresupuesto,
+    completeCampaign,
+    isCompletingCampaign,
+  } = useMutateDialer();
 
   // Script selection & expanded mode
   const [selectedScriptIdOverride, setSelectedScriptIdOverride] = useState<string | null>(null);
@@ -722,14 +730,12 @@ export function PowerDialerPage() {
     }
   };
 
-  // Register an extra call / note while preserving the existing scheduled appointment intact (keeps lead on screen)
-  const handleSaveNoteKeepingSchedule = async () => {
+  // Save observation onto lead notes & history WITHOUT ending the call, stopping the timer, or advancing the queue
+  const handleSaveNoteOnly = async () => {
     if (!currentQueueItem || !currentLead) return;
     const trimmedNotes = callNotes.trim();
-    const isScheduledAppointment =
-      currentQueueItem.status === 'scheduled' && Boolean(currentQueueItem.scheduled_for);
 
-    if (!isScheduledAppointment && !trimmedNotes) {
+    if (!trimmedNotes) {
       toast.error(
         tr(
           'Digite uma anotação antes de salvar.',
@@ -741,56 +747,25 @@ export function PowerDialerPage() {
       return;
     }
 
-    const effectiveNote =
-      trimmedNotes ||
-      tr(
-        'Atendimento realizado antecipadamente (agendamento mantido).',
-        'Atención realizada anticipadamente (agendamiento mantenido).',
-        'Appel effectué par anticipation (rendez-vous planifié conservé).',
-        'Contatto effettuato in anticipo (appuntamento mantenuto).'
-      );
-
-    const effectiveDuration =
-      callDuration >= 5
-        ? callDuration
-        : callDuration > 0
-        ? callDuration
-        : Math.min(Math.max(leadScreenSeconds, 10), 1800);
-
     try {
-      setIsCalling(false);
-      await logCallAndAdvance({
+      await saveLeadObservation({
         queueItemId: currentQueueItem.id,
         campaignId: currentQueueItem.campaign_id || activeCampaignId || null,
         leadId: currentLead.id,
-        outcome: isScheduledAppointment ? 'answered_callback' : 'answered_interested',
-        durationSeconds: effectiveDuration,
-        notes: effectiveNote,
+        notes: trimmedNotes,
         phoneCalled: currentLead.phone,
         contactPerson: currentLead.name,
-        scheduledCallbackAt: currentQueueItem.scheduled_for || null,
-        priority: currentQueueItem.priority || 'normal',
-        preserveExistingSchedule: isScheduledAppointment,
       });
 
       setCallNotes('');
-      setCallDuration(0);
-      setLeadScreenSeconds(0);
 
       toast.success(
-        isScheduledAppointment
-          ? tr(
-              '✅ Atendimento e anotação salvos! O agendamento foi mantido intacto.',
-              '✅ ¡Atención y nota guardadas! El agendamiento se mantuvo intacto.',
-              '✅ Appel et note enregistrés ! Le rendez-vous planifié est conservé.',
-              '✅ Chiamata e nota salvate! L’appuntamento pianificato è stato mantenuto.'
-            )
-          : tr(
-              '✅ Anotação salva no histórico do cliente!',
-              '✅ ¡Nota guardada en el historial del cliente!',
-              '✅ Note enregistrée dans l’historique du client !',
-              '✅ Nota salvata nella cronologia del cliente!'
-            )
+        tr(
+          '✅ Observação salva no cliente! O atendimento continua aberto.',
+          '✅ ¡Nota guardada en el cliente! La llamada continúa abierta.',
+          '✅ Note enregistrée sur le client ! L’appel reste ouvert.',
+          '✅ Nota salvata sul cliente! La chiamata resta aperta.'
+        )
       );
     } catch (err: any) {
       console.error(err);
@@ -1036,54 +1011,36 @@ export function PowerDialerPage() {
           className="bg-background border-input text-foreground text-xs leading-relaxed"
         />
 
-        {(currentQueueItem?.status === 'scheduled' && currentQueueItem?.scheduled_for) ? (
-          <div className="pt-1.5 space-y-1">
-            <Button
-              type="button"
-              size="sm"
-              onClick={handleSaveNoteKeepingSchedule}
-              disabled={isLoggingCall}
-              className="w-full h-9 text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-bold gap-1.5 shadow-sm rounded-xl"
-            >
-              <CalendarDays className="w-3.5 h-3.5 shrink-0" />
-              <span className="truncate">
-                {tr(
-                  'Salvar Nota / Contato (Manter Agendamento)',
-                  'Guardar Nota / Llamada (Mantener Cita)',
-                  'Enregistrer Note / Appel (Garder le RDV)',
-                  'Salva Nota / Chiamata (Mantieni Appuntamento)'
-                )}
-              </span>
-            </Button>
-            <p className="text-[10px] text-muted-foreground leading-snug">
-              {tr(
-                'Registra esta conversa e anotação sem alterar a data agendada.',
-                'Registra esta llamada y nota sin cambiar la fecha agendada.',
-                'Enregistre cet appel et vos notes sans modifier la date du rendez-vous.',
-                'Registra questa chiamata e nota senza modificare la data pianificata.'
-              )}
-            </p>
-          </div>
-        ) : callNotes.trim().length > 0 ? (
-          <div className="pt-1">
-            <Button
-              type="button"
-              size="sm"
-              variant="outline"
-              onClick={handleSaveNoteKeepingSchedule}
-              disabled={isLoggingCall}
-              className="w-full h-8 text-xs border-indigo-500/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 font-bold gap-1.5 rounded-xl"
-            >
-              <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-              {tr(
-                'Salvar Anotação no Histórico',
-                'Guardar Nota en el Historial',
-                'Enregistrer la Note dans l’Historique',
-                'Salva Nota nella Cronologia'
-              )}
-            </Button>
-          </div>
-        ) : null}
+        <div className="pt-1.5 space-y-1">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={handleSaveNoteOnly}
+            disabled={!callNotes.trim() || isSavingLeadObservation || isLoggingCall}
+            className="w-full h-8 text-xs border-indigo-500/40 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 font-bold gap-1.5 rounded-xl"
+          >
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span className="truncate">
+              {isSavingLeadObservation
+                ? tr('Salvando...', 'Guardando...', 'Enregistrement...', 'Salvataggio...')
+                : tr(
+                    'Salvar Observação (Sem Encerrar)',
+                    'Guardar Nota (Sin Cerrar Llamada)',
+                    'Enregistrer la Note (Sans Fermer)',
+                    'Salva Nota (Senza Chiudere)'
+                  )}
+            </span>
+          </Button>
+          <p className="text-[10px] text-muted-foreground leading-snug">
+            {tr(
+              'Grava nas Notas do Lead e Histórico mantendo o cliente em tela. Para encerrar, use os botões de resultado acima.',
+              'Guarda en Notas del Lead e Historial manteniendo el cliente en pantalla. Para finalizar, use los botones de arriba.',
+              'Enregistre dans les Notes et l’Historique en gardant le client à l’écran. Pour clôturer, utilisez les boutons ci-dessus.',
+              'Salva nelle Note e nella Cronologia mantenendo il cliente a schermo. Per chiudere, usa i pulsanti sopra.'
+            )}
+          </p>
+        </div>
       </div>
     </div>
   );
@@ -2079,7 +2036,9 @@ export function PowerDialerPage() {
                     <span className="text-[10px] uppercase font-bold text-muted-foreground">
                       {tr('Notas do Lead:', 'Notas del Lead:', 'Notes du Lead :', 'Note del Cliente:')}
                     </span>
-                    <p className="text-foreground/90 line-clamp-3 text-[11px]">{currentLead.notes}</p>
+                    <p className="text-foreground/90 whitespace-pre-line max-h-36 overflow-y-auto leading-relaxed text-[11px] pr-1">
+                      {currentLead.notes}
+                    </p>
                   </div>
                 )}
 
