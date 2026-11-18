@@ -25,8 +25,10 @@ import {
   AlertCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import type { Lead } from '@/features/comercial/estimaciones/types';
+import { useComercialLanguage } from '../utils/comercialI18n';
 
 interface EditLeadModalProps {
   isOpen: boolean;
@@ -41,6 +43,8 @@ export function EditLeadModal({
   lead,
   onLeadUpdated,
 }: EditLeadModalProps) {
+  const { tr } = useComercialLanguage();
+  const queryClient = useQueryClient();
   const [formData, setFormData] = useState<Partial<Lead>>({});
   const [saving, setSaving] = useState(false);
 
@@ -75,18 +79,39 @@ export function EditLeadModal({
     if (!lead?.id) return;
 
     if (!formData.name?.trim()) {
-      toast.error('O nome do contato / decisor é obrigatório.');
+      toast.error(
+        tr(
+          'O nome do contato / decisor é obrigatório.',
+          'El nombre del contacto / decisor es obligatorio.',
+          'Le nom du contact / décideur est obligatoire.',
+          'Il nome del contatto / decisore è obbligatorio.'
+        )
+      );
       return;
     }
 
     try {
       setSaving(true);
+      const nextPrimaryEmail = formData.email?.trim() || null;
+      const prevPrimaryEmail = lead.email?.trim() || null;
+      let nextBillingEmail = formData.billing_email?.trim() || null;
+
+      // Se trocou o e-mail genérico (ex: info@ / administracion@) pelo e-mail direto do decisor e o secundário estava vazio, preserva o anterior no secundário
+      if (
+        prevPrimaryEmail &&
+        nextPrimaryEmail &&
+        prevPrimaryEmail.toLowerCase() !== nextPrimaryEmail.toLowerCase() &&
+        !nextBillingEmail
+      ) {
+        nextBillingEmail = prevPrimaryEmail;
+      }
+
       const updatePayload = {
         name: formData.name?.trim(),
         cargo: formData.cargo?.trim() || null,
         phone: formData.phone?.trim() || null,
-        email: formData.email?.trim() || null,
-        billing_email: formData.billing_email?.trim() || null,
+        email: nextPrimaryEmail,
+        billing_email: nextBillingEmail,
         company_name: formData.company_name?.trim() || null,
         legal_name: formData.legal_name?.trim() || null,
         tax_id: formData.tax_id?.trim() || null,
@@ -110,12 +135,33 @@ export function EditLeadModal({
 
       if (error) throw error;
 
-      toast.success('Lead atualizado com sucesso!');
+      queryClient.invalidateQueries({ queryKey: ['dialer_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_direct_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_all_queue_items'] });
+      queryClient.invalidateQueries({ queryKey: ['dialer_agenda'] });
+      queryClient.invalidateQueries({ queryKey: ['leads'] });
+
+      toast.success(
+        tr(
+          'Cadastro do cliente atualizado com sucesso!',
+          '¡Datos del cliente actualizados con éxito!',
+          'Fiche du client mise à jour avec succès !',
+          'Scheda cliente aggiornata con successo!'
+        )
+      );
       onLeadUpdated(data as Lead);
       onClose();
     } catch (err: any) {
       console.error('Erro ao atualizar lead:', err);
-      toast.error(err.message || 'Falha ao salvar as alterações do lead.');
+      toast.error(
+        err.message ||
+          tr(
+            'Falha ao salvar as alterações do lead.',
+            'Error al guardar los cambios del cliente.',
+            'Erreur lors de l’enregistrement des modifications.',
+            'Errore nel salvataggio delle modifiche.'
+          )
+      );
     } finally {
       setSaving(false);
     }
