@@ -2270,96 +2270,147 @@ export function HoleritesPage() {
                                                         })()}
                                                     </TableCell>
                                                     <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                                                        <AdjustHoursTariffDialog
-                                                            worker={worker}
-                                                            mesReferencia={mesReferencia}
-                                                            empresaName={empresaName}
-                                                            empresaId={empresaId}
-                                                            clienteNombre={cliente_nombre}
-                                                            effectiveHours={totalHoras}
-                                                            faturamentoHours={faturamentoHoras}
-                                                            isManualHours={isManualHours}
-                                                            effectiveTarifa={tarifaHora}
-                                                            baseTarifa={baseTarifaHora}
-                                                            isManualTariff={isManualTariff}
-                                                            initialMotivo={overrideMotivo}
-                                                            defaultFocus="tariff"
-                                                            trigger={
-                                                                <button
-                                                                    type="button"
-                                                                    className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
-                                                                    title="Clique para ajustar Tarifa ou Horas manualmente"
-                                                                >
-                                                                    <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
-                                                                        <span>€ {Number(tarifaHora || 0).toFixed(2)}</span>
-                                                                        <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                                    </div>
-                                                                    {isManualTariff && (
-                                                                        <Badge
-                                                                            variant="outline"
-                                                                            className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
-                                                                        >
-                                                                            Manual
-                                                                        </Badge>
-                                                                    )}
-                                                                </button>
-                                                            }
-                                                        />
-                                                    </TableCell>
-                                                    <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300" onClick={(e) => e.stopPropagation()}>
-                                                        <AdjustHoursTariffDialog
-                                                            worker={worker}
-                                                            mesReferencia={mesReferencia}
-                                                            empresaName={empresaName}
-                                                            empresaId={empresaId}
-                                                            clienteNombre={cliente_nombre}
-                                                            effectiveHours={totalHoras}
-                                                            faturamentoHours={faturamentoHoras}
-                                                            isManualHours={isManualHours}
-                                                            effectiveTarifa={tarifaHora}
-                                                            baseTarifa={baseTarifaHora}
-                                                            isManualTariff={isManualTariff}
-                                                            initialMotivo={overrideMotivo}
-                                                            defaultFocus="hours"
-                                                            trigger={
-                                                                <button
-                                                                    type="button"
-                                                                    className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
-                                                                    title="Clique para ajustar Horas ou Tarifa manualmente"
-                                                                >
-                                                                    {totalHoras > 0 || isManualHours ? (
-                                                                        <div className="flex flex-col items-end">
-                                                                            <div className="flex items-center gap-1 font-bold">
-                                                                                <span>{formatHoursClean(totalHoras)} h</span>
-                                                                                <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
-                                                                                {isManualHours ? (
-                                                                                    <Badge 
-                                                                                        variant="outline" 
-                                                                                        className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
-                                                                                        title={overrideMotivo ? `Ajustado manualmente: ${overrideMotivo} (Faturamento: ${formatHoursClean(faturamentoHoras)}h)` : `Ajustado manualmente na folha (Faturamento: ${formatHoursClean(faturamentoHoras)}h)`}
-                                                                                    >
-                                                                                        Manual
-                                                                                    </Badge>
-                                                                                ) : dbHoursSummary?.adjustedWorkerIds?.has(row.workerId) ? (
-                                                                                    <Badge 
-                                                                                        variant="outline" 
-                                                                                        className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
-                                                                                        title="Ajustado pelo Faturamento"
-                                                                                    >
-                                                                                        Faturamento
-                                                                                    </Badge>
-                                                                                ) : null}
-                                                                            </div>
-                                                                        </div>
-                                                                    ) : (
-                                                                        <div className="flex items-center gap-1 text-muted-foreground group-hover:text-indigo-600">
-                                                                            <span>-</span>
+                                                        {holeritesStatusMap?.get(row.workerId)?.status === 'pago' ? (
+                                                            <div
+                                                                className="inline-flex flex-col items-end justify-end px-1.5 py-0.5 cursor-not-allowed opacity-90"
+                                                                title="Folha consolidada como Paga. Para alterar a tarifa ou horas, estorne o pagamento primeiro."
+                                                                onClick={() => toast.info('Este holerite já está Pago e consolidado. Estorne o pagamento caso precise alterar horas ou tarifa.')}
+                                                            >
+                                                                <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
+                                                                    <span>€ {Number(tarifaHora || 0).toFixed(2)}</span>
+                                                                </div>
+                                                                {isManualTariff && (
+                                                                    <Badge
+                                                                        variant="outline"
+                                                                        className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                    >
+                                                                        Manual
+                                                                    </Badge>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <AdjustHoursTariffDialog
+                                                                worker={worker}
+                                                                mesReferencia={mesReferencia}
+                                                                empresaName={empresaName}
+                                                                empresaId={empresaId}
+                                                                clienteNombre={cliente_nombre}
+                                                                effectiveHours={totalHoras}
+                                                                faturamentoHours={faturamentoHoras}
+                                                                isManualHours={isManualHours}
+                                                                effectiveTarifa={tarifaHora}
+                                                                baseTarifa={baseTarifaHora}
+                                                                isManualTariff={isManualTariff}
+                                                                initialMotivo={overrideMotivo}
+                                                                defaultFocus="tariff"
+                                                                trigger={
+                                                                    <button
+                                                                        type="button"
+                                                                        className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                                                                        title="Clique para ajustar Tarifa ou Horas manualmente"
+                                                                    >
+                                                                        <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
+                                                                            <span>€ {Number(tarifaHora || 0).toFixed(2)}</span>
                                                                             <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
                                                                         </div>
-                                                                    )}
-                                                                </button>
-                                                            }
-                                                        />
+                                                                        {isManualTariff && (
+                                                                            <Badge
+                                                                                variant="outline"
+                                                                                className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                            >
+                                                                                Manual
+                                                                            </Badge>
+                                                                        )}
+                                                                    </button>
+                                                                }
+                                                            />
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-medium text-slate-700 dark:text-slate-300" onClick={(e) => e.stopPropagation()}>
+                                                        {holeritesStatusMap?.get(row.workerId)?.status === 'pago' ? (
+                                                            <div
+                                                                className="inline-flex flex-col items-end justify-end px-1.5 py-0.5 cursor-not-allowed opacity-90"
+                                                                title="Folha consolidada como Paga. Para alterar horas ou tarifa, estorne o pagamento primeiro."
+                                                                onClick={() => toast.info('Este holerite já está Pago e consolidado. Estorne o pagamento caso precise alterar horas ou tarifa.')}
+                                                            >
+                                                                {totalHoras > 0 || isManualHours ? (
+                                                                    <div className="flex items-center gap-1 font-bold">
+                                                                        <span>{formatHoursClean(totalHoras)} h</span>
+                                                                        {isManualHours ? (
+                                                                            <Badge 
+                                                                                variant="outline" 
+                                                                                className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                            >
+                                                                                Manual
+                                                                            </Badge>
+                                                                        ) : dbHoursSummary?.adjustedWorkerIds?.has(row.workerId) ? (
+                                                                            <Badge 
+                                                                                variant="outline" 
+                                                                                className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                            >
+                                                                                Faturamento
+                                                                            </Badge>
+                                                                        ) : null}
+                                                                    </div>
+                                                                ) : (
+                                                                    <span>-</span>
+                                                                )}
+                                                            </div>
+                                                        ) : (
+                                                            <AdjustHoursTariffDialog
+                                                                worker={worker}
+                                                                mesReferencia={mesReferencia}
+                                                                empresaName={empresaName}
+                                                                empresaId={empresaId}
+                                                                clienteNombre={cliente_nombre}
+                                                                effectiveHours={totalHoras}
+                                                                faturamentoHours={faturamentoHoras}
+                                                                isManualHours={isManualHours}
+                                                                effectiveTarifa={tarifaHora}
+                                                                baseTarifa={baseTarifaHora}
+                                                                isManualTariff={isManualTariff}
+                                                                initialMotivo={overrideMotivo}
+                                                                defaultFocus="hours"
+                                                                trigger={
+                                                                    <button
+                                                                        type="button"
+                                                                        className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
+                                                                        title="Clique para ajustar Horas ou Tarifa manualmente"
+                                                                    >
+                                                                        {totalHoras > 0 || isManualHours ? (
+                                                                            <div className="flex flex-col items-end">
+                                                                                <div className="flex items-center gap-1 font-bold">
+                                                                                    <span>{formatHoursClean(totalHoras)} h</span>
+                                                                                    <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                                    {isManualHours ? (
+                                                                                        <Badge 
+                                                                                            variant="outline" 
+                                                                                            className="bg-indigo-50 text-indigo-700 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                                            title={overrideMotivo ? `Ajustado manualmente: ${overrideMotivo} (Faturamento: ${formatHoursClean(faturamentoHoras)}h)` : `Ajustado manualmente na folha (Faturamento: ${formatHoursClean(faturamentoHoras)}h)`}
+                                                                                        >
+                                                                                            Manual
+                                                                                        </Badge>
+                                                                                    ) : dbHoursSummary?.adjustedWorkerIds?.has(row.workerId) ? (
+                                                                                        <Badge 
+                                                                                            variant="outline" 
+                                                                                            className="bg-amber-50 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300 border-amber-300 text-[9px] py-0 px-1 font-extrabold"
+                                                                                            title="Ajustado pelo Faturamento"
+                                                                                        >
+                                                                                            Faturamento
+                                                                                        </Badge>
+                                                                                    ) : null}
+                                                                                </div>
+                                                                            </div>
+                                                                        ) : (
+                                                                            <div className="flex items-center gap-1 text-muted-foreground group-hover:text-indigo-600">
+                                                                                <span>-</span>
+                                                                                <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                            </div>
+                                                                        )}
+                                                                    </button>
+                                                                }
+                                                            />
+                                                        )}
                                                     </TableCell>
                                                     <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
                                                         {proventos > 0 ? `+ € ${proventos.toFixed(2)}` : '-'}
@@ -2584,31 +2635,33 @@ export function HoleritesPage() {
                                                                                 Resumo da Folha ({empresaName} - Competência {mesReferencia})
                                                                             </span>
                                                                             <div className="flex items-center gap-1.5">
-                                                                                <AdjustHoursTariffDialog
-                                                                                    worker={worker}
-                                                                                    mesReferencia={mesReferencia}
-                                                                                    empresaName={empresaName}
-                                                                                    empresaId={empresaId}
-                                                                                    clienteNombre={cliente_nombre}
-                                                                                    effectiveHours={totalHoras}
-                                                                                    faturamentoHours={faturamentoHoras}
-                                                                                    isManualHours={isManualHours}
-                                                                                    effectiveTarifa={tarifaHora}
-                                                                                    baseTarifa={baseTarifaHora}
-                                                                                    isManualTariff={isManualTariff}
-                                                                                    initialMotivo={overrideMotivo}
-                                                                                    defaultFocus="hours"
-                                                                                    trigger={
-                                                                                        <Button
-                                                                                            size="sm"
-                                                                                            variant="outline"
-                                                                                            className="h-6 px-2 text-[11px] font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
-                                                                                        >
-                                                                                            <Pencil className="h-3 w-3 mr-1" />
-                                                                                            Ajustar Horas / Tarifa
-                                                                                        </Button>
-                                                                                    }
-                                                                                />
+                                                                                {holeritesStatusMap?.get(row.workerId)?.status !== 'pago' && (
+                                                                                    <AdjustHoursTariffDialog
+                                                                                        worker={worker}
+                                                                                        mesReferencia={mesReferencia}
+                                                                                        empresaName={empresaName}
+                                                                                        empresaId={empresaId}
+                                                                                        clienteNombre={cliente_nombre}
+                                                                                        effectiveHours={totalHoras}
+                                                                                        faturamentoHours={faturamentoHoras}
+                                                                                        isManualHours={isManualHours}
+                                                                                        effectiveTarifa={tarifaHora}
+                                                                                        baseTarifa={baseTarifaHora}
+                                                                                        isManualTariff={isManualTariff}
+                                                                                        initialMotivo={overrideMotivo}
+                                                                                        defaultFocus="hours"
+                                                                                        trigger={
+                                                                                            <Button
+                                                                                                size="sm"
+                                                                                                variant="outline"
+                                                                                                className="h-6 px-2 text-[11px] font-semibold border-indigo-200 text-indigo-700 hover:bg-indigo-50 dark:border-indigo-800 dark:text-indigo-300"
+                                                                                            >
+                                                                                                <Pencil className="h-3 w-3 mr-1" />
+                                                                                                Ajustar Horas / Tarifa
+                                                                                            </Button>
+                                                                                        }
+                                                                                    />
+                                                                                )}
                                                                                 <span className="text-xs font-mono font-bold text-indigo-700 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950 px-2 py-0.5 rounded">
                                                                                     Líquido: € {liquido.toFixed(2)}
                                                                                 </span>
