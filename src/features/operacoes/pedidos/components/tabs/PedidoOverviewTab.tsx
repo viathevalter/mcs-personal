@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { PedidoStatusBadge } from '../PedidoStatusBadge';
 import { formatCurrency } from '@/shared/utils/currency';
+import { sanitizeNotesHtml } from '@/shared/utils/richTextUtils';
 import { format } from 'date-fns';
 import type { Pedido, PedidoItem, PedidoSummaryMetrics } from '../../types';
 import { usePedidoFinanceAccess } from '../../hooks/usePedidoFinanceAccess';
@@ -371,9 +372,10 @@ export function PedidoOverviewTab({ pedido, items = [], summary }: Props) {
         </CardHeader>
         <CardContent className="p-4">
           {pedido.notes ? (
-            <p className="text-xs md:text-sm text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-              {pedido.notes}
-            </p>
+            <div
+              className="text-xs md:text-sm text-slate-700 dark:text-slate-300 leading-relaxed [&_p]:mb-1.5 last:[&_p]:mb-0 [&_strong]:font-bold [&_b]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 break-words"
+              dangerouslySetInnerHTML={{ __html: sanitizeNotesHtml(pedido.notes) }}
+            />
           ) : (
             <p className="text-xs text-muted-foreground italic">
               {t('cockpit_pedidos.overview.no_notes')}

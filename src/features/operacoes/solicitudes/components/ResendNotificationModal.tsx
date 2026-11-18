@@ -274,6 +274,14 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
         if (!isBodyEdited) setEmailBody(body);
     }, [isOpen, solicitud, targets, isSubjectEdited, isBodyEdited, emailLanguage, previousDueDate, overrideDueDate]);
 
+    useEffect(() => {
+        if (isOpen && editorRef.current && document.activeElement !== editorRef.current) {
+            if (editorRef.current.innerHTML !== emailBody) {
+                editorRef.current.innerHTML = emailBody || '';
+            }
+        }
+    }, [isOpen, emailBody]);
+
     const handleLanguageChange = (lang: 'pt' | 'es' | 'en') => {
         setEmailLanguage(lang);
         setIsSubjectEdited(false);
@@ -319,6 +327,7 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                     to_emails: toEmails,
                     email_subject: emailSubject,
                     email_body: emailBody,
+                    sender_email: user?.email,
                     reply_to_email: user?.email
                 }
             });
@@ -531,12 +540,13 @@ export function ResendNotificationModal({ isOpen, onClose, solicitud, onSuccess,
                         <div
                             ref={editorRef}
                             contentEditable
-                            dangerouslySetInnerHTML={{ __html: emailBody }}
+                            suppressContentEditableWarning
+                            dir="ltr"
                             onInput={(e) => {
                                 setIsBodyEdited(true);
                                 setEmailBody(e.currentTarget.innerHTML);
                             }}
-                            className="w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
+                            className="w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
                             style={{ outline: 'none' }}
                         />
                     </div>

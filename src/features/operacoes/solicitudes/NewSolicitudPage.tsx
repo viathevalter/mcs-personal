@@ -215,6 +215,14 @@ export function NewSolicitudPage() {
     );
     const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
 
+    useEffect(() => {
+        if (isEmailModalOpen && editorRef.current && document.activeElement !== editorRef.current) {
+            if (editorRef.current.innerHTML !== emailBody) {
+                editorRef.current.innerHTML = emailBody || '';
+            }
+        }
+    }, [isEmailModalOpen, emailBody]);
+
     // Target Client/Site and Housing logistics state for Relocations
     const [targetClientId, setTargetClientId] = useState<string>('all');
     const [targetClientSiteId, setTargetClientSiteId] = useState<string>('all');
@@ -3057,12 +3065,13 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
                             <div
                                 ref={editorRef}
                                 contentEditable
-                                dangerouslySetInnerHTML={{ __html: emailBody }}
+                                suppressContentEditableWarning
+                                dir="ltr"
                                 onInput={(e) => {
                                     setIsBodyEdited(true);
                                     setEmailBody(e.currentTarget.innerHTML);
                                 }}
-                                className="w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
+                                className="w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
                                 style={{ outline: 'none' }}
                             />
                         </div>

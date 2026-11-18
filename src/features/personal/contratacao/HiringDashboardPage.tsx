@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
+import { sanitizeNotesHtml } from '@/shared/utils/richTextUtils';
 import { fetchAllPages } from '@/shared/supabase/pagination';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { AllocateWorkerDialog } from './components/AllocateWorkerDialog';
@@ -1241,11 +1242,18 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                   <div className="flex items-start space-x-2">
                     <Briefcase className="h-4.5 w-4.5 text-slate-400 mt-0.5 flex-shrink-0" />
-                    <div>
+                    <div className="min-w-0 flex-1">
                       <span className="font-semibold text-slate-500">Observações Gerais</span>
-                      <p className="font-medium text-slate-700 dark:text-slate-300 mt-0.5 italic max-h-[60px] overflow-y-auto">
-                        {selectedPedido.notes || 'Sem observações gerais.'}
-                      </p>
+                      {selectedPedido.notes ? (
+                        <div
+                          className="font-medium text-slate-700 dark:text-slate-300 mt-0.5 max-h-[96px] overflow-y-auto leading-relaxed [&_p]:mb-1 last:[&_p]:mb-0 [&_strong]:font-bold [&_b]:font-bold [&_ul]:list-disc [&_ul]:pl-4 [&_ol]:list-decimal [&_ol]:pl-4 break-words"
+                          dangerouslySetInnerHTML={{ __html: sanitizeNotesHtml(selectedPedido.notes) }}
+                        />
+                      ) : (
+                        <p className="font-medium text-slate-700 dark:text-slate-300 mt-0.5 italic">
+                          Sem observações gerais.
+                        </p>
+                      )}
                     </div>
                   </div>
                 </div>

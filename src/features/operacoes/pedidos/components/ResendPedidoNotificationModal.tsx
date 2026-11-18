@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useAuth } from '@/features/operacoes/contexts/AuthContext';
+import { sanitizeNotesHtml } from '@/shared/utils/richTextUtils';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,6 +21,7 @@ interface Props {
 export function ResendPedidoNotificationModal({ isOpen, onClose, pedido, onSuccess }: Props) {
   const { t, i18n } = useTranslation();
   const { selectedEmpresaId } = useEmpresa();
+  const { user } = useAuth();
   const [notificationEmails, setNotificationEmails] = useState<any[]>([]);
   const [selectedEmails, setSelectedEmails] = useState<string[]>([]);
   const [additionalEmails, setAdditionalEmails] = useState('');
@@ -126,7 +129,7 @@ export function ResendPedidoNotificationModal({ isOpen, onClose, pedido, onSucce
         return `<li>${name}: ${item.quantity_requested || item.quantity || 1} ${vagasText}</li>`;
       }).join('');
 
-      const cleanNotes = (pedido.notes || '').trim();
+      const cleanNotes = sanitizeNotesHtml(pedido.notes);
       let notesSection = '';
       if (cleanNotes) {
         notesSection = `<p><strong>${lang === 'es' ? 'Observaciones Generales / Instrucciones:' : 'Observações Gerais / Instruções:'}</strong></p><div>${cleanNotes}</div>`;
@@ -235,7 +238,9 @@ ${notesSection}
           pedido_id: pedido.id,
           to_emails: toEmails,
           email_subject: emailSubject,
-          email_body: emailBody
+          email_body: emailBody,
+          sender_email: user?.email,
+          reply_to_email: user?.email
         }
       });
 

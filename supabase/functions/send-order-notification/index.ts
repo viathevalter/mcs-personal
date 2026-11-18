@@ -16,6 +16,28 @@ interface EmailAttachment {
   contentBytes: string;
 }
 
+function htmlToPlainText(raw?: string | null): string {
+  if (!raw) return "";
+  const trimmed = String(raw).trim();
+  if (!trimmed) return "";
+  if (!/<[a-z][\s\S]*>/i.test(trimmed)) return trimmed;
+
+  return trimmed
+    .replace(/<\s*br\s*\/?>/gi, "\n")
+    .replace(/<\s*li\b[^>]*>/gi, "• ")
+    .replace(/<\/\s*(p|div|li|ul|ol|h[1-6]|tr)\s*>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;/gi, "'")
+    .replace(/[ \t]+\n/g, "\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 async function normalizeDocxTemplates(templateBuffer: Uint8Array): Promise<Uint8Array> {
   try {
     const zip = new JSZip();
@@ -337,8 +359,27 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
+    // Identificar o usuário autenticado que disparou a ação (quando houver JWT de usuário)
+    let callerAuthEmail: string | null = null;
+    let callerAuthUserId: string | null = null;
+    const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const jwt = authHeader.replace("Bearer ", "").trim();
+      if (jwt && jwt !== supabaseServiceKey) {
+        try {
+          const { data: authData } = await supabase.auth.getUser(jwt);
+          if (authData?.user?.email) {
+            callerAuthEmail = authData.user.email.trim();
+            callerAuthUserId = authData.user.id;
+          }
+        } catch (authErr) {
+          console.warn("[send-order-notification] Falha ao inspecionar JWT do remetente:", authErr);
+        }
+      }
+    }
+
     // Parse do body
-    const { pedido_id, solicitud_id, empresa_id, to_emails, email_subject, email_body, is_faturamento, fatura_code, client_name, custom_attachments, sender_email, reply_to_email } = await req.json();
+    const { pedido_id, solicitud_id, empresa_id, to_emails, email_subject, email_body, is_faturamento, fatura_code, client_name, custom_attachments, sender_email, sender_name, reply_to_email } = await req.json();
 
     if (!to_emails || !Array.isArray(to_emails) || to_emails.length === 0) {
       return new Response(
@@ -585,8 +626,8 @@ serve(async (req) => {
         transporte_obs: transporteObs,
         epis_obs: episObs,
         itens: mappedItens,
-        observacoes: pedido.notes || '',
-        observacoes_gerais: pedido.notes || '',
+        observacoes: htmlToPlainText(pedido.notes),
+        observacoes_gerais: htmlToPlainText(pedido.notes),
         horario_entrada: (pedido.pergunta_respuesta as any)?._horario_entrada || '08:00',
         horario_trabalho: (pedido.pergunta_respuesta as any)?._horario_entrada || '08:00'
       };
@@ -824,8 +865,8 @@ serve(async (req) => {
               empresa_nome: empresa.trade_name || empresa.legal_name || 'MasterCorp',
               empresa_nif: empresa.nif || empresa.cnpj || '',
               empresa_morada: empresa.address || '',
-              motivo: solicitud.reason || targets?.[0]?.reason || '',
-              observacoes: solicitud.description || targets?.[0]?.notes || '',
+              motivo: htmlToPlainText(solicitud.reason || targets?.[0]?.reason || ''),
+              observacoes: htmlToPlainText(solicitud.description || targets?.[0]?.notes || ''),
               trabalhadores: mappedTrabalhadores
             };
           } else {
@@ -854,8 +895,8 @@ serve(async (req) => {
               empresa_nome: empresa.trade_name || empresa.legal_name || 'MasterCorp',
               empresa_nif: empresa.nif || empresa.cnpj || '',
               empresa_morada: empresa.address || '',
-              motivo: solicitud.reason || targets?.[0]?.reason || '',
-              observacoes: solicitud.description || targets?.[0]?.notes || '',
+              motivo: htmlToPlainText(solicitud.reason || targets?.[0]?.reason || ''),
+              observacoes: htmlToPlainText(solicitud.description || targets?.[0]?.notes || ''),
               trabalhadores: mappedTrabalhadores
             };
           }
@@ -1078,8 +1119,50 @@ serve(async (req) => {
       }
     }
 
-    if (sender_email) {
+    const companyFallbackEmail = senderEmail || resolvedEmpresa?.proposal_sender_email || "valter@gestaologinpro.com";
+    const companyFallbackName = senderName || resolvedEmpresa?.trade_name || "Comercial";
+
+    // Para notificações operacionais e de pedido (não faturamento), priorizar SEMPRE o e-mail do usuário logado
+    // (ou responsável comercial / criador do pedido) para que saia em nome de quem gerou o pedido (ex: Giada em vez de Fatumata).
+    if (!is_faturamento) {
+      let preferredUserEmail = sender_email || callerAuthEmail || null;
+      const fallbackOwnerId = callerAuthUserId || pedido?.commercial_owner_id || pedido?.created_by || null;
+
+      if (!preferredUserEmail && fallbackOwnerId) {
+        const { data: ownerRow } = await supabase
+          .from("mcs_users")
+          .select("email, display_name")
+          .eq("id", fallbackOwnerId)
+          .maybeSingle();
+        if (ownerRow?.email) {
+          preferredUserEmail = ownerRow.email;
+          if (!sender_name && ownerRow.display_name) {
+            senderName = ownerRow.display_name;
+          }
+        }
+      }
+
+      if (preferredUserEmail) {
+        senderEmail = preferredUserEmail.trim();
+        if (sender_name) {
+          senderName = sender_name;
+        } else {
+          const { data: senderUserRow } = await supabase
+            .from("mcs_users")
+            .select("display_name")
+            .ilike("email", senderEmail)
+            .maybeSingle();
+          if (senderUserRow?.display_name) {
+            senderName = senderUserRow.display_name;
+          }
+        }
+        if (!resolvedReplyTo) {
+          resolvedReplyTo = senderEmail;
+        }
+      }
+    } else if (sender_email) {
       senderEmail = sender_email;
+      if (sender_name) senderName = sender_name;
     }
 
     if (!senderEmail) {
@@ -1088,9 +1171,19 @@ serve(async (req) => {
 
     const finalSubject = email_subject || (pedido ? `Novo Pedido Gerado - ${pedido.codigo}` : `Nova Solicitação Operacional`);
 
-    // 8. Enviar email SEMPRE priorizando o Microsoft Graph (usa credenciais dedicadas da empresa ou o tenant global M365)
-    // para que o e-mail saia da caixa oficial do Outlook 365 e fique gravado nos "Itens Enviados" (saveToSentItems: true).
-    // O Resend atua exclusivamente como contingência (fallback) em caso de falha/indisponibilidade do Outlook/Exchange.
+    // Determinar credenciais Graph apropriadas para o domínio da caixa de saída:
+    // Caixas @gestaologinpro.com (e domínios do tenant global M365) residem no tenant global SHAREPOINT_TENANT_ID.
+    const globalM365Domains = [
+      "gestaologinpro.com",
+      "wiseowe.com",
+      "luminousalley.com",
+      "triangulolda.com",
+      "montajeshexagon.com"
+    ];
+    const senderDomain = (senderEmail.split("@")[1] || "").toLowerCase();
+    const effectiveMsCredsForPrimary = globalM365Domains.includes(senderDomain) ? undefined : msCredentials;
+
+    // 8. Enviar email SEMPRE priorizando o Microsoft Graph
     let usedProvider = "microsoft_graph";
     let mailRes = await sendMailViaGraph(
       senderEmail,
@@ -1099,9 +1192,30 @@ serve(async (req) => {
       finalSubject,
       email_body,
       attachments,
-      msCredentials,
+      effectiveMsCredsForPrimary,
       resolvedReplyTo
     );
+
+    // Se a caixa pessoal do usuário logado não existir no Graph (ex: login externo), tenta pela caixa corporativa da empresa mantendo Reply-To no usuário
+    if (!mailRes.success && companyFallbackEmail && companyFallbackEmail.toLowerCase() !== senderEmail.toLowerCase()) {
+      console.warn(`[send-order-notification] Envio via caixa do usuário (${senderEmail}) falhou (${mailRes.error}). Tentando via caixa da empresa (${companyFallbackEmail})...`);
+      const fallbackDomain = (companyFallbackEmail.split("@")[1] || "").toLowerCase();
+      const effectiveMsCredsForFallback = globalM365Domains.includes(fallbackDomain) ? undefined : msCredentials;
+      const corpRetry = await sendMailViaGraph(
+        companyFallbackEmail,
+        senderName || companyFallbackName,
+        parsedToEmails,
+        finalSubject,
+        email_body,
+        attachments,
+        effectiveMsCredsForFallback,
+        resolvedReplyTo || senderEmail
+      );
+      if (corpRetry.success) {
+        mailRes = corpRetry;
+        usedProvider = "microsoft_graph_company_fallback";
+      }
+    }
 
     if (!mailRes.success) {
       console.warn(`[send-order-notification] Graph falhou (${mailRes.error}). Acionando contingência via Resend...`);
