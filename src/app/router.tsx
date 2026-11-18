@@ -132,6 +132,11 @@ import { SuministrosLogisticaPage } from '../features/logistica/pages/Suministro
 import { PublicTermoAlojamentoPage } from '../features/logistica/pages/PublicTermoAlojamentoPage';
 import { FinanceiroRhPage } from '../features/personal/pages/FinanceiroRhPage';
 
+import { AlmacenLayout } from '../features/almacen/layout/AlmacenLayout';
+import { DemandasAlmacenPage } from '../features/almacen/pages/DemandasAlmacenPage';
+import { OrdensSeparacaoPage } from '../features/almacen/pages/OrdensSeparacaoPage';
+import { EstoqueAlmacenPage } from '../features/almacen/pages/EstoqueAlmacenPage';
+
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
 import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
 import { FaturasPendentes } from '../features/faturamento/pages/FaturasPendentes';
@@ -558,7 +563,25 @@ export const router = createBrowserRouter([
             },
             {
                 path: '/almacen',
-                element: <ComingSoonPage moduleName="MCS Almacen" />,
+                element: <AlmacenLayout />,
+                children: [
+                    {
+                        index: true,
+                        element: <Navigate to="/almacen/demandas" replace />
+                    },
+                    {
+                        path: 'demandas',
+                        element: <DemandasAlmacenPage />
+                    },
+                    {
+                        path: 'ordenes',
+                        element: <OrdensSeparacaoPage />
+                    },
+                    {
+                        path: 'estoque',
+                        element: <EstoqueAlmacenPage />
+                    }
+                ]
             },
             {
                 path: '/cierre-horas',
