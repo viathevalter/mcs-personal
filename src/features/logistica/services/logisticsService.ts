@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
 import { normalizeEmpresaName } from '@/shared/utils/empresaNormalizer';
+import { htmlToPlainText } from '@/shared/utils/richTextUtils';
 
 function normalizeLogisticaEmpresa(raw?: string | null, workerContratante?: string | null): string {
   const candidate = workerContratante || raw || 'LUMINOUS';
@@ -2296,7 +2297,7 @@ export const logisticsService = {
           status_operacional: ped.operational_status || 'PARTIALLY_FULFILLED',
           commercial_status: ped.commercial_status || 'active',
           is_finalizado: isPedidoFinalizado,
-          observacoes: ped.notes || 'Sin observaciones generales.',
+          observacoes: htmlToPlainText(ped.notes) || 'Sin observaciones generales.',
           total_vagas_pedido: totalVagasFinal,
           total_contratados: trabalhadoresAtivos.length,
           total_faltam_contratar: totalFaltamContratar,

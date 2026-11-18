@@ -278,8 +278,35 @@ serve(async (req) => {
       throw new Error(`Empresa não encontrada: ${empErr?.message}`);
     }
 
-    const senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
-    const senderName = `${empresa.trade_name || empresa.legal_name || "Vendas"}`;
+    let senderEmail = empresa.proposal_sender_email || "vendas@stoco.es";
+    let senderName = `${empresa.trade_name || empresa.legal_name || "Vendas"}`;
+
+    // Se a estimativa possuir comercial responsável (ex: Wiseowe com Giada na Itália vs Fatumata na França vs Liseth na Espanha),
+    // priorizar o commercial_email do vendedor vinculado à estimativa (ou de quem está enviando).
+    try {
+      let sellerId = est.commercial_owner_id || est.created_by || null;
+      const authHeader = req.headers.get("Authorization") || req.headers.get("authorization");
+      if (!sellerId && authHeader && authHeader.startsWith("Bearer ")) {
+        const jwt = authHeader.replace("Bearer ", "").trim();
+        if (jwt && jwt !== supabaseServiceKey) {
+          const { data: authData } = await supabase.auth.getUser(jwt);
+          if (authData?.user?.id) sellerId = authData.user.id;
+        }
+      }
+      if (sellerId) {
+        const { data: sellerUser } = await supabase
+          .from("mcs_users")
+          .select("email, display_name, commercial_email, commercial_name, commercial_empresa_id")
+          .eq("id", sellerId)
+          .maybeSingle();
+
+        if (sellerUser?.commercial_email && (!sellerUser.commercial_empresa_id || sellerUser.commercial_empresa_id === est.empresa_id)) {
+          senderEmail = sellerUser.commercial_email.trim();
+        }
+      }
+    } catch (sellerErr) {
+      console.warn("[generate-proposal] Aviso ao resolver commercial_email do vendedor:", sellerErr);
+    }
 
     // 3. Buscar dados do Cliente ou Lead (incluindo morada, nif da empresa e representante legal / firmante)
     let targetName = "";
@@ -1137,7 +1164,7 @@ serve(async (req) => {
         finalSenderEmail = "valter@gestaologinpro.com";
       }
 
-      const mailResult = await sendMailViaGraph(
+      let mailResult = await sendMailViaGraph(
         finalSenderEmail,
         senderName,
         targetEmail,
@@ -1145,6 +1172,21 @@ serve(async (req) => {
         htmlContent,
         msCredentials
       );
+
+      // Fallback automático para o proposal_sender_email padrão da empresa caso a caixa específica do vendedor não esteja habilitada no Graph
+      const defaultCompanySender = empresa?.proposal_sender_email || "valter@gestaologinpro.com";
+      if (!mailResult.success && defaultCompanySender && defaultCompanySender.toLowerCase() !== finalSenderEmail.toLowerCase()) {
+        console.warn(`[generate-proposal] Falha ao enviar via ${finalSenderEmail} (${mailResult.error}). Tentando fallback da empresa ${defaultCompanySender}...`);
+        mailResult = await sendMailViaGraph(
+          defaultCompanySender,
+          senderName,
+          targetEmail,
+          subject,
+          htmlContent,
+          msCredentials
+        );
+      }
+
       emailSent = mailResult.success;
       emailError = mailResult.error;
     }

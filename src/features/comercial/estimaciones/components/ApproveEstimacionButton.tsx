@@ -38,6 +38,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
+import { useAuth } from '@/app/providers/AuthProvider';
+import { sanitizeNotesHtml, handleCleanRichPaste } from '@/shared/utils/richTextUtils';
 
 interface Props {
   estimacion: Estimacion;
@@ -54,6 +56,7 @@ interface QuestionWithJobFunction {
 }
 
 export function ApproveEstimacionButton({ estimacion }: Props) {
+  const { user } = useAuth();
   const [open, setOpen] = useState(false);
   const [step, setStep] = useState(1);
   const { aprovarEstimacion } = useEstimacionMutations();
@@ -213,11 +216,8 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
         const suggestEnd = new Date(defaultSuggest.getTime() + duration * 24 * 3600 * 1000);
         setNewEndDate(formatDateToLocalString(suggestEnd));
 
-        // Initialize generalNotesHtml from estimacion.general_notes
-        let initialNotes = (estimacion.general_notes || '').trim();
-        if (initialNotes && !initialNotes.includes('<') && !initialNotes.includes('>')) {
-          initialNotes = initialNotes.split('\n').map(line => line.trim()).filter(Boolean).map(line => `<p>${line}</p>`).join('');
-        }
+        // Initialize generalNotesHtml from estimacion.general_notes (sanitized)
+        const initialNotes = sanitizeNotesHtml(estimacion.general_notes || '');
         setGeneralNotesHtml(initialNotes);
 
         // Detect work start time if mentioned in notes
@@ -398,8 +398,8 @@ export function ApproveEstimacionButton({ estimacion }: Props) {
 
       // Build general notes section
       let notesSection = '';
-      const cleanNotes = (generalNotesHtml || '').trim();
-      if (cleanNotes && cleanNotes !== '<p></p>' && cleanNotes !== '<br>') {
+      const cleanNotes = sanitizeNotesHtml(generalNotesHtml);
+      if (cleanNotes && cleanNotes !== '<p></p>' && cleanNotes !== '<br/>' && cleanNotes !== '<br>') {
         const notesTitles: Record<string, string> = {
           pt: 'Observações Gerais / Instruções:',
           es: 'Observaciones Generales / Instrucciones:',
@@ -547,6 +547,23 @@ ${notesSection}
   };
 
   const editorRef = useRef<HTMLDivElement>(null);
+
+  // Sync contentEditable DOM only when step 2 mounts or external value updates while unfocused
+  useEffect(() => {
+    if (step === 2 && notesEditorRef.current && document.activeElement !== notesEditorRef.current) {
+      if (notesEditorRef.current.innerHTML !== generalNotesHtml) {
+        notesEditorRef.current.innerHTML = generalNotesHtml || '';
+      }
+    }
+  }, [step, open, generalNotesHtml]);
+
+  useEffect(() => {
+    if (step === 2 && sendEmailCheckbox && editorRef.current && document.activeElement !== editorRef.current) {
+      if (editorRef.current.innerHTML !== emailBody) {
+        editorRef.current.innerHTML = emailBody || '';
+      }
+    }
+  }, [step, open, sendEmailCheckbox, emailBody]);
 
   const handleFormat = (command: string, value: string = '') => {
     document.execCommand(command, false, value);
@@ -728,6 +745,8 @@ ${notesSection}
       }
 
       // 3. Save questions, notes, and work start time on the newly created order
+      const sanitizedNotesToSave = sanitizeNotesHtml(generalNotesHtml) || null;
+
       const { error: updateErr } = await supabase
         .schema('core_comercial')
         .from('pedidos')
@@ -736,7 +755,7 @@ ${notesSection}
             ...perguntaRespuesta,
             _horario_entrada: workStartTime || '08:00'
           },
-          notes: generalNotesHtml || null
+          notes: sanitizedNotesToSave
         })
         .eq('id', pedidoId);
 
@@ -748,10 +767,10 @@ ${notesSection}
       await supabase
         .schema('core_comercial')
         .from('estimaciones')
-        .update({ general_notes: generalNotesHtml || null })
+        .update({ general_notes: sanitizedNotesToSave })
         .eq('id', estimacion.id);
 
-      // 4. Send notification email via Edge Function if checked
+      // 4. Send notification email via Edge Function if checked (using logged-in user's mailbox)
       if (sendEmailCheckbox) {
         const { error: functionErr } = await supabase.functions.invoke('send-order-notification', {
           body: {
@@ -759,6 +778,8 @@ ${notesSection}
             to_emails: toEmails,
             email_subject: emailSubject,
             email_body: emailBody,
+            sender_email: user?.email,
+            reply_to_email: user?.email,
           },
         });
 
@@ -1472,11 +1493,13 @@ ${notesSection}
                           <div
                             ref={notesEditorRef}
                             contentEditable
-                            dangerouslySetInnerHTML={{ __html: generalNotesHtml }}
+                            suppressContentEditableWarning
+                            dir="ltr"
                             onInput={(e) => {
                               setGeneralNotesHtml(e.currentTarget.innerHTML);
                             }}
-                            className="w-full min-h-[90px] max-h-[160px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 p-2.5 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
+                            onPaste={(e) => handleCleanRichPaste(e, setGeneralNotesHtml)}
+                            className="w-full min-h-[90px] max-h-[160px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 p-2.5 text-xs text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_p]:mb-1.5 last:[&_p]:mb-0 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5"
                             style={{ outline: 'none' }}
                           />
                         </div>
@@ -1488,17 +1511,24 @@ ${notesSection}
                   <div className="w-full lg:w-1/2 p-6 flex flex-col space-y-4 max-h-[65vh] overflow-y-auto">
                     
                     {/* Checkbox triggers email notification */}
-                    <div className="flex items-center space-x-2 border bg-indigo-50/25 dark:bg-slate-900/50 p-3 rounded-xl">
-                      <input
-                        type="checkbox"
-                        id="send_email_chk"
-                        checked={sendEmailCheckbox}
-                        onChange={e => setSendEmailCheckbox(e.target.checked)}
-                        className="h-4.5 w-4.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
-                      />
-                      <Label htmlFor="send_email_chk" className="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer">
-                        Enviar notificação por e-mail para a equipe de operações?
-                      </Label>
+                    <div className="flex items-center justify-between border bg-indigo-50/25 dark:bg-slate-900/50 p-3 rounded-xl gap-2">
+                      <div className="flex items-center space-x-2">
+                        <input
+                          type="checkbox"
+                          id="send_email_chk"
+                          checked={sendEmailCheckbox}
+                          onChange={e => setSendEmailCheckbox(e.target.checked)}
+                          className="h-4.5 w-4.5 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                        />
+                        <Label htmlFor="send_email_chk" className="text-xs font-bold text-slate-800 dark:text-slate-100 cursor-pointer">
+                          Enviar notificação por e-mail para a equipe de operações?
+                        </Label>
+                      </div>
+                      {user?.email && (
+                        <span className="text-[11px] font-medium text-indigo-700 dark:text-indigo-300 bg-indigo-100/70 dark:bg-indigo-950/60 px-2 py-0.5 rounded border border-indigo-200 dark:border-indigo-800 shrink-0">
+                          De: {user.email}
+                        </span>
+                      )}
                     </div>
 
                     {sendEmailCheckbox && (
@@ -1653,11 +1683,13 @@ ${notesSection}
                           <div
                             ref={editorRef}
                             contentEditable
-                            dangerouslySetInnerHTML={{ __html: emailBody }}
+                            suppressContentEditableWarning
+                            dir="ltr"
                             onInput={(e) => {
                               setEmailBody(e.currentTarget.innerHTML);
                             }}
-                            className="flex-1 w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
+                            onPaste={(e) => handleCleanRichPaste(e, setEmailBody)}
+                            className="flex-1 w-full min-h-[220px] max-h-[350px] overflow-y-auto rounded-b-lg border border-input bg-white dark:bg-slate-950 px-3 py-2 text-xs text-left shadow-sm focus:outline-none focus:ring-1 focus:ring-ring leading-relaxed [&_p]:mb-1.5 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 [&_a]:text-blue-600 [&_a]:underline"
                             style={{ outline: 'none' }}
                           />
                         </div>

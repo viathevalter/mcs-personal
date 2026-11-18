@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { htmlToPlainText } from '@/shared/utils/richTextUtils';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -449,7 +450,7 @@ export function NewEstimacionPage() {
         validity_date: estimacion.validity_date || '',
         payment_terms: estimacion.payment_terms || '30 dias',
         payment_term_id: estimacion.payment_term_id || '',
-        general_notes: estimacion.general_notes || '',
+        general_notes: htmlToPlainText(estimacion.general_notes),
         status: estimacion.status || 'draft',
         document_language: estimacion.document_language || 'pt',
         items: mappedItems,

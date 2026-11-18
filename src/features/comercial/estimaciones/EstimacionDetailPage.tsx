@@ -4,6 +4,7 @@ import { EstimacionStatusBadge } from './components/EstimacionStatusBadge';
 import { ApproveEstimacionButton } from './components/ApproveEstimacionButton';
 import { ProposalSignatureStatusCard } from './components/ProposalSignatureStatusCard';
 import { CustomContractCard } from './components/CustomContractCard';
+import { sanitizeNotesHtml } from '@/shared/utils/richTextUtils';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -699,8 +700,11 @@ export function EstimacionDetailPage() {
                 <CardContent className="space-y-4">
                   {estimacion.general_notes && (
                     <div>
-                      <p className="text-sm font-medium text-muted-foreground">{t('comercial.detail.proposalCard.generalNotes')}</p>
-                      <p className="text-sm">{estimacion.general_notes}</p>
+                      <p className="text-sm font-medium text-muted-foreground mb-1">{t('comercial.detail.proposalCard.generalNotes')}</p>
+                      <div
+                        className="text-sm text-foreground leading-relaxed bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-lg p-3 [&_p]:mb-1.5 last:[&_p]:mb-0 [&_strong]:font-bold [&_b]:font-bold [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:list-decimal [&_ol]:pl-5 break-words"
+                        dangerouslySetInnerHTML={{ __html: sanitizeNotesHtml(estimacion.general_notes) }}
+                      />
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-4">

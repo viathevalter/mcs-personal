@@ -8,6 +8,7 @@ import { usePedidoTimeline } from './hooks/usePedidoTimeline';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { toast } from 'sonner';
+import { htmlToPlainText } from '@/shared/utils/richTextUtils';
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Button } from '@/components/ui/button';
@@ -101,7 +102,7 @@ export function PedidoDetailPage() {
   const handleOpenEdit = () => {
     setEditStartDate(pedido?.expected_start_date || '');
     setEditEndDate(pedido?.expected_end_date || '');
-    setEditNotes(pedido?.notes || '');
+    setEditNotes(htmlToPlainText(pedido?.notes));
     setIsEditDialogOpen(true);
   };
 
