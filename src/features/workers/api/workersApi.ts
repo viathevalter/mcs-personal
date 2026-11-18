@@ -209,11 +209,16 @@ export async function updateWorker(id: string, updates: Partial<Worker>): Promis
         if (updates.nome) chatUpdates.contact_name = updates.nome.trim();
         if (updates.funcion) chatUpdates.worker_function_name = updates.funcion;
         if (updates.movil && (!updates.telefones_adicionais || updates.telefones_adicionais.length === 0)) {
-            let digits = updates.movil.replace(/\D/g, '');
+            const firstSeg = updates.movil.split(/[\/;,]| - |\*\*\*/)[0] || '';
+            const trimmedSeg = firstSeg.trim();
+            const hasPlus = trimmedSeg.startsWith('+') || trimmedSeg.startsWith('00');
+            let digits = trimmedSeg.replace(/\D/g, '');
             if (digits.startsWith('00')) digits = digits.replace(/^00+/, '');
-            if (digits.length === 9 && (digits.startsWith('6') || digits.startsWith('7'))) digits = '34' + digits;
-            else if (digits.length === 9 && digits.startsWith('9')) digits = '351' + digits;
-            else if (digits.length === 10 && digits.startsWith('3')) digits = '57' + digits;
+            if (!hasPlus) {
+                if (digits.length === 9 && (digits.startsWith('6') || digits.startsWith('7'))) digits = '34' + digits;
+                else if (digits.length === 9 && digits.startsWith('9')) digits = '351' + digits;
+                else if (digits.length === 10 && digits.startsWith('3')) digits = '57' + digits;
+            }
             if (digits.length >= 8) {
                 chatUpdates.contact_phone = digits;
             }
