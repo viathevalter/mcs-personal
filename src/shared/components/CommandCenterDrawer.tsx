@@ -249,7 +249,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     if (!selectedEmpresaId) return;
     setIsLoading(true);
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .schema('core_operacoes')
         .from('solicitud_tareas')
         .select(`
@@ -257,9 +257,16 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
           department:departments(id, name, code),
           solicitud:solicitudes_operativas(id, codigo, title, tipo, status, priority, due_date, pedido_id, client_id, pergunta_respuesta)
         `)
-        .eq('empresa_id', selectedEmpresaId)
         .order('created_at', { ascending: false })
         .limit(150);
+
+      if (user?.id) {
+        query = query.or(`empresa_id.eq.${selectedEmpresaId},assigned_to.eq.${user.id},task_source.eq.chat`);
+      } else {
+        query = query.eq('empresa_id', selectedEmpresaId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setTasks(data || []);
@@ -268,7 +275,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     } finally {
       setIsLoading(false);
     }
-  }, [selectedEmpresaId]);
+  }, [selectedEmpresaId, user?.id]);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -1410,9 +1417,19 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                         <option value="ALL">⚡ Todas as Origens</option>
                         <option value="playbook">⚡ Playbooks Automáticos</option>
                         <option value="manual">👤 Tarefas Diretas (Pessoa/Setor)</option>
-                        <option value="chat">💬 Originadas no MCS Chat</option>
+                        <option value="chat">💬 Originadas no MCS Chat / Auditoria I.A.</option>
                         <option value="email_ai">🤖 Sugeridas pelo Agente de E-mail</option>
                       </select>
+
+                      <button
+                        type="button"
+                        onClick={() => openMcsChatWithSso('/inbox/admin/audit')}
+                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 cursor-pointer transition-colors"
+                        title="Abrir painel de Auditoria & Resumo Diário de WhatsApp (ou auditar um canal agora sob demanda)"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>📊 Auditar Canais WhatsApp</span>
+                      </button>
                     </div>
 
                     <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
