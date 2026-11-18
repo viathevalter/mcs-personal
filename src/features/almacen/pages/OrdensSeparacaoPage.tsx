@@ -361,7 +361,8 @@ export const OrdensSeparacaoPage: React.FC = () => {
                       className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2"
                       onClick={() => {
                         setDispatchModalOrder(selectedOrder);
-                        setDeliveryMethod('NACEX');
+                        setDeliveryMethod(selectedOrder.delivery_method || 'NACEX');
+                        setDeliveryAddress(selectedOrder.delivery_address || '');
                       }}
                     >
                       <Truck className="h-4 w-4" />
