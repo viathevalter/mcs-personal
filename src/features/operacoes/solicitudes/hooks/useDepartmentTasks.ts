@@ -2,13 +2,15 @@ import { useQuery } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { fetchAllPages, fetchInChunks } from '@/shared/supabase/pagination';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
+import { useAuth } from '@/app/providers/AuthProvider';
 import type { SolicitudTareaDetail } from '../types';
 
 export function useDepartmentTasks(departmentCodes: string[]) {
   const { selectedEmpresaId, activeEmpresaId } = useEmpresa();
+  const { user } = useAuth();
 
   return useQuery({
-    queryKey: ['department-tasks', selectedEmpresaId, departmentCodes],
+    queryKey: ['department-tasks', selectedEmpresaId, departmentCodes, user?.id],
     queryFn: async () => {
       if (!selectedEmpresaId) throw new Error('Empresa não selecionada');
       if (!departmentCodes || departmentCodes.length === 0) return [];
@@ -31,7 +33,7 @@ export function useDepartmentTasks(departmentCodes: string[]) {
         return [code];
       });
 
-      const tasks = await fetchAllPages<any>((from, to) => {
+      const rawTasks = await fetchAllPages<any>((from, to) => {
         let query = supabase
           .schema('core_operacoes')
           .from('solicitud_tareas')
@@ -53,6 +55,21 @@ export function useDepartmentTasks(departmentCodes: string[]) {
           .in('department.code', expandedCodes)
           .order('created_at', { ascending: false })
           .range(from, to);
+      });
+
+      // Filtrar tarefas nominais: se a tarefa está atribuída a uma pessoa específica (assigned_to ou assigned_to_email),
+      // ela só deve aparecer para aquela própria pessoa!
+      const tasks = rawTasks.filter(t => {
+        const hasSpecificAssignee = Boolean(t.assigned_to || t.assigned_to_user_id || t.assigned_to_email);
+        if (!hasSpecificAssignee) return true;
+        if (!user) return false;
+        return (
+          t.assigned_to === user.id ||
+          t.assigned_to_user_id === user.id ||
+          (Boolean(user.email) &&
+            Boolean(t.assigned_to_email) &&
+            t.assigned_to_email.toLowerCase() === user.email.toLowerCase())
+        );
       });
 
       const empresaIds = [...new Set(tasks.map(t => t.solicitud?.empresa_id || t.empresa_id).filter(Boolean))];
