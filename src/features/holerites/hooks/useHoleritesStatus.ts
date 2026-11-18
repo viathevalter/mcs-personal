@@ -5,6 +5,7 @@ export interface HoleriteStatusInfo {
     id: string;
     worker_id: string;
     status: 'rascunho' | 'fechado' | 'pago' | string;
+    tarifa_hora?: number | null;
     data_pagamento?: string | null;
     metodo_pagamento?: string | null;
     banco_id?: string | null;
@@ -24,7 +25,7 @@ export function useHoleritesStatus(mesReferencia: string) {
             const { data, error } = await supabase
                 .schema('core_personal')
                 .from('holerites')
-                .select('id, worker_id, status, data_pagamento, metodo_pagamento, banco_id, banco_pagamento, comprovante_url, comprovante_nome, worker_document_id, observacao_pagamento')
+                .select('id, worker_id, status, tarifa_hora, data_pagamento, metodo_pagamento, banco_id, banco_pagamento, comprovante_url, comprovante_nome, worker_document_id, observacao_pagamento')
                 .eq('mes_referencia', `${mesReferencia}-01`);
 
             if (error) {
@@ -38,6 +39,7 @@ export function useHoleritesStatus(mesReferencia: string) {
                     id: h.id,
                     worker_id: h.worker_id,
                     status: h.status,
+                    tarifa_hora: (h as any).tarifa_hora !== null && (h as any).tarifa_hora !== undefined ? Number((h as any).tarifa_hora) : null,
                     data_pagamento: h.data_pagamento,
                     metodo_pagamento: h.metodo_pagamento,
                     banco_id: (h as any).banco_id ?? null,

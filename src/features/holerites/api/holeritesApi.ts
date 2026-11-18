@@ -252,8 +252,21 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
         }
     }
 
-    // 5. Optionally update permanent worker_beneficios_settings.tarifa_hora
+    // 5. Optionally update permanent worker_beneficios_settings.tarifa_hora and record competence schedule + audit log
     if (updateCadastroTarifa && manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0) {
+        const cleanMonth = mesReferencia.substring(0, 7);
+        const nowIso = new Date().toISOString();
+
+        // Read previous tariff before overwriting
+        const { data: prevSetting } = await supabase
+            .schema('core_personal')
+            .from('worker_beneficios_settings')
+            .select('tarifa_hora')
+            .eq('worker_id', workerId)
+            .maybeSingle();
+
+        const prevTarifa = Number(prevSetting?.tarifa_hora || 0);
+
         const { error: settingsErr } = await supabase
             .schema('core_personal')
             .from('worker_beneficios_settings')
@@ -261,12 +274,43 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
                 {
                     worker_id: workerId,
                     tarifa_hora: manualTarifa,
-                    updated_at: new Date().toISOString()
+                    updated_at: nowIso
                 },
                 { onConflict: 'worker_id' }
             );
 
         if (settingsErr) throw mapSupabaseError(settingsErr);
+
+        // Record schedule for mesReferencia onwards and audit log if rate changed
+        await supabase
+            .schema('core_personal')
+            .from('worker_tariff_schedules')
+            .upsert(
+                {
+                    worker_id: workerId,
+                    tarifa_hora: manualTarifa,
+                    mes_inicio: cleanMonth,
+                    aprovado_por_nome: 'Ajuste na Folha',
+                    aprovado_em: nowIso
+                },
+                { onConflict: 'worker_id,mes_inicio' }
+            );
+
+        if (prevTarifa > 0 && Math.abs(prevTarifa - manualTarifa) > 0.005) {
+            await supabase
+                .schema('core_personal')
+                .from('worker_tariff_audit_logs')
+                .insert({
+                    worker_id: workerId,
+                    tarifa_anterior: prevTarifa,
+                    tarifa_nova: manualTarifa,
+                    mes_vigencia: cleanMonth,
+                    alterado_por_nome: 'Ajuste na Folha',
+                    autorizado_por_nome: 'Ajuste na Folha',
+                    motivo: motivo?.trim() || `Atualização de tarifa padrão a partir da competência ${cleanMonth}`,
+                    created_at: nowIso
+                });
+        }
     }
 }
 
