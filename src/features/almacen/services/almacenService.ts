@@ -1,10 +1,12 @@
 import { supabase } from '@/shared/supabase/client';
 import { logisticsService } from '@/features/logistica/services/logisticsService';
 import type {
+  AlmacenDeliveryPoint,
   AlmacenEpi,
   AlmacenEmpresa,
   AlmacenStockItem,
   AlmacenStockMovement,
+  CarrierStatus,
   DemandaPedidoAlmacen,
   DemandaWorkerAlmacen,
   DeliveryMethod,
@@ -537,6 +539,7 @@ export const almacenService = {
     request_type?: RequestType;
     expected_start_date?: string | null;
     delivery_method?: DeliveryMethod | null;
+    delivery_point_id?: string | null;
     delivery_address?: string | null;
     observations?: string | null;
     custom_items?: { epi_id: string; item_name: string; size_code: string; quantity: number; unit_cost: number; is_branded: boolean }[];
@@ -591,7 +594,9 @@ export const almacenService = {
         camiseta_size: params.worker.camiseta || null,
         pantalones_size: params.worker.pantalones || null,
         delivery_method: params.delivery_method || null,
+        delivery_point_id: params.delivery_point_id || null,
         delivery_address: params.delivery_address || null,
+        carrier_status: 'PENDENTE_ENVIO',
         expected_start_date: params.expected_start_date || null,
         observations: params.observations || (params.worker.has_recent_dispatch ? 'Ya cuenta con Epis y Dotacion Reciente. Proxima Reposicion: 6 meses' : null),
         created_by: userData?.user?.id || null,
@@ -718,12 +723,76 @@ export const almacenService = {
         delivery_method: params.deliveryMethod,
         tracking_code: params.trackingCode || null,
         delivery_address: params.deliveryAddress || null,
+        carrier_status: 'EM_TRANSITO',
+        carrier_last_sync_at: now,
         dispatched_at: now,
         prepared_at: order.prepared_at || now,
         updated_at: now,
       })
       .eq('id', order.id);
 
+    if (error) throw error;
+  },
+
+  async getDeliveryPoints(): Promise<AlmacenDeliveryPoint[]> {
+    const { data, error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_delivery_points')
+      .select('*')
+      .eq('is_active', true)
+      .order('name');
+    if (error) throw error;
+    return (data || []) as AlmacenDeliveryPoint[];
+  },
+
+  async createDeliveryPoint(payload: {
+    name: string;
+    point_type: 'NACEX_AGENCIA' | 'NACEX_SHOP' | 'OBRA_FIXA' | 'OUTRO';
+    nacex_code?: string;
+    address_line: string;
+    postal_code?: string;
+    city?: string;
+    phone?: string;
+  }): Promise<AlmacenDeliveryPoint> {
+    const { data, error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_delivery_points')
+      .insert({
+        name: payload.name,
+        point_type: payload.point_type,
+        nacex_code: payload.nacex_code || null,
+        address_line: payload.address_line,
+        postal_code: payload.postal_code || null,
+        city: payload.city || null,
+        phone: payload.phone || null,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as AlmacenDeliveryPoint;
+  },
+
+  async updateCarrierStatus(
+    orderId: string,
+    carrierStatus: CarrierStatus,
+    detail?: string
+  ): Promise<void> {
+    const now = new Date().toISOString();
+    const updates: any = {
+      carrier_status: carrierStatus,
+      carrier_status_detail: detail || null,
+      carrier_last_sync_at: now,
+      updated_at: now,
+    };
+    if (carrierStatus === 'ENTREGUE') {
+      updates.status = 'ENTREGUE';
+      updates.delivered_at = now;
+    }
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_picking_orders')
+      .update(updates)
+      .eq('id', orderId);
     if (error) throw error;
   },
 };

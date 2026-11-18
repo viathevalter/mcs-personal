@@ -13,7 +13,7 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { almacenService } from '../services/almacenService';
-import type { DeliveryMethod, PickingItem, PickingOrder, PickingStatus } from '../types';
+import type { CarrierStatus, DeliveryMethod, PickingItem, PickingOrder, PickingStatus } from '../types';
 import { downloadActaEntregaPdf, downloadEtiquetaSeparacaoPdf } from '../utils/almacenEntregaPdf';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -313,26 +313,62 @@ export const OrdensSeparacaoPage: React.FC = () => {
                 </div>
               </div>
 
-              {/* Tracking Info if Dispatched */}
-              {selectedOrder.tracking_code && (
-                <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 flex items-center justify-between">
-                  <div className="text-xs">
-                    <span className="font-bold text-emerald-800 dark:text-emerald-300">
-                      {selectedOrder.delivery_method || 'NACEX'}:
-                    </span>{' '}
-                    <span className="font-mono">{selectedOrder.tracking_code}</span>
-                    {selectedOrder.delivery_address && (
-                      <div className="text-slate-500 mt-0.5">{selectedOrder.delivery_address}</div>
-                    )}
+              {/* Rastreabilidade & Destino */}
+              {(selectedOrder.tracking_code || selectedOrder.delivery_address || selectedOrder.status === 'DESPACHADO' || selectedOrder.status === 'ENTREGUE') && (
+                <div className="p-3.5 rounded-xl bg-emerald-50/70 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-900 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2 flex-wrap">
+                    <div className="text-xs">
+                      <span className="font-bold text-emerald-800 dark:text-emerald-300">
+                        {selectedOrder.delivery_method || 'NACEX'}
+                      </span>
+                      {selectedOrder.tracking_code && (
+                        <>
+                          {' • '}
+                          <span className="font-mono font-semibold">{selectedOrder.tracking_code}</span>
+                        </>
+                      )}
+                      {selectedOrder.delivery_address && (
+                        <div className="text-slate-600 dark:text-slate-300 mt-0.5">
+                          Destino: {selectedOrder.delivery_address}
+                        </div>
+                      )}
+                    </div>
+                    <a
+                      href="https://www.nacex.es/irHome.do"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-xs text-emerald-700 hover:underline flex items-center gap-1 font-semibold"
+                    >
+                      Rastrear Nacex <ExternalLink className="h-3.5 w-3.5" />
+                    </a>
                   </div>
-                  <a
-                    href="https://www.nacex.es/irHome.do"
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-xs text-emerald-700 hover:underline flex items-center gap-1 font-medium"
-                  >
-                    Rastrear Nacex <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
+
+                  {(selectedOrder.status === 'DESPACHADO' || selectedOrder.status === 'ENTREGUE') && (
+                    <div className="flex items-center justify-between gap-2 pt-2 border-t border-emerald-200/70 dark:border-emerald-900/50">
+                      <span className="text-[11px] font-semibold text-emerald-900 dark:text-emerald-200">
+                        Rastreabilidade Transportadora:
+                      </span>
+                      <select
+                        value={selectedOrder.carrier_status || 'EM_TRANSITO'}
+                        onChange={async (e) => {
+                          const next = e.target.value as CarrierStatus;
+                          try {
+                            await almacenService.updateCarrierStatus(selectedOrder.id, next);
+                            toast.success(`Rastreabilidade atualizada: ${next}`);
+                            await loadOrders();
+                          } catch (err: any) {
+                            toast.error(err?.message || 'Erro ao atualizar rastreio');
+                          }
+                        }}
+                        className="h-7 text-xs font-semibold rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 px-2"
+                      >
+                        <option value="EM_TRANSITO">Em Trânsito</option>
+                        <option value="DISPONIVEL_RETIRADA">Disponível na Agência (Aguardando Retirada)</option>
+                        <option value="ENTREGUE">Entregue / Retirado</option>
+                        <option value="INCIDENCIA">Incidência / Não Retirado</option>
+                      </select>
+                    </div>
+                  )}
                 </div>
               )}
 
