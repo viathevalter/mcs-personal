@@ -3,6 +3,7 @@ import {
   BarChart3, 
   PhoneCall, 
   Layers,
+  CalendarDays,
   ShieldAlert
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -67,7 +68,16 @@ export function DialerSupervisorPage() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            onClick={() => navigate('/comercial/discador/agenda')}
+            variant="outline"
+            className="border-amber-500/30 bg-amber-500/5 hover:bg-amber-500/15 text-amber-700 dark:text-amber-300 text-xs font-bold gap-2"
+          >
+            <CalendarDays className="w-4 h-4 text-amber-500" />
+            {tr('Ver Agenda Global', 'Ver Agenda Global', 'Voir Agenda Global', 'Vedi Agenda Globale')}
+          </Button>
+
           <Button
             onClick={() => navigate('/comercial/discador')}
             variant="outline"

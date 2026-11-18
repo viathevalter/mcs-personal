@@ -1,7 +1,12 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
-import { useCommercialScope, getCommercialProfileByUser, COMMERCIAL_DEPARTMENT_ID } from './useLeads';
+import {
+  useCommercialScope,
+  getCommercialProfileByUser,
+  COMMERCIAL_DEPARTMENT_ID,
+  ACTIVE_COMMERCIAL_PROFILES,
+} from './useLeads';
 import type { 
   DialerCampaign, 
   DialerQueueItem, 
@@ -866,7 +871,12 @@ export function useDialerTodaySessionStats() {
   });
 }
 
-export type SupervisorPeriodFilter = 'today' | '7d' | '30d' | 'all';
+export type SupervisorPeriodFilter = 'today' | 'yesterday' | '7d' | '30d' | 'custom' | 'all';
+
+export interface SupervisorCustomDateRange {
+  startDate?: string; // YYYY-MM-DD
+  endDate?: string;   // YYYY-MM-DD
+}
 
 export interface DetailedCallReportRow {
   id: string;
@@ -876,6 +886,8 @@ export interface DetailedCallReportRow {
   commercialFlag?: string;
   empresaName?: string;
   lead_id: string;
+  queue_item_id?: string | null;
+  campaign_id?: string | null;
   companyName: string;
   contactName: string;
   phoneCalled: string;
@@ -886,101 +898,240 @@ export interface DetailedCallReportRow {
   rejectionReason?: string | null;
 }
 
-export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = 'all') {
+export function useDialerSupervisorKPIs(
+  periodFilter: SupervisorPeriodFilter = 'today',
+  customRange?: SupervisorCustomDateRange
+) {
   const { selectedEmpresaId } = useEmpresa();
   const { isCommercialOperator, loggedCommercialProfile, activeCommercialProfile } = useCommercialScope();
   const targetUserId = isCommercialOperator
     ? loggedCommercialProfile?.userId || null
     : activeCommercialProfile?.userId || null;
 
+  const customStart = customRange?.startDate || '';
+  const customEnd = customRange?.endDate || '';
+
   return useQuery({
-    queryKey: ['dialer_supervisor_kpis', selectedEmpresaId, targetUserId || 'all', periodFilter],
+    queryKey: [
+      'dialer_supervisor_kpis',
+      selectedEmpresaId,
+      targetUserId || 'all',
+      periodFilter,
+      customStart,
+      customEnd,
+    ],
     queryFn: async () => {
       if (!selectedEmpresaId) return null;
 
-      // 1. Fetch call logs with lead summary (cross-company when Super Admin views all commercials, or scoped to targetUserId)
-      let logQuery = supabase
-        .schema('core_comercial')
-        .from('lead_call_logs')
-        .select(`
-          *,
-          lead:leads!lead_id ( id, name, company_name, phone, city )
-        `)
-        .neq('outcome', 'note_saved')
-        .order('created_at', { ascending: false });
-
-      if (targetUserId) {
-        logQuery = logQuery.eq('user_id', targetUserId);
-      }
-
-      if (periodFilter !== 'all') {
-        const now = new Date();
-        let sinceIso: string;
-        if (periodFilter === 'today') {
-          const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
-          sinceIso = startOfDay.toISOString();
-        } else if (periodFilter === '7d') {
-          const d = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-          sinceIso = d.toISOString();
-        } else {
-          const d = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
-          sinceIso = d.toISOString();
-        }
-        logQuery = logQuery.gte('created_at', sinceIso);
-      }
-
-      const { data: logs, error: logError } = await logQuery;
-
-      if (logError) throw logError;
-
-      // 2. Fetch users for names
-      const { data: users } = await supabase
-        .from('mcs_users')
-        .select('id, display_name, email');
-
-      const userMap = new Map<string, { display_name: string; email: string }>();
-      (users || []).forEach(u => userMap.set(u.id, u));
-
-      const allLogs = logs || [];
-      const totalCalls = allLogs.length;
-
-      const startOfTodayMs = new Date(
-        new Date().getFullYear(),
-        new Date().getMonth(),
-        new Date().getDate(),
+      const now = new Date();
+      const startOfTodayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const endOfTodayDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      const startOfYesterdayDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 1,
+        0,
         0,
         0,
         0
-      ).getTime();
+      );
+      const endOfYesterdayDate = new Date(
+        now.getFullYear(),
+        now.getMonth(),
+        now.getDate() - 1,
+        23,
+        59,
+        59,
+        999
+      );
 
-      let todayCalls = 0;
+      let sinceIso: string | null = null;
+      let untilIso: string | null = null;
+      let isSingleDayMode = false;
+
+      if (periodFilter === 'today') {
+        sinceIso = startOfTodayDate.toISOString();
+        untilIso = endOfTodayDate.toISOString();
+        isSingleDayMode = true;
+      } else if (periodFilter === 'yesterday') {
+        sinceIso = startOfYesterdayDate.toISOString();
+        untilIso = endOfYesterdayDate.toISOString();
+        isSingleDayMode = true;
+      } else if (periodFilter === '7d') {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6, 0, 0, 0, 0);
+        sinceIso = d.toISOString();
+        untilIso = endOfTodayDate.toISOString();
+      } else if (periodFilter === '30d') {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 29, 0, 0, 0, 0);
+        sinceIso = d.toISOString();
+        untilIso = endOfTodayDate.toISOString();
+      } else if (periodFilter === 'custom') {
+        if (customStart) {
+          const [y, m, d] = customStart.split('-').map(Number);
+          if (y && m && d) {
+            sinceIso = new Date(y, m - 1, d, 0, 0, 0, 0).toISOString();
+          }
+        }
+        if (customEnd) {
+          const [y, m, d] = customEnd.split('-').map(Number);
+          if (y && m && d) {
+            untilIso = new Date(y, m - 1, d, 23, 59, 59, 999).toISOString();
+          }
+        }
+        if (customStart && customEnd && customStart === customEnd) {
+          isSingleDayMode = true;
+        }
+      }
+
+      // 1. Fetch call logs with pagination (up to 5,000 logs)
+      const allLogs: any[] = [];
+      const pageSize = 1000;
+      let fromIdx = 0;
+
+      while (fromIdx < 5000) {
+        let logQuery = supabase
+          .schema('core_comercial')
+          .from('lead_call_logs')
+          .select(`
+            *,
+            lead:leads!lead_id ( id, name, company_name, phone, city )
+          `)
+          .neq('outcome', 'note_saved')
+          .order('created_at', { ascending: false })
+          .range(fromIdx, fromIdx + pageSize - 1);
+
+        if (targetUserId) {
+          logQuery = logQuery.eq('user_id', targetUserId);
+        }
+        if (sinceIso) {
+          logQuery = logQuery.gte('created_at', sinceIso);
+        }
+        if (untilIso) {
+          logQuery = logQuery.lte('created_at', untilIso);
+        }
+
+        const { data: chunk, error: logError } = await logQuery;
+        if (logError) throw logError;
+        if (!chunk || chunk.length === 0) break;
+        allLogs.push(...chunk);
+        if (chunk.length < pageSize) break;
+        fromIdx += pageSize;
+      }
+
+      // 2. Lightweight query for live Today & Yesterday reference counts (so Today/Yesterday badges remain accurate even when viewing Yesterday or Custom ranges)
+      let refQuery = supabase
+        .schema('core_comercial')
+        .from('lead_call_logs')
+        .select('user_id, created_at')
+        .neq('outcome', 'note_saved')
+        .gte('created_at', startOfYesterdayDate.toISOString());
+
+      if (targetUserId) {
+        refQuery = refQuery.eq('user_id', targetUserId);
+      }
+
+      const [{ data: refRecentRows }, { data: users }] = await Promise.all([
+        refQuery,
+        supabase.from('mcs_users').select('id, display_name, email'),
+      ]);
+
+      const userMap = new Map<string, { display_name: string; email: string }>();
+      (users || []).forEach((u) => userMap.set(u.id, u));
+
+      const startOfTodayMs = startOfTodayDate.getTime();
+      const startOfYesterdayMs = startOfYesterdayDate.getTime();
+
+      let globalTodayCalls = 0;
+      let globalYesterdayCalls = 0;
+      const refTodayByUser = new Map<string, number>();
+      const refYesterdayByUser = new Map<string, number>();
+      const refLastCallByUser = new Map<string, string>();
+
+      (refRecentRows || []).forEach((r: any) => {
+        const ms = new Date(r.created_at).getTime();
+        const uId = r.user_id || 'unassigned';
+        const prevLast = refLastCallByUser.get(uId);
+        if (!prevLast || ms > new Date(prevLast).getTime()) {
+          refLastCallByUser.set(uId, r.created_at);
+        }
+        if (ms >= startOfTodayMs) {
+          globalTodayCalls += 1;
+          refTodayByUser.set(uId, (refTodayByUser.get(uId) || 0) + 1);
+        } else if (ms >= startOfYesterdayMs && ms < startOfTodayMs) {
+          globalYesterdayCalls += 1;
+          refYesterdayByUser.set(uId, (refYesterdayByUser.get(uId) || 0) + 1);
+        }
+      });
+
+      const totalCalls = allLogs.length;
+
       let answeredCount = 0;
       let convertedCount = 0;
       let scheduledCount = 0;
       let materialCount = 0;
       let rejectedCount = 0;
+      let gatekeeperCount = 0;
       let noAnswerCount = 0;
       let totalDuration = 0;
       let answeredDurationTotal = 0;
       let timedCallsCount = 0;
       let timedAnsweredCount = 0;
 
-      const sdrMap = new Map<string, {
-        userId: string;
-        userName: string;
-        flag?: string;
-        empresaName?: string;
-        totalCalls: number;
-        timedCalls: number;
-        todayCalls: number;
-        answeredCalls: number;
-        convertedCalls: number;
-        scheduledCalls: number;
-        materialCalls: number;
-        rejectedCalls: number;
-        totalDuration: number;
-        avgDurationSeconds: number;
-      }>();
+      const sdrMap = new Map<
+        string,
+        {
+          userId: string;
+          ownerKey?: string;
+          userName: string;
+          shortName?: string;
+          flag?: string;
+          empresaName?: string;
+          totalCalls: number;
+          timedCalls: number;
+          todayCalls: number;
+          yesterdayCalls: number;
+          answeredCalls: number;
+          convertedCalls: number;
+          scheduledCalls: number;
+          materialCalls: number;
+          gatekeeperCalls: number;
+          noAnswerCalls: number;
+          rejectedCalls: number;
+          totalDuration: number;
+          avgDurationSeconds: number;
+          lastCallAt?: string | null;
+        }
+      >();
+
+      // Pre-seed official commercial profiles so supervisors always see all 6 commercials (even those with 0 calls in the selected window!)
+      const profilesToSeed = targetUserId
+        ? ACTIVE_COMMERCIAL_PROFILES.filter((p) => p.userId === targetUserId)
+        : ACTIVE_COMMERCIAL_PROFILES;
+
+      profilesToSeed.forEach((prof) => {
+        sdrMap.set(prof.userId, {
+          userId: prof.userId,
+          ownerKey: prof.key,
+          userName: prof.displayName,
+          shortName: prof.shortName,
+          flag: prof.flag,
+          empresaName: prof.empresaName,
+          totalCalls: 0,
+          timedCalls: 0,
+          todayCalls: refTodayByUser.get(prof.userId) || 0,
+          yesterdayCalls: refYesterdayByUser.get(prof.userId) || 0,
+          answeredCalls: 0,
+          convertedCalls: 0,
+          scheduledCalls: 0,
+          materialCalls: 0,
+          gatekeeperCalls: 0,
+          noAnswerCalls: 0,
+          rejectedCalls: 0,
+          totalDuration: 0,
+          avgDurationSeconds: 0,
+          lastCallAt: refLastCallByUser.get(prof.userId) || null,
+        });
+      });
 
       const rejectionReasonMap: Record<string, number> = {
         has_own_team: 0,
@@ -991,6 +1142,15 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         other: 0,
       };
 
+      const hourlyMap = new Map<number, { calls: number; answered: number; durationSeconds: number }>();
+      for (let h = 8; h <= 20; h++) {
+        hourlyMap.set(h, { calls: 0, answered: 0, durationSeconds: 0 });
+      }
+      const dailyMap = new Map<
+        string,
+        { date: string; label: string; calls: number; answered: number; durationSeconds: number }
+      >();
+
       const recentCallLogs: DetailedCallReportRow[] = [];
 
       allLogs.forEach((log: any, idx: number) => {
@@ -998,21 +1158,45 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         totalDuration += dur;
         if (dur > 0) timedCallsCount += 1;
 
-        const createdMs = new Date(log.created_at).getTime();
-        const isToday = createdMs >= startOfTodayMs;
-        if (isToday) todayCalls += 1;
+        const createdDate = new Date(log.created_at);
+        const hr = createdDate.getHours();
+        const hrBucket = hourlyMap.get(hr) || { calls: 0, answered: 0, durationSeconds: 0 };
+        hrBucket.calls += 1;
+        hrBucket.durationSeconds += dur;
+
+        const dayKey = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(
+          2,
+          '0'
+        )}-${String(createdDate.getDate()).padStart(2, '0')}`;
+        const dayLabel = `${String(createdDate.getDate()).padStart(2, '0')}/${String(
+          createdDate.getMonth() + 1
+        ).padStart(2, '0')}`;
+        const dBucket = dailyMap.get(dayKey) || {
+          date: dayKey,
+          label: dayLabel,
+          calls: 0,
+          answered: 0,
+          durationSeconds: 0,
+        };
+        dBucket.calls += 1;
+        dBucket.durationSeconds += dur;
 
         const isAnswered = log.outcome.startsWith('answered');
         if (isAnswered) {
           answeredCount += 1;
           answeredDurationTotal += dur;
           if (dur > 0) timedAnsweredCount += 1;
+          hrBucket.answered += 1;
+          dBucket.answered += 1;
         }
+        hourlyMap.set(hr, hrBucket);
+        dailyMap.set(dayKey, dBucket);
 
         if (log.outcome === 'answered_converted') convertedCount += 1;
         else if (log.outcome === 'answered_callback') scheduledCount += 1;
         else if (log.outcome === 'answered_interested') materialCount += 1;
         else if (log.outcome === 'answered_rejected') rejectedCount += 1;
+        else if (log.outcome === 'gatekeeper_blocked') gatekeeperCount += 1;
         else if (log.outcome === 'no_answer' || log.outcome === 'busy') noAnswerCount += 1;
 
         if (log.rejection_reason && rejectionReasonMap[log.rejection_reason] !== undefined) {
@@ -1021,43 +1205,54 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
 
         const uId = log.user_id || 'unassigned';
         const uObj = userMap.get(uId);
-        const prof = uObj ? getCommercialProfileByUser({ id: uId, display_name: uObj.display_name, email: uObj.email }) : getCommercialProfileByUser(uId);
+        const prof = uObj
+          ? getCommercialProfileByUser({ id: uId, display_name: uObj.display_name, email: uObj.email })
+          : getCommercialProfileByUser(uId);
         const uName = prof?.displayName || uObj?.display_name || uObj?.email || 'Operador Comercial';
 
         const sdr = sdrMap.get(uId) || {
           userId: uId,
+          ownerKey: prof?.key,
           userName: uName,
+          shortName: prof?.shortName || uName.split(' ')[0],
           flag: prof?.flag,
           empresaName: prof?.empresaName,
           totalCalls: 0,
           timedCalls: 0,
-          todayCalls: 0,
+          todayCalls: refTodayByUser.get(uId) || 0,
+          yesterdayCalls: refYesterdayByUser.get(uId) || 0,
           answeredCalls: 0,
           convertedCalls: 0,
           scheduledCalls: 0,
           materialCalls: 0,
+          gatekeeperCalls: 0,
+          noAnswerCalls: 0,
           rejectedCalls: 0,
           totalDuration: 0,
           avgDurationSeconds: 0,
+          lastCallAt: refLastCallByUser.get(uId) || log.created_at,
         };
 
         sdr.totalCalls += 1;
         if (dur > 0) sdr.timedCalls += 1;
-        if (isToday) sdr.todayCalls += 1;
         if (isAnswered) sdr.answeredCalls += 1;
         if (log.outcome === 'answered_converted') sdr.convertedCalls += 1;
         if (log.outcome === 'answered_callback') sdr.scheduledCalls += 1;
         if (log.outcome === 'answered_interested') sdr.materialCalls += 1;
+        if (log.outcome === 'gatekeeper_blocked') sdr.gatekeeperCalls += 1;
+        if (log.outcome === 'no_answer' || log.outcome === 'busy') sdr.noAnswerCalls += 1;
         if (log.outcome === 'answered_rejected') sdr.rejectedCalls += 1;
         sdr.totalDuration += dur;
         sdr.avgDurationSeconds =
-          sdr.timedCalls > 0
-            ? Math.round(sdr.totalDuration / sdr.timedCalls)
-            : 0;
+          sdr.timedCalls > 0 ? Math.round(sdr.totalDuration / sdr.timedCalls) : 0;
+
+        if (!sdr.lastCallAt || new Date(log.created_at).getTime() > new Date(sdr.lastCallAt).getTime()) {
+          sdr.lastCallAt = log.created_at;
+        }
 
         sdrMap.set(uId, sdr);
 
-        if (idx < 250) {
+        if (idx < 1000) {
           recentCallLogs.push({
             id: log.id,
             created_at: log.created_at,
@@ -1066,6 +1261,8 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
             commercialFlag: prof?.flag,
             empresaName: prof?.empresaName,
             lead_id: log.lead_id,
+            queue_item_id: log.queue_item_id || null,
+            campaign_id: log.campaign_id || null,
             companyName: log.lead?.company_name || log.contact_person || 'Cliente',
             contactName: log.contact_person || log.lead?.name || '-',
             phoneCalled: log.phone_called || log.lead?.phone || '-',
@@ -1080,7 +1277,12 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
 
       const contactRate = totalCalls > 0 ? (answeredCount / totalCalls) * 100 : 0;
       const conversionRate = totalCalls > 0 ? (convertedCount / totalCalls) * 100 : 0;
-      const avgDuration = timedCallsCount > 0 ? Math.round(totalDuration / timedCallsCount) : (totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0);
+      const avgDuration =
+        timedCallsCount > 0
+          ? Math.round(totalDuration / timedCallsCount)
+          : totalCalls > 0
+          ? Math.round(totalDuration / totalCalls)
+          : 0;
       const answeredAvgDuration =
         timedAnsweredCount > 0
           ? Math.round(answeredDurationTotal / timedAnsweredCount)
@@ -1088,15 +1290,31 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
           ? Math.round(answeredDurationTotal / answeredCount)
           : 0;
 
-      const sortedSdrs = Array.from(sdrMap.values()).sort((a, b) => b.totalCalls - a.totalCalls);
+      const sortedSdrs = Array.from(sdrMap.values()).sort((a, b) => {
+        if (b.totalCalls !== a.totalCalls) return b.totalCalls - a.totalCalls;
+        return b.totalDuration - a.totalDuration;
+      });
+
+      const hourlyBuckets = Array.from(hourlyMap.entries())
+        .sort((a, b) => a[0] - b[0])
+        .map(([h, val]) => ({
+          hour: `${String(h).padStart(2, '0')}h`,
+          ...val,
+        }));
+
+      const dailyBuckets = Array.from(dailyMap.values())
+        .sort((a, b) => a.date.localeCompare(b.date))
+        .slice(-14);
 
       return {
         totalCalls,
-        todayCalls,
+        todayCalls: globalTodayCalls,
+        yesterdayCalls: globalYesterdayCalls,
         answeredCount,
         convertedCount,
         scheduledCount,
         materialCount,
+        gatekeeperCount,
         rejectedCount,
         noAnswerCount,
         contactRate: Number(contactRate.toFixed(1)),
@@ -1107,9 +1325,15 @@ export function useDialerSupervisorKPIs(periodFilter: SupervisorPeriodFilter = '
         rejectionBreakdown: rejectionReasonMap,
         sdrPerformances: sortedSdrs,
         recentCallLogs,
+        hourlyBuckets,
+        dailyBuckets,
+        isSingleDayMode,
+        sinceIso,
+        untilIso,
       };
     },
     enabled: !!selectedEmpresaId,
+    refetchInterval: 30000,
   });
 }
 
