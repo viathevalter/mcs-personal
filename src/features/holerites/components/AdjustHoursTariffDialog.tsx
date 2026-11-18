@@ -84,7 +84,6 @@ export function AdjustHoursTariffDialog({
     const [hoursStr, setHoursStr] = useState<string>(() => formatCleanHoursInput(resolvedEffectiveHours));
     const [tarifaStr, setTarifaStr] = useState<string>(() => resolvedEffectiveTarifa.toFixed(2));
     const [keepManualHours, setKeepManualHours] = useState<boolean>(isManualHours);
-    const [updateCadastroTarifa, setUpdateCadastroTarifa] = useState<boolean>(true);
     const [motivo, setMotivo] = useState<string>(resolvedMotivo);
     const [isSaving, setIsSaving] = useState(false);
 
@@ -95,7 +94,6 @@ export function AdjustHoursTariffDialog({
             setHoursStr(formatCleanHoursInput(resolvedEffectiveHours));
             setTarifaStr(resolvedEffectiveTarifa.toFixed(2));
             setKeepManualHours(isManualHours);
-            setUpdateCadastroTarifa(true);
             const cleanMotivo = (resolvedMotivo || '').replace(/^\[[^\]]+\]\s*/, '');
             setMotivo(
                 cleanMotivo === 'Ajuste manual de horas na folha' || cleanMotivo === 'Ajuste manual de tarifa na folha'
@@ -115,7 +113,7 @@ export function AdjustHoursTariffDialog({
     const willSaveManualHours = keepManualHours || hoursDiffersFromFaturamento;
 
     const tarifaDiffersFromBase = Math.abs(validTarifa - resolvedCadastroTarifa) > 0.005;
-    const willSaveManualTarifa = isManualTariff || tarifaDiffersFromBase;
+    const willSaveManualTarifa = tarifaDiffersFromBase;
 
     const simulatedBase = Math.round((validHours * validTarifa + Number.EPSILON) * 100) / 100;
     const faturamentoBase = Math.round(((Number(faturamentoHours || 0)) * resolvedCadastroTarifa + Number.EPSILON) * 100) / 100;
@@ -138,7 +136,7 @@ export function AdjustHoursTariffDialog({
                 mesReferencia,
                 manualHours: willSaveManualHours ? validHours : null,
                 manualTarifa: willSaveManualTarifa ? validTarifa : null,
-                updateCadastroTarifa: tarifaDiffersFromBase && validTarifa > 0 && updateCadastroTarifa,
+                updateCadastroTarifa: false,
                 motivo: motivo.trim() || undefined,
             });
 
@@ -297,7 +295,7 @@ export function AdjustHoursTariffDialog({
                             />
 
                             <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
-                                <span>Cadastro atual: <strong>€ {resolvedCadastroTarifa.toFixed(2)}/h</strong></span>
+                                <span>Tarifa da competência: <strong>€ {resolvedCadastroTarifa.toFixed(2)}/h</strong></span>
                                 {tarifaDiffersFromBase && (
                                     <button
                                         type="button"
@@ -311,26 +309,10 @@ export function AdjustHoursTariffDialog({
                         </div>
                     </div>
 
-                    {/* Checkbox: Atualizar tarifa no cadastro permanente (exibido apenas quando a tarifa é alterada) */}
+                    {/* Aviso de escopo exclusivo da competência */}
                     {tarifaDiffersFromBase && (
-                        <div className="flex items-start space-x-2.5 bg-emerald-50/50 dark:bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-200/70 dark:border-emerald-800">
-                            <Checkbox
-                                id="update-cadastro-tarifa"
-                                checked={updateCadastroTarifa}
-                                onCheckedChange={(checked) => setUpdateCadastroTarifa(Boolean(checked))}
-                                className="mt-0.5"
-                            />
-                            <div className="grid gap-0.5 leading-none">
-                                <label
-                                    htmlFor="update-cadastro-tarifa"
-                                    className="text-xs font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
-                                >
-                                    Atualizar também a tarifa padrão no cadastro do trabalhador
-                                </label>
-                                <p className="text-[11px] text-muted-foreground">
-                                    Mantendo marcado, a tarifa de € {validTarifa.toFixed(2)}/h passa a valer também para os próximos meses.
-                                </p>
-                            </div>
+                        <div className="bg-emerald-50/50 dark:bg-emerald-950/30 p-2.5 rounded-lg border border-emerald-200/70 dark:border-emerald-800 text-[11px] text-emerald-900 dark:text-emerald-300">
+                            Este ajuste de tarifa (<strong>€ {validTarifa.toFixed(2)}/h</strong>) será aplicado <strong>somente na folha de {mesReferencia}</strong> e não alterará os demais meses nem a Governança de Tarifas.
                         </div>
                     )}
 
