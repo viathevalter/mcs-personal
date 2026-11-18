@@ -2931,6 +2931,68 @@ Muchas gracias.`;
 
             if (dbErr) throw dbErr;
 
+            // If on IBAN tab or attaching certificado_banco, also sync IBAN and bank to worker_ibans and workers
+            if (activeDocTab === 'iban' || selectedAttachDocType === 'certificado_banco' || selectedAttachDocType === 'autorizacao_banco') {
+                const ibanToSync = (verifyFormData.iban || '').trim();
+                const bancoToSync = (verifyFormData.banco || '').trim() || 'Banco';
+                if (ibanToSync && selectedRequest.worker_id) {
+                    try {
+                        await supabase
+                            .schema('core_personal')
+                            .from('workers')
+                            .update({ iban: ibanToSync })
+                            .eq('id', selectedRequest.worker_id);
+
+                        const { data: activeIbans } = await supabase
+                            .schema('core_personal')
+                            .from('worker_ibans')
+                            .select('id, iban')
+                            .eq('worker_id', selectedRequest.worker_id)
+                            .eq('status', 'ATIVO');
+
+                        const existingSame = activeIbans?.find(
+                            (i: any) => (i.iban || '').replace(/\s+/g, '').toUpperCase() === ibanToSync.replace(/\s+/g, '').toUpperCase()
+                        );
+
+                        if (existingSame) {
+                            await supabase
+                                .schema('core_personal')
+                                .from('worker_ibans')
+                                .update({
+                                    iban: ibanToSync,
+                                    banco: bancoToSync,
+                                    certificado_url: path,
+                                    updated_at: new Date().toISOString()
+                                })
+                                .eq('id', existingSame.id);
+                        } else {
+                            if (activeIbans && activeIbans.length > 0) {
+                                await supabase
+                                    .schema('core_personal')
+                                    .from('worker_ibans')
+                                    .update({ status: 'INATIVO', updated_at: new Date().toISOString() })
+                                    .eq('worker_id', selectedRequest.worker_id)
+                                    .eq('status', 'ATIVO');
+                            }
+                            await supabase
+                                .schema('core_personal')
+                                .from('worker_ibans')
+                                .insert({
+                                    worker_id: selectedRequest.worker_id,
+                                    banco: bancoToSync,
+                                    iban: ibanToSync,
+                                    status: 'ATIVO',
+                                    certificado_url: path,
+                                    data_alteracao: new Date().toISOString().split('T')[0],
+                                    observacoes: 'Atualizado via Painel de Documentação (Adjuntar a la Ficha)'
+                                });
+                        }
+                    } catch (syncErr) {
+                        console.warn('Erro ao sincronizar worker_ibans ao anexar documento:', syncErr);
+                    }
+                }
+            }
+
             // If doc_type is foto, also update worker's profile photo
             if (selectedAttachDocType === 'foto') {
                 await supabase
