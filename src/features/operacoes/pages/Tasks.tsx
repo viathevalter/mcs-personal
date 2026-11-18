@@ -69,13 +69,13 @@ export const Tasks: React.FC = () => {
                 .order('created_at', { ascending: false })
                 .limit(200);
 
-            if (user?.id && selectedEmpresaId) {
-                query = query.or(`empresa_id.eq.${selectedEmpresaId},assigned_to.eq.${user.id}`);
-            } else if (selectedEmpresaId) {
-                query = query.eq('empresa_id', selectedEmpresaId);
-            } else if (user?.id) {
-                query = query.eq('assigned_to', user.id);
+            if (!user?.id) {
+                setTasks([]);
+                return;
             }
+            const orParts = [`assigned_to.eq.${user.id}`];
+            if (user.email) orParts.push(`assigned_to_email.ilike.${user.email}`);
+            query = query.or(orParts.join(','));
 
             const { data, error } = await query;
             if (error) throw error;
@@ -86,7 +86,7 @@ export const Tasks: React.FC = () => {
         } finally {
             setLoading(false);
         }
-    }, [selectedEmpresaId, user?.id]);
+    }, [user?.id, user?.email]);
 
     useEffect(() => {
         const searchId = searchParams.get('search');

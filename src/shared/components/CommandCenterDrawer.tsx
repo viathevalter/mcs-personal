@@ -94,8 +94,8 @@ const ORIGIN_BADGES: Record<string, { label: string; className: string }> = {
 };
 
 export function CommandCenterTrigger({ variant = 'default' }: { variant?: 'default' | 'compact' }) {
-  const { openDrawer, myPendingTasksCount, pendingTasksCount, hasNewTaskAlert, unreadNotificationsCount } = useCommandCenter();
-  const displayTaskCount = myPendingTasksCount > 0 ? myPendingTasksCount : pendingTasksCount;
+  const { openDrawer, myPendingTasksCount, hasNewTaskAlert, unreadNotificationsCount } = useCommandCenter();
+  const displayTaskCount = myPendingTasksCount;
   const shouldAlert = myPendingTasksCount > 0 || hasNewTaskAlert;
 
   return (
@@ -276,7 +276,10 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
   );
 
   const loadTasks = useCallback(async () => {
-    if (!user?.id && !selectedEmpresaId) return;
+    if (!user?.id) {
+      setTasks([]);
+      return;
+    }
     setIsLoading(true);
     try {
       const selectFields = `
@@ -285,34 +288,30 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
         solicitud:solicitudes_operativas(id, codigo, title, tipo, status, priority, due_date, pedido_id, client_id, pergunta_respuesta)
       `;
 
-      const orParts: string[] = [];
-      if (user?.id) orParts.push(`assigned_to.eq.${user.id}`);
-      if (user?.email) orParts.push(`assigned_to_email.eq.${user.email}`);
-      if (selectedEmpresaId) orParts.push(`empresa_id.eq.${selectedEmpresaId}`);
+      // A Super Gaveta Operacional é estritamente individual do usuário logado:
+      // carrega apenas tarefas atribuídas a este usuário (por ID ou e-mail)
+      const orParts: string[] = [`assigned_to.eq.${user.id}`];
+      if (user?.email) orParts.push(`assigned_to_email.ilike.${user.email}`);
       const orFilter = orParts.join(',');
 
-      let openQuery = supabase
-        .schema('core_operacoes')
-        .from('solicitud_tareas')
-        .select(selectFields)
-        .in('status', ['pending', 'in_progress', 'blocked'])
-        .order('created_at', { ascending: false })
-        .limit(200);
-
-      let completedQuery = supabase
-        .schema('core_operacoes')
-        .from('solicitud_tareas')
-        .select(selectFields)
-        .eq('status', 'completed')
-        .order('completed_at', { ascending: false, nullsFirst: false })
-        .limit(80);
-
-      if (orFilter) {
-        openQuery = openQuery.or(orFilter);
-        completedQuery = completedQuery.or(orFilter);
-      }
-
-      const [openRes, completedRes] = await Promise.all([openQuery, completedQuery]);
+      const [openRes, completedRes] = await Promise.all([
+        supabase
+          .schema('core_operacoes')
+          .from('solicitud_tareas')
+          .select(selectFields)
+          .in('status', ['pending', 'in_progress', 'blocked'])
+          .or(orFilter)
+          .order('created_at', { ascending: false })
+          .limit(200),
+        supabase
+          .schema('core_operacoes')
+          .from('solicitud_tareas')
+          .select(selectFields)
+          .eq('status', 'completed')
+          .or(orFilter)
+          .order('completed_at', { ascending: false, nullsFirst: false })
+          .limit(80),
+      ]);
 
       if (openRes.error) throw openRes.error;
       const mergedMap = new Map<string, any>();
@@ -326,14 +325,19 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     } finally {
       setIsLoading(false);
     }
-  }, [selectedEmpresaId, user?.id, user?.email]);
+  }, [user?.id, user?.email]);
 
   const loadConversations = useCallback(async () => {
+    if (!user?.id) {
+      setConversations([]);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('chat_conversations')
         .select('*')
         .eq('status', 'open')
+        .eq('assigned_to', user.id)
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .limit(80);
       if (!error && data) {
@@ -342,7 +346,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     } catch (err) {
       console.error('Error loading chat conversations:', err);
     }
-  }, []);
+  }, [user?.id]);
 
   const loadMessages = useCallback(async (conversationId: string) => {
     try {
@@ -1044,9 +1048,9 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                     : 'text-indigo-300 group-hover:text-white'
                 }`}
               />
-              {(myPendingTasksCount > 0 || pendingTasksCount > 0) && (
+              {myPendingTasksCount > 0 && (
                 <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[10px] font-extrabold bg-rose-500 text-white rounded-full leading-none shadow-sm">
-                  {myPendingTasksCount > 0 ? myPendingTasksCount : pendingTasksCount}
+                  {myPendingTasksCount}
                 </span>
               )}
               {(myPendingTasksCount > 0 || hasNewTaskAlert) && (
@@ -1552,16 +1556,16 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                         <button
                           type="button"
                           onClick={() => setStatusFilter('MY_OPEN')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                            statusFilter === 'MY_OPEN'
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                            statusFilter === 'MY_OPEN' || statusFilter === 'ALL_OPEN'
                               ? 'bg-indigo-600 text-white shadow-xs'
                               : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
                           }`}
                         >
-                          <span>👤 Minhas Pendentes</span>
+                          <span>⏳ Minhas Tarefas Pendentes</span>
                           <span
                             className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                              statusFilter === 'MY_OPEN'
+                              statusFilter === 'MY_OPEN' || statusFilter === 'ALL_OPEN'
                                 ? 'bg-white text-indigo-700'
                                 : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
                             }`}
@@ -1572,35 +1576,14 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
 
                         <button
                           type="button"
-                          onClick={() => setStatusFilter('ALL_OPEN')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
-                            statusFilter === 'ALL_OPEN'
-                              ? 'bg-indigo-600 text-white shadow-xs'
-                              : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
-                          }`}
-                        >
-                          <span>🏢 Pendentes dos Setores</span>
-                          <span
-                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
-                              statusFilter === 'ALL_OPEN'
-                                ? 'bg-white text-indigo-700'
-                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
-                            }`}
-                          >
-                            {pendingTasksCount}
-                          </span>
-                        </button>
-
-                        <button
-                          type="button"
                           onClick={() => setStatusFilter('COMPLETED')}
-                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                          className={`px-3.5 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
                             statusFilter === 'COMPLETED'
                               ? 'bg-emerald-600 text-white shadow-xs'
                               : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
                           }`}
                         >
-                          <span>✅ Finalizadas / Concluídas</span>
+                          <span>✅ Minhas Finalizadas / Concluídas</span>
                           <span
                             className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
                               statusFilter === 'COMPLETED'
