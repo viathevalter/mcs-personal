@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, History, Briefcase, ShieldCheck, Calendar, User } from 'lucide-react';
+import { Loader2, History, Briefcase, ShieldCheck, Calendar, User, Receipt } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { getWorkerCompleteTariffTimeline } from '../api/tariffGovernanceApi';
 
@@ -58,6 +58,11 @@ export function WorkerTariffTimelineCard({ workerId }: WorkerTariffTimelineCardP
                                     {ev.kind === 'vigencia_agendada' && (
                                         <Badge className="bg-indigo-100 text-indigo-800 border-indigo-200 hover:bg-indigo-100 text-[10px] gap-1">
                                             <Calendar className="w-3 h-3" /> Vigência Folha
+                                        </Badge>
+                                    )}
+                                    {ev.kind === 'ultimo_pagamento' && (
+                                        <Badge className="bg-amber-100 text-amber-800 border-amber-200 hover:bg-amber-100 text-[10px] gap-1">
+                                            <Receipt className="w-3 h-3" /> Última Folha
                                         </Badge>
                                     )}
 

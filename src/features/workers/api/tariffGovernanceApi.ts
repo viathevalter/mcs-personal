@@ -1186,7 +1186,7 @@ export async function deletePendingTariffAuthorizationRequest(requestId: string)
 
 export interface WorkerTariffTimelineEvent {
     id: string;
-    kind: 'contratacao' | 'termo_audit' | 'vigencia_agendada';
+    kind: 'contratacao' | 'termo_audit' | 'vigencia_agendada' | 'ultimo_pagamento';
     date: string;
     title: string;
     subtitle?: string;
@@ -1200,7 +1200,7 @@ export interface WorkerTariffTimelineEvent {
 }
 
 export async function getWorkerCompleteTariffTimeline(workerId: string): Promise<WorkerTariffTimelineEvent[]> {
-    const [assignmentsRes, auditRes, schedulesRes, horasRes, usersRes] = await Promise.all([
+    const [assignmentsRes, auditRes, schedulesRes, horasRes, settingsRes, holeritesRes, usersRes] = await Promise.all([
         supabase
             .schema('core_personal')
             .from('worker_assignments')
@@ -1226,6 +1226,19 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
             .eq('worker_id', workerId)
             .order('data_trabalho', { ascending: false })
             .limit(2000),
+        supabase
+            .schema('core_personal')
+            .from('worker_beneficios_settings')
+            .select('tarifa_hora, created_at, updated_at')
+            .eq('worker_id', workerId)
+            .maybeSingle(),
+        supabase
+            .schema('core_personal')
+            .from('holerites')
+            .select('id, mes_referencia, horas_trabalhadas, total_proventos, valor_liquido, status, data_pagamento, created_at')
+            .eq('worker_id', workerId)
+            .order('mes_referencia', { ascending: false })
+            .limit(1),
         listSystemUsers().catch(() => [] as SystemUser[])
     ]);
 
@@ -1320,6 +1333,24 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
         pastClientHours.set(h.client_id, cur);
     });
 
+    const currentBaseTarifa = Number(settingsRes.data?.tarifa_hora || 0);
+    const latestHolerite = holeritesRes.data?.[0];
+    let latestHoleriteTarifa = currentBaseTarifa;
+
+    if (latestHolerite?.id) {
+        const { data: manualTariffEv } = await supabase
+            .schema('core_personal')
+            .from('holerite_eventos')
+            .select('referencia_dias_horas')
+            .eq('holerite_id', latestHolerite.id)
+            .eq('categoria', 'ajuste_manual_tarifa')
+            .maybeSingle();
+
+        if (manualTariffEv?.referencia_dias_horas && Number(manualTariffEv.referencia_dias_horas) > 0) {
+            latestHoleriteTarifa = Number(manualTariffEv.referencia_dias_horas);
+        }
+    }
+
     pastClientHours.forEach((stats, cid) => {
         const clientName = clientMap.get(cid) || 'Cliente Anterior';
         events.push({
@@ -1328,10 +1359,27 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
             date: stats.maxDt,
             title: `Histórico: ${clientName}`,
             subtitle: `${new Date(stats.minDt).toLocaleDateString('pt-PT')} a ${new Date(stats.maxDt).toLocaleDateString('pt-PT')} • ${Math.round(stats.horas)}h trabalhadas`,
-            tarifaNova: 0,
+            tarifaNova: latestHoleriteTarifa || currentBaseTarifa,
             status: 'histórico'
         });
     });
+
+    if (latestHolerite) {
+        const mesRef = String(latestHolerite.mes_referencia).slice(0, 7);
+        const horasH = Number(latestHolerite.horas_trabalhadas || 0);
+        const liqH = Number(latestHolerite.valor_liquido || 0);
+        const statusH = latestHolerite.status === 'pago' ? 'Pago' : latestHolerite.status || 'Lançado';
+        events.push({
+            id: `last-holerite-${latestHolerite.id}`,
+            kind: 'ultimo_pagamento',
+            date: latestHolerite.data_pagamento || latestHolerite.created_at || `${mesRef}-01`,
+            title: `Último Pagamento / Folha (${mesRef})`,
+            subtitle: `${horasH}h • Líquido: € ${liqH.toFixed(2)}`,
+            tarifaNova: latestHoleriteTarifa,
+            mesVigencia: mesRef,
+            status: statusH
+        });
+    }
 
     // 3. Tariff Audit Logs (skip redundant Contratação Inicial rows already represented by an assignment)
     const coveredRequestIds = new Set<string>();
