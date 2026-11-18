@@ -54,6 +54,8 @@ interface CommandCenterContextType {
   openDrawer: (options?: OpenDrawerOptions) => void;
   closeDrawer: () => void;
   pendingTasksCount: number;
+  myPendingTasksCount: number;
+  hasNewTaskAlert: boolean;
   unreadNotificationsCount: number;
   unreadChatCount: number;
   refreshAll: () => void;
@@ -85,35 +87,47 @@ const SOLICITUD_TYPE_LABELS: Record<string, { label: string; color: string }> = 
 const ORIGIN_BADGES: Record<string, { label: string; className: string }> = {
   playbook: { label: '⚡ Playbook', className: 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-800' },
   manual: { label: '👤 Direta Setor/Pessoa', className: 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-800' },
-  chat: { label: '💬 MCS Chat', className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800' },
+  chat: { label: '💬 Auditoria / MCS Chat', className: 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-800' },
   email_ai: { label: '🤖 E-mail IA', className: 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-800' },
+  tariff_authorization: { label: '💰 Aprovação de Tarifa', className: 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-800' },
+  tariff_feedback: { label: '📢 Retorno de Tarifa', className: 'bg-teal-50 text-teal-700 border-teal-200 dark:bg-teal-950/60 dark:text-teal-300 dark:border-teal-800' },
 };
 
 export function CommandCenterTrigger({ variant = 'default' }: { variant?: 'default' | 'compact' }) {
-  const { openDrawer, pendingTasksCount, unreadNotificationsCount, unreadChatCount } = useCommandCenter();
-  const totalBadge = pendingTasksCount + unreadChatCount;
+  const { openDrawer, myPendingTasksCount, pendingTasksCount, hasNewTaskAlert, unreadNotificationsCount } = useCommandCenter();
+  const displayTaskCount = myPendingTasksCount > 0 ? myPendingTasksCount : pendingTasksCount;
+  const shouldAlert = myPendingTasksCount > 0 || hasNewTaskAlert;
 
   return (
     <button
       type="button"
-      onClick={() => openDrawer()}
+      onClick={() => openDrawer({ tab: 'tasks' })}
       className={
         variant === 'compact'
-          ? 'relative inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-sm hover:from-blue-700 hover:to-indigo-700 transition-all'
-          : 'relative inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-semibold bg-gradient-to-r from-blue-600 via-indigo-600 to-violet-600 text-white shadow-md shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30 hover:scale-[1.01] transition-all cursor-pointer'
+          ? `relative inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 text-white shadow-sm transition-all cursor-pointer ${
+              shouldAlert
+                ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-rose-600 ring-2 ring-rose-400/60 animate-pulse'
+                : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-indigo-900 hover:to-slate-800'
+            }`
+          : `relative inline-flex items-center gap-2 h-9 px-3.5 rounded-xl text-xs font-bold whitespace-nowrap shrink-0 text-white shadow-md transition-all cursor-pointer ${
+              shouldAlert
+                ? 'bg-gradient-to-r from-indigo-600 via-violet-600 to-rose-600 ring-2 ring-rose-400/70 shadow-rose-500/25'
+                : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 hover:from-indigo-900 hover:to-slate-800'
+            }`
       }
-      title="Abrir Super Gaveta Flutuante (Tarefas, Playbooks, Agenda e MCS Chat)"
+      title="Abrir Super Gaveta Operacional (Minhas Tarefas Pendentes, Finalizadas e Ponte MCS Chat)"
     >
-      <Layers className="w-4 h-4" />
-      <span className="hidden md:inline">Central Operacional & Chat</span>
-      <span className="md:hidden">Central</span>
-      {totalBadge > 0 && (
-        <span className="ml-0.5 px-1.5 py-0.5 text-[10px] font-bold bg-white text-indigo-700 rounded-full leading-none shadow-xs">
-          {totalBadge > 99 ? '99+' : totalBadge}
-        </span>
-      )}
-      {unreadNotificationsCount > 0 && (
-        <span className="w-2 h-2 rounded-full bg-rose-400 animate-ping absolute -top-0.5 -right-0.5" />
+      <Bell className={`w-3.5 h-3.5 shrink-0 ${shouldAlert ? 'animate-bounce text-amber-300' : 'text-indigo-300'}`} />
+      <span className="whitespace-nowrap">Super Gaveta Operacional</span>
+      <span
+        className={`px-1.5 py-0.5 text-[10px] font-extrabold rounded-full leading-none shadow-xs ${
+          shouldAlert ? 'bg-rose-500 text-white' : 'bg-white/15 text-indigo-100'
+        }`}
+      >
+        {displayTaskCount}
+      </span>
+      {(shouldAlert || unreadNotificationsCount > 0) && (
+        <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping absolute -top-1 -right-1" />
       )}
     </button>
   );
@@ -141,8 +155,10 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
   // Filters
   const [deptFilter, setDeptFilter] = useState<string>('ALL');
   const [originFilter, setOriginFilter] = useState<string>('ALL');
-  const [statusFilter, setStatusFilter] = useState<'OPEN' | 'COMPLETED' | 'MY_TASKS'>('OPEN');
+  const [statusFilter, setStatusFilter] = useState<'MY_OPEN' | 'ALL_OPEN' | 'COMPLETED'>('MY_OPEN');
   const [searchQuery, setSearchQuery] = useState('');
+  const [expandedTaskIds, setExpandedTaskIds] = useState<Record<string, boolean>>({});
+  const [hasNewTaskAlert, setHasNewTaskAlert] = useState(false);
 
   // Modals / Inline Forms inside Drawer
   const [showNewTaskForm, setShowNewTaskForm] = useState(false);
@@ -245,43 +261,79 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     }
   }, [selectedEmpresaId]);
 
+  const isMyTask = useCallback(
+    (t: any) => {
+      if (!user) return false;
+      return (
+        t.assigned_to === user.id ||
+        t.assigned_to_user_id === user.id ||
+        (Boolean(user.email) &&
+          Boolean(t.assigned_to_email) &&
+          t.assigned_to_email.toLowerCase() === user.email.toLowerCase())
+      );
+    },
+    [user]
+  );
+
   const loadTasks = useCallback(async () => {
-    if (!selectedEmpresaId) return;
+    if (!user?.id && !selectedEmpresaId) return;
     setIsLoading(true);
     try {
-      let query = supabase
+      const selectFields = `
+        *,
+        department:departments(id, name, code),
+        solicitud:solicitudes_operativas(id, codigo, title, tipo, status, priority, due_date, pedido_id, client_id, pergunta_respuesta)
+      `;
+
+      const orParts: string[] = [];
+      if (user?.id) orParts.push(`assigned_to.eq.${user.id}`);
+      if (user?.email) orParts.push(`assigned_to_email.eq.${user.email}`);
+      if (selectedEmpresaId) orParts.push(`empresa_id.eq.${selectedEmpresaId}`);
+      const orFilter = orParts.join(',');
+
+      let openQuery = supabase
         .schema('core_operacoes')
         .from('solicitud_tareas')
-        .select(`
-          *,
-          department:departments(id, name, code),
-          solicitud:solicitudes_operativas(id, codigo, title, tipo, status, priority, due_date, pedido_id, client_id, pergunta_respuesta)
-        `)
+        .select(selectFields)
+        .in('status', ['pending', 'in_progress', 'blocked'])
         .order('created_at', { ascending: false })
-        .limit(150);
+        .limit(200);
 
-      if (user?.id) {
-        query = query.or(`empresa_id.eq.${selectedEmpresaId},assigned_to.eq.${user.id},task_source.eq.chat`);
-      } else {
-        query = query.eq('empresa_id', selectedEmpresaId);
+      let completedQuery = supabase
+        .schema('core_operacoes')
+        .from('solicitud_tareas')
+        .select(selectFields)
+        .eq('status', 'completed')
+        .order('completed_at', { ascending: false, nullsFirst: false })
+        .limit(80);
+
+      if (orFilter) {
+        openQuery = openQuery.or(orFilter);
+        completedQuery = completedQuery.or(orFilter);
       }
 
-      const { data, error } = await query;
+      const [openRes, completedRes] = await Promise.all([openQuery, completedQuery]);
 
-      if (error) throw error;
-      setTasks(data || []);
+      if (openRes.error) throw openRes.error;
+      const mergedMap = new Map<string, any>();
+      for (const item of openRes.data || []) mergedMap.set(item.id, item);
+      for (const item of completedRes.data || []) {
+        if (!mergedMap.has(item.id)) mergedMap.set(item.id, item);
+      }
+      setTasks(Array.from(mergedMap.values()));
     } catch (err) {
       console.error('Error loading tasks in CommandCenter:', err);
     } finally {
       setIsLoading(false);
     }
-  }, [selectedEmpresaId, user?.id]);
+  }, [selectedEmpresaId, user?.id, user?.email]);
 
   const loadConversations = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('chat_conversations')
         .select('*')
+        .eq('status', 'open')
         .order('last_message_at', { ascending: false, nullsFirst: false })
         .limit(80);
       if (!error && data) {
@@ -332,10 +384,18 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
   }, [loadReferenceData, loadTasks, loadConversations, loadNotifications]);
 
   useEffect(() => {
-    if (user && selectedEmpresaId) {
+    if (user) {
       refreshAll();
     }
   }, [user, selectedEmpresaId, refreshAll]);
+
+  useEffect(() => {
+    const onExternalTaskUpdate = () => {
+      loadTasks();
+    };
+    window.addEventListener('mcs:tasks-updated', onExternalTaskUpdate);
+    return () => window.removeEventListener('mcs:tasks-updated', onExternalTaskUpdate);
+  }, [loadTasks]);
 
   useEffect(() => {
     if (selectedConversation?.id) {
@@ -345,14 +405,44 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
 
   // Realtime subscription for tasks and chat messages
   useEffect(() => {
-    if (!selectedEmpresaId) return;
+    if (!user?.id) return;
     const channel = supabase
-      .channel(`command-center-live-${selectedEmpresaId}`)
+      .channel(`command-center-live-${user.id}-${selectedEmpresaId || 'global'}`)
       .on(
         'postgres_changes',
-        { event: '*', schema: 'core_operacoes', table: 'solicitud_tareas', filter: `empresa_id=eq.${selectedEmpresaId}` },
-        () => {
+        { event: '*', schema: 'core_operacoes', table: 'solicitud_tareas' },
+        (payload: any) => {
           loadTasks();
+          if (payload.eventType === 'INSERT' && payload.new) {
+            const newTask = payload.new;
+            const forMe =
+              newTask.assigned_to === user.id ||
+              newTask.assigned_to_user_id === user.id ||
+              (user.email &&
+                newTask.assigned_to_email &&
+                newTask.assigned_to_email.toLowerCase() === user.email.toLowerCase());
+            if (forMe) {
+              setHasNewTaskAlert(true);
+              if (typeof navigator !== 'undefined' && navigator.vibrate) {
+                try {
+                  navigator.vibrate([200, 100, 200]);
+                } catch {}
+              }
+              toast.info(`🔔 Nova tarefa para você: ${newTask.title || 'Super Gaveta Operacional'}`, {
+                description: 'Clique na Super Gaveta Operacional piscando para visualizar.',
+                duration: 9000,
+                action: {
+                  label: 'Abrir Gaveta',
+                  onClick: () => {
+                    setStatusFilter('MY_OPEN');
+                    setActiveTab('tasks');
+                    setIsOpen(true);
+                    setHasNewTaskAlert(false);
+                  },
+                },
+              });
+            }
+          }
         }
       )
       .on(
@@ -370,9 +460,10 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [selectedEmpresaId, selectedConversation?.id, loadTasks, loadConversations, loadMessages]);
+  }, [user?.id, user?.email, selectedEmpresaId, selectedConversation?.id, loadTasks, loadConversations, loadMessages]);
 
   const openDrawer = useCallback((options?: OpenDrawerOptions) => {
+    setHasNewTaskAlert(false);
     if (options?.tab) setActiveTab(options.tab);
     if (options?.openNewTaskModal) {
       setShowNewTaskForm(true);
@@ -406,8 +497,21 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
   const pedidosMap = useMemo(() => new Map(pedidos.map(p => [p.id, p])), [pedidos]);
   const usersMap = useMemo(() => new Map(mcsUsers.map(u => [u.id, u])), [mcsUsers]);
 
+  const myPendingTasksCount = useMemo(
+    () =>
+      tasks.filter(
+        t => isMyTask(t) && (t.status === 'pending' || t.status === 'in_progress')
+      ).length,
+    [tasks, isMyTask]
+  );
+
   const pendingTasksCount = useMemo(
     () => tasks.filter(t => t.status === 'pending' || t.status === 'in_progress').length,
+    [tasks]
+  );
+
+  const completedTasksCount = useMemo(
+    () => tasks.filter(t => t.status === 'completed').length,
     [tasks]
   );
 
@@ -421,24 +525,24 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     [conversations]
   );
 
-  // Filtered tasks
+  // Filtered tasks: Pendentes NUNCA mostra concluídas; Finalizadas mostra APENAS concluídas!
   const filteredTasks = useMemo(() => {
     return tasks.filter(t => {
-      if (statusFilter === 'OPEN' && (t.status === 'completed' || t.status === 'cancelled')) return false;
-      if (statusFilter === 'COMPLETED' && t.status !== 'completed') return false;
-      if (statusFilter === 'MY_TASKS') {
-        const isMine =
-          t.assigned_to === user?.id ||
-          t.assigned_to_user_id === user?.id ||
-          (user?.email && t.assigned_to_email && t.assigned_to_email.toLowerCase() === user.email.toLowerCase());
-        if (!isMine) return false;
+      if (statusFilter === 'MY_OPEN') {
+        if (!isMyTask(t)) return false;
+        if (t.status === 'completed' || t.status === 'cancelled') return false;
+      } else if (statusFilter === 'ALL_OPEN') {
+        if (t.status === 'completed' || t.status === 'cancelled') return false;
+      } else if (statusFilter === 'COMPLETED') {
+        if (t.status !== 'completed') return false;
       }
+
       if (deptFilter !== 'ALL') {
         const deptCode = (t.department?.code || '').toUpperCase();
         if (deptCode !== deptFilter) return false;
       }
       if (originFilter !== 'ALL') {
-        const orig = t.task_origin || 'playbook';
+        const orig = t.task_source || t.task_origin || 'playbook';
         if (orig !== originFilter) return false;
       }
       if (searchQuery.trim()) {
@@ -448,13 +552,15 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
         const match =
           (t.title || '').toLowerCase().includes(q) ||
           (t.description || '').toLowerCase().includes(q) ||
+          (t.assigned_to_name || '').toLowerCase().includes(q) ||
+          (t.assigned_to_email || '').toLowerCase().includes(q) ||
           workerName.includes(q) ||
           pedidoCode.includes(q);
         if (!match) return false;
       }
       return true;
     });
-  }, [tasks, statusFilter, deptFilter, originFilter, searchQuery, user?.id, workersMap, pedidosMap]);
+  }, [tasks, statusFilter, deptFilter, originFilter, searchQuery, isMyTask, workersMap, pedidosMap]);
 
   // Handlers
   const handleCreateDirectTask = async (e: React.FormEvent) => {
@@ -551,13 +657,27 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
   };
 
   const handleUpdateTaskStatus = async (taskId: string, newStatus: string) => {
+    const nowIso = new Date().toISOString();
+    // Atualização otimista imediata: remove da lista de Pendentes na mesma hora e move para Finalizadas!
+    setTasks(prev =>
+      prev.map(t =>
+        t.id === taskId
+          ? {
+              ...t,
+              status: newStatus,
+              updated_at: nowIso,
+              ...(newStatus === 'completed' ? { completed_at: nowIso } : {}),
+            }
+          : t
+      )
+    );
     try {
       const updatePayload: any = {
         status: newStatus,
-        updated_at: new Date().toISOString()
+        updated_at: nowIso,
       };
       if (newStatus === 'completed') {
-        updatePayload.completed_at = new Date().toISOString();
+        updatePayload.completed_at = nowIso;
       }
       const { error } = await supabase
         .schema('core_operacoes')
@@ -565,10 +685,16 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
         .update(updatePayload)
         .eq('id', taskId);
       if (error) throw error;
-      toast.success(newStatus === 'completed' ? 'Tarefa concluída!' : 'Status da tarefa atualizado!');
+      toast.success(
+        newStatus === 'completed'
+          ? '✅ Tarefa finalizada e movida para a aba Finalizadas!'
+          : 'Status da tarefa atualizado!'
+      );
+      window.dispatchEvent(new CustomEvent('mcs:tasks-updated'));
       loadTasks();
     } catch (err: any) {
       toast.error(err.message || 'Erro ao atualizar tarefa');
+      loadTasks();
     }
   };
 
@@ -872,6 +998,8 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
         openDrawer,
         closeDrawer,
         pendingTasksCount,
+        myPendingTasksCount,
+        hasNewTaskAlert,
         unreadNotificationsCount,
         unreadChatCount,
         refreshAll
@@ -879,7 +1007,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
     >
       {children}
 
-      {/* Botão Flutuante Global Arrastável (Pode mover para qualquer lugar da tela e minimizar) */}
+      {/* Botão Flutuante Global Arrastável (Sincronizado e com Alerta Vibrante/Piscante quando há tarefas pendentes) */}
       {user && !isOpen && (
         <div
           onPointerDown={handleFloatingPointerDown}
@@ -893,23 +1021,49 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
           title="Arraste para mover de lugar ou clique para abrir a Super Gaveta Operacional"
           className="fixed z-40 select-none touch-none"
         >
-          <div className="group flex items-center gap-2 px-3 py-2.5 rounded-2xl bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 dark:from-indigo-600 dark:to-blue-600 text-white shadow-2xl border border-indigo-500/30 hover:border-indigo-400/60 transition-shadow cursor-grab active:cursor-grabbing">
+          <div
+            className={`group flex items-center gap-2.5 px-3.5 py-2.5 rounded-2xl text-white shadow-2xl border transition-all cursor-grab active:cursor-grabbing ${
+              myPendingTasksCount > 0 || hasNewTaskAlert
+                ? 'bg-gradient-to-r from-indigo-950 via-violet-900 to-rose-900 border-rose-400/80 ring-2 ring-rose-500/50'
+                : 'bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 border-indigo-500/30 hover:border-indigo-400/60'
+            }`}
+          >
             <GripVertical className="w-3.5 h-3.5 text-indigo-300/60 group-hover:text-indigo-200 shrink-0 -ml-1" />
 
-            <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-indigo-500/20 border border-indigo-400/30 shrink-0">
-              <Layers className="w-4 h-4 text-indigo-300 group-hover:text-white" />
-              {pendingTasksCount + unreadChatCount > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[10px] font-bold bg-rose-500 text-white rounded-full leading-none">
-                  {pendingTasksCount + unreadChatCount}
+            <div
+              className={`relative flex items-center justify-center w-8 h-8 rounded-xl border shrink-0 ${
+                myPendingTasksCount > 0 || hasNewTaskAlert
+                  ? 'bg-rose-500/25 border-rose-400/50'
+                  : 'bg-indigo-500/20 border-indigo-400/30'
+              }`}
+            >
+              <Bell
+                className={`w-4 h-4 ${
+                  myPendingTasksCount > 0 || hasNewTaskAlert
+                    ? 'text-amber-300 animate-bounce'
+                    : 'text-indigo-300 group-hover:text-white'
+                }`}
+              />
+              {(myPendingTasksCount > 0 || pendingTasksCount > 0) && (
+                <span className="absolute -top-1.5 -right-1.5 px-1.5 py-0.5 text-[10px] font-extrabold bg-rose-500 text-white rounded-full leading-none shadow-sm">
+                  {myPendingTasksCount > 0 ? myPendingTasksCount : pendingTasksCount}
                 </span>
+              )}
+              {(myPendingTasksCount > 0 || hasNewTaskAlert) && (
+                <span className="w-2.5 h-2.5 rounded-full bg-rose-400 animate-ping absolute -top-1 -right-1" />
               )}
             </div>
 
             {!isFloatingMinimized && (
               <div className="text-left pr-1">
-                <div className="text-xs font-bold tracking-tight whitespace-nowrap">Super Gaveta Operacional</div>
-                <div className="text-[10px] text-indigo-200/80 whitespace-nowrap">
-                  {pendingTasksCount} tarefas • {unreadChatCount} msgs chat
+                <div className="text-xs font-bold tracking-tight whitespace-nowrap flex items-center gap-1.5">
+                  <span>Super Gaveta Operacional</span>
+                  {myPendingTasksCount > 0 && (
+                    <span className="inline-block w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  )}
+                </div>
+                <div className="text-[10px] text-indigo-200/90 whitespace-nowrap font-medium">
+                  {myPendingTasksCount} minhas pendentes • {completedTasksCount} finalizadas
                 </div>
               </div>
             )}
@@ -929,32 +1083,37 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
 
       {/* OVERLAY + SUPER GAVETA FLUTUANTE */}
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200">
+        <div
+          className="fixed inset-0 z-50 flex justify-end bg-slate-950/60 backdrop-blur-xs animate-in fade-in duration-200"
+          onClick={closeDrawer}
+        >
           <div
             className="relative w-full max-w-[1040px] h-full bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-2xl border-l border-slate-200 dark:border-slate-800 flex flex-col overflow-hidden"
             onClick={e => e.stopPropagation()}
           >
-            {/* TOP HEADER PREMIUM */}
-            <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-indigo-500/20 flex flex-col gap-3">
-              <div className="flex items-center justify-between gap-4">
-                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center">
+            {/* TOP HEADER PREMIUM (ALINHADO EM LINHA ÚNICA SEM QUEBRAR TÍTULO OU BOTÕES) */}
+            <div className="px-6 py-4 bg-gradient-to-r from-slate-900 via-indigo-950 to-slate-900 text-white border-b border-indigo-500/20 flex flex-col gap-3 shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="w-10 h-10 rounded-xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center shrink-0">
                     <Layers className="w-5 h-5 text-indigo-300" />
                   </div>
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h2 className="text-lg font-bold tracking-tight">Central de Comando Operacional</h2>
-                      <span className="px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider bg-indigo-500/30 text-indigo-200 rounded-full border border-indigo-400/30">
-                        Playbooks + Tarefas Diretas + MCS Chat + IA
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-2.5 flex-wrap">
+                      <h2 className="text-base sm:text-lg font-bold tracking-tight whitespace-nowrap">
+                        Super Gaveta Operacional
+                      </h2>
+                      <span className="px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider bg-indigo-500/30 text-indigo-200 rounded-full border border-indigo-400/30 whitespace-nowrap">
+                        Tarefas • Setores • Auditoria WhatsApp
                       </span>
                     </div>
-                    <p className="text-xs text-slate-300">
-                      Substitui mensagens soltas do Teams e grupos de WhatsApp por tarefas auditáveis por Setor ou Pessoa
+                    <p className="text-xs text-slate-300 truncate">
+                      Acompanhe suas tarefas pendentes, relatórios de auditoria por canal e histórico de tarefas finalizadas.
                     </p>
                   </div>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   <Button
                     size="sm"
                     variant="outline"
@@ -962,10 +1121,10 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                       setShowNewTaskForm(prev => !prev);
                       setShowResignationForm(false);
                     }}
-                    className="bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400/40 text-xs font-semibold gap-1.5"
+                    className="h-8 px-3 bg-indigo-600 hover:bg-indigo-500 text-white border-indigo-400/40 text-xs font-semibold gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <Plus className="w-3.5 h-3.5" />
-                    Nova Tarefa (Setor / Pessoa)
+                    <Plus className="w-3.5 h-3.5 shrink-0" />
+                    <span>Nova Tarefa</span>
                   </Button>
 
                   <Button
@@ -975,27 +1134,27 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                       setShowResignationForm(prev => !prev);
                       setShowNewTaskForm(false);
                     }}
-                    className="bg-purple-600/90 hover:bg-purple-500 text-white border-purple-400/40 text-xs font-semibold gap-1.5"
+                    className="h-8 px-3 bg-purple-600/90 hover:bg-purple-500 text-white border-purple-400/40 text-xs font-semibold gap-1.5 whitespace-nowrap shrink-0"
                   >
-                    <UserMinus className="w-3.5 h-3.5" />
-                    Baixa / Renúncia (15d)
+                    <UserMinus className="w-3.5 h-3.5 shrink-0" />
+                    <span>Baixa / Renúncia (15d)</span>
                   </Button>
 
                   <Button
                     size="sm"
                     variant="outline"
                     onClick={handleRunRadarD10}
-                    className="bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/30 text-xs font-semibold gap-1.5"
+                    className="h-8 px-3 bg-slate-800 hover:bg-slate-700 text-amber-300 border-amber-500/30 text-xs font-semibold gap-1.5 whitespace-nowrap shrink-0"
                     title="Verificar obras que vencem nos próximos 10 dias"
                   >
-                    <Radar className="w-3.5 h-3.5" />
-                    <span className="hidden sm:inline">Radar D-10</span>
+                    <Radar className="w-3.5 h-3.5 shrink-0" />
+                    <span>Radar D-10</span>
                   </Button>
 
                   <button
                     type="button"
                     onClick={refreshAll}
-                    className="p-2 rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300"
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-slate-800/80 hover:bg-slate-700 text-slate-300 shrink-0 cursor-pointer"
                     title="Atualizar dados"
                   >
                     <RefreshCw className={`w-4 h-4 ${isLoading ? 'animate-spin' : ''}`} />
@@ -1004,7 +1163,7 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                   <button
                     type="button"
                     onClick={closeDrawer}
-                    className="p-2 rounded-lg bg-slate-800/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors"
+                    className="h-8 w-8 inline-flex items-center justify-center rounded-lg bg-slate-800/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-colors shrink-0 cursor-pointer"
                     title="Fechar Gaveta"
                   >
                     <X className="w-4 h-4" />
@@ -1017,16 +1176,22 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                 <button
                   type="button"
                   onClick={() => setActiveTab('tasks')}
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold whitespace-nowrap shrink-0 transition-all cursor-pointer ${
                     activeTab === 'tasks'
                       ? 'bg-white text-slate-900 shadow-sm'
                       : 'text-slate-300 hover:bg-white/10'
                   }`}
                 >
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                  <span>Tarefas & Playbooks</span>
-                  <span className="px-1.5 py-0.2 text-[10px] rounded-full bg-indigo-500/20 text-indigo-300 font-bold">
-                    {pendingTasksCount}
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                  <span>Minhas Tarefas & Setores</span>
+                  <span
+                    className={`px-1.5 py-0.5 text-[10px] rounded-full font-extrabold ${
+                      myPendingTasksCount > 0
+                        ? 'bg-rose-500 text-white'
+                        : 'bg-indigo-500/20 text-indigo-300'
+                    }`}
+                  >
+                    {myPendingTasksCount}
                   </span>
                 </button>
 
@@ -1379,24 +1544,103 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
               {/* ========================================================= */}
               {activeTab === 'tasks' && (
                 <div className="space-y-4">
-                  {/* Barra de Filtros */}
-                  <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-xs">
-                    <div className="flex flex-wrap items-center gap-2">
+                  {/* Barra de Abas (Pendentes vs Finalizadas) + Filtros Organizados */}
+                  <div className="bg-white dark:bg-slate-900 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-xs space-y-3">
+                    {/* Linha 1: Abas Pendentes vs Finalizadas + Botão Auditar WhatsApp */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
+                      <div className="flex flex-wrap items-center gap-1.5 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter('MY_OPEN')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                            statusFilter === 'MY_OPEN'
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
+                          }`}
+                        >
+                          <span>👤 Minhas Pendentes</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                              statusFilter === 'MY_OPEN'
+                                ? 'bg-white text-indigo-700'
+                                : 'bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300'
+                            }`}
+                          >
+                            {myPendingTasksCount}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter('ALL_OPEN')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                            statusFilter === 'ALL_OPEN'
+                              ? 'bg-indigo-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
+                          }`}
+                        >
+                          <span>🏢 Pendentes dos Setores</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                              statusFilter === 'ALL_OPEN'
+                                ? 'bg-white text-indigo-700'
+                                : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'
+                            }`}
+                          >
+                            {pendingTasksCount}
+                          </span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setStatusFilter('COMPLETED')}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold whitespace-nowrap transition-all cursor-pointer flex items-center gap-1.5 ${
+                            statusFilter === 'COMPLETED'
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
+                          }`}
+                        >
+                          <span>✅ Finalizadas / Concluídas</span>
+                          <span
+                            className={`px-1.5 py-0.2 rounded-full text-[10px] font-extrabold ${
+                              statusFilter === 'COMPLETED'
+                                ? 'bg-white text-emerald-700'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300'
+                            }`}
+                          >
+                            {completedTasksCount}
+                          </span>
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => openMcsChatWithSso('/inbox/admin/audit')}
+                        className="h-8 px-3 text-xs font-bold rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 whitespace-nowrap shrink-0 cursor-pointer transition-colors"
+                        title="Abrir painel de Auditoria & Resumo Diário de WhatsApp (ou auditar um canal agora sob demanda)"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                        <span>📊 Auditar Canais WhatsApp</span>
+                      </button>
+                    </div>
+
+                    {/* Linha 2: Busca + Setor + Origem perfeitamente alinhados */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                       <div className="relative">
                         <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
                         <input
                           type="text"
                           value={searchQuery}
                           onChange={e => setSearchQuery(e.target.value)}
-                          placeholder="Buscar tarefa, trabalhador, pedido..."
-                          className="pl-9 pr-3 py-1.5 text-xs rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 w-56"
+                          placeholder="Buscar tarefa, canal, trabalhador..."
+                          className="w-full h-9 pl-9 pr-3 text-xs rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none focus:border-indigo-500"
                         />
                       </div>
 
                       <select
                         value={deptFilter}
                         onChange={e => setDeptFilter(e.target.value)}
-                        className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                        className="h-9 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
                       >
                         <option value="ALL">🏢 Todos os Setores</option>
                         <option value="RH">RH / Gestão Pessoal</option>
@@ -1412,60 +1656,15 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                       <select
                         value={originFilter}
                         onChange={e => setOriginFilter(e.target.value)}
-                        className="px-2.5 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                        className="h-9 px-3 text-xs font-medium rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 outline-none"
                       >
                         <option value="ALL">⚡ Todas as Origens</option>
-                        <option value="playbook">⚡ Playbooks Automáticos</option>
+                        <option value="chat">💬 Auditoria / MCS Chat</option>
                         <option value="manual">👤 Tarefas Diretas (Pessoa/Setor)</option>
-                        <option value="chat">💬 Originadas no MCS Chat / Auditoria I.A.</option>
+                        <option value="playbook">⚡ Playbooks Automáticos</option>
+                        <option value="tariff_authorization">💰 Aprovação de Tarifa</option>
                         <option value="email_ai">🤖 Sugeridas pelo Agente de E-mail</option>
                       </select>
-
-                      <button
-                        type="button"
-                        onClick={() => openMcsChatWithSso('/inbox/admin/audit')}
-                        className="px-2.5 py-1.5 text-xs font-bold rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center gap-1.5 cursor-pointer transition-colors"
-                        title="Abrir painel de Auditoria & Resumo Diário de WhatsApp (ou auditar um canal agora sob demanda)"
-                      >
-                        <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>📊 Auditar Canais WhatsApp</span>
-                      </button>
-                    </div>
-
-                    <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 p-1 rounded-lg">
-                      <button
-                        type="button"
-                        onClick={() => setStatusFilter('OPEN')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                          statusFilter === 'OPEN'
-                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        Pendentes ({pendingTasksCount})
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatusFilter('MY_TASKS')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                          statusFilter === 'MY_TASKS'
-                            ? 'bg-white dark:bg-slate-900 text-indigo-600 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        Para Mim
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setStatusFilter('COMPLETED')}
-                        className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all ${
-                          statusFilter === 'COMPLETED'
-                            ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-xs'
-                            : 'text-slate-600 dark:text-slate-400'
-                        }`}
-                      >
-                        Concluídas
-                      </button>
                     </div>
                   </div>
 
@@ -1473,15 +1672,22 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                   {filteredTasks.length === 0 ? (
                     <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-10 text-center space-y-2">
                       <CheckCircle2 className="w-10 h-10 text-emerald-500 mx-auto opacity-80" />
-                      <h3 className="text-sm font-bold">Nenhuma tarefa encontrada neste filtro</h3>
+                      <h3 className="text-sm font-bold">
+                        {statusFilter === 'COMPLETED'
+                          ? 'Nenhuma tarefa finalizada neste filtro'
+                          : '🎉 Tudo em dia! Nenhuma tarefa pendente neste filtro'}
+                      </h3>
                       <p className="text-xs text-slate-500 max-w-md mx-auto">
-                        As tarefas geradas pelos 8 Playbooks Operacionais ou criadas diretamente para setores/pessoas aparecerão aqui em tempo real.
+                        {statusFilter === 'MY_OPEN'
+                          ? 'Você não possui tarefas pendentes atribuídas ao seu usuário no momento. Veja a aba "Finalizadas / Concluídas" para consultar o histórico.'
+                          : 'As tarefas ativas ou finalizadas aparecerão aqui em tempo real.'}
                       </p>
                     </div>
                   ) : (
                     <div className="space-y-3">
                       {filteredTasks.map(task => {
-                        const originInfo = ORIGIN_BADGES[task.task_origin || 'playbook'] || ORIGIN_BADGES.playbook;
+                        const taskOriginKey = task.task_source || task.task_origin || 'playbook';
+                        const originInfo = ORIGIN_BADGES[taskOriginKey] || ORIGIN_BADGES.playbook;
                         const solType = task.solicitud?.tipo || 'incident';
                         const typeInfo = SOLICITUD_TYPE_LABELS[solType] || SOLICITUD_TYPE_LABELS.incident;
                         const worker = task.worker_id ? workersMap.get(task.worker_id) : null;
@@ -1493,45 +1699,61 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                         const isResignationClientConsult =
                           solType === 'worker_resignation' &&
                           (task.title || '').toLowerCase().includes('consultar cliente');
+                        const isCompleted = task.status === 'completed';
+                        const isLongDesc = (task.description || '').length > 280;
+                        const isExpanded = Boolean(expandedTaskIds[task.id]);
 
                         return (
                           <div
                             key={task.id}
-                            className={`p-4 rounded-xl bg-white dark:bg-slate-900 border transition-all shadow-xs ${
-                              task.priority === 'urgent'
+                            className={`p-4 rounded-2xl bg-white dark:bg-slate-900 border transition-all shadow-xs ${
+                              isCompleted
+                                ? 'border-emerald-200/80 dark:border-emerald-900/50 bg-emerald-50/10'
+                                : task.priority === 'urgent'
                                 ? 'border-l-4 border-l-rose-500 border-slate-200 dark:border-slate-800'
                                 : task.priority === 'high'
                                 ? 'border-l-4 border-l-amber-500 border-slate-200 dark:border-slate-800'
                                 : 'border-slate-200 dark:border-slate-800'
                             }`}
                           >
-                            <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
+                            <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                               <div className="flex flex-wrap items-center gap-1.5">
                                 <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${originInfo.className}`}>
                                   {originInfo.label}
                                 </span>
-                                <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${typeInfo.color}`}>
-                                  {typeInfo.label}
-                                </span>
+                                {taskOriginKey !== 'chat' && (
+                                  <span className={`px-2 py-0.5 text-[10px] font-bold rounded-md border ${typeInfo.color}`}>
+                                    {typeInfo.label}
+                                  </span>
+                                )}
                                 <Badge variant="outline" className="text-[10px] font-bold">
-                                  🏢 {task.department?.name || 'Setor Geral'}
+                                  🏢 {task.department?.name || task.department_name || 'Operações'}
                                 </Badge>
-                                {task.solicitud?.codigo && (
-                                  <Badge variant="secondary" className="text-[10px] font-mono">
-                                    #{task.solicitud.codigo}
+                                {isCompleted ? (
+                                  <Badge className="bg-emerald-600 text-white text-[10px]">
+                                    ✅ Finalizada
+                                  </Badge>
+                                ) : task.status === 'in_progress' ? (
+                                  <Badge className="bg-blue-600 text-white text-[10px]">
+                                    ⏳ Em Andamento
+                                  </Badge>
+                                ) : (
+                                  <Badge className="bg-amber-500/15 text-amber-700 border border-amber-300 text-[10px]">
+                                    🔔 Pendente
                                   </Badge>
                                 )}
                               </div>
 
-                              <div className="flex items-center gap-2">
-                                {/* Seletor rápido de pessoa responsável */}
+                              <div className="flex items-center gap-2 shrink-0">
                                 <select
                                   value={task.assigned_to_user_id || task.assigned_to || ''}
                                   onChange={e => handleAssignTaskPerson(task.id, e.target.value)}
-                                  className="px-2 py-1 text-[11px] rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
+                                  className="h-7 px-2 text-[11px] font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
                                   title="Direcionar para uma pessoa específica"
                                 >
-                                  <option value="">👤 Atribuir Pessoa...</option>
+                                  <option value="">
+                                    {task.assigned_to_name ? `👤 ${task.assigned_to_name}` : '👤 Atribuir Pessoa...'}
+                                  </option>
                                   {mcsUsers.map(u => (
                                     <option key={u.id} value={u.id}>
                                       {u.name || u.email}
@@ -1541,64 +1763,144 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                               </div>
                             </div>
 
-                            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1">
+                            <h4 className="text-sm font-bold text-slate-900 dark:text-slate-100 mb-1.5 leading-snug">
                               {task.title}
                             </h4>
+
                             {task.description && (
-                              <p className="text-xs text-slate-600 dark:text-slate-400 mb-3 whitespace-pre-line">
-                                {task.description}
-                              </p>
-                            )}
-
-                            {task.metadata?.signing_url && task.status !== 'completed' && (
                               <div className="mb-3">
-                                <a
-                                  href={task.metadata.signing_url}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-sm transition-colors"
-                                >
-                                  Abrir Termo para Assinar ({task.metadata.codigo_termo || 'Tarifa'})
-                                </a>
+                                <p className="text-xs text-slate-600 dark:text-slate-300 whitespace-pre-line leading-relaxed bg-slate-50/80 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-100 dark:border-slate-800">
+                                  {isLongDesc && !isExpanded
+                                    ? `${task.description.slice(0, 280)}...`
+                                    : task.description}
+                                </p>
+                                {isLongDesc && (
+                                  <button
+                                    type="button"
+                                    onClick={() =>
+                                      setExpandedTaskIds(prev => ({ ...prev, [task.id]: !prev[task.id] }))
+                                    }
+                                    className="mt-1.5 text-[11px] font-bold text-indigo-600 hover:text-indigo-700 cursor-pointer"
+                                  >
+                                    {isExpanded ? '▲ Recolher resumo detalhado' : '▼ Ler resumo completo da tarefa'}
+                                  </button>
+                                )}
                               </div>
                             )}
 
-                            {task.metadata?.audit_url && (
-                              <div className="mb-3">
-                                <a
-                                  href={task.metadata.audit_url}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
-                                >
-                                  📊 Abrir Relatório Completo de Auditoria no MCS-Chat ({task.metadata.channel_name || 'Canal'})
-                                </a>
-                              </div>
-                            )}
+                            {/* AÇÕES DA TAREFA ALINHADAS EM LINHA ÚNICA */}
+                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2.5 border-t border-slate-100 dark:border-slate-800/80">
+                              <div className="flex flex-wrap items-center gap-2">
+                                {task.metadata?.audit_url && (
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      try {
+                                        const u = new URL(task.metadata.audit_url, 'https://mcs-chat.vercel.app');
+                                        openMcsChatWithSso(`${u.pathname}${u.search}`);
+                                      } catch {
+                                        openMcsChatWithSso('/inbox/admin/audit');
+                                      }
+                                    }}
+                                    className="h-8 px-3 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-bold inline-flex items-center gap-1.5 whitespace-nowrap cursor-pointer transition-colors"
+                                  >
+                                    <Sparkles className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                                    <span>📊 Ver Auditoria Completa no MCS-Chat</span>
+                                  </button>
+                                )}
 
-                            {/* Metadados de Trabalhador, Pedido e Agendamento */}
-                            <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-3">
-                              {worker && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                                  <User className="w-3 h-3 text-indigo-500" />
-                                  {worker.cod_colab ? `${worker.cod_colab} - ` : ''}{worker.nome}
-                                </span>
-                              )}
-                              {pedido && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-medium">
-                                  <Briefcase className="w-3 h-3 text-blue-500" />
-                                  Pedido: {pedido.codigo}
-                                </span>
-                              )}
-                              {(task.scheduled_for || task.due_date) && (
-                                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 dark:bg-amber-950/50 text-amber-700 dark:text-amber-300 font-medium">
-                                  <Clock className="w-3 h-3" />
-                                  Prazo/Agenda: {new Date(task.scheduled_for || task.due_date).toLocaleDateString('pt-BR')}
-                                </span>
-                              )}
+                                {task.metadata?.signing_url && !isCompleted && (
+                                  <a
+                                    href={task.metadata.signing_url}
+                                    className="h-8 px-3 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold inline-flex items-center gap-1.5 whitespace-nowrap shadow-xs transition-colors"
+                                  >
+                                    <span>Abrir Termo ({task.metadata.codigo_termo || 'Tarifa'})</span>
+                                  </a>
+                                )}
+
+                                {(task.conversation_id || task.worker_id) && (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      openDrawer({
+                                        tab: 'chat',
+                                        conversationId: task.conversation_id,
+                                        workerId: task.worker_id
+                                      })
+                                    }
+                                    className="h-8 text-xs gap-1.5 text-emerald-600 border-emerald-200 hover:bg-emerald-50 whitespace-nowrap"
+                                  >
+                                    <MessageSquare className="w-3.5 h-3.5" />
+                                    <span>Abrir Conversa</span>
+                                  </Button>
+                                )}
+
+                                {worker && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium">
+                                    <User className="w-3 h-3 text-indigo-500" />
+                                    {worker.cod_colab ? `${worker.cod_colab} - ` : ''}{worker.nome}
+                                  </span>
+                                )}
+                                {pedido && (
+                                  <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-medium">
+                                    <Briefcase className="w-3 h-3 text-blue-500" />
+                                    {pedido.codigo}
+                                  </span>
+                                )}
+                              </div>
+
+                              <div className="flex items-center gap-2 shrink-0">
+                                {!isCompleted ? (
+                                  <>
+                                    {task.status === 'pending' && (
+                                      <Button
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => handleUpdateTaskStatus(task.id, 'in_progress')}
+                                        className="h-8 px-3 text-xs font-semibold gap-1.5 whitespace-nowrap cursor-pointer"
+                                      >
+                                        <Play className="w-3 h-3" />
+                                        <span>Iniciar</span>
+                                      </Button>
+                                    )}
+                                    <Button
+                                      size="sm"
+                                      onClick={() => handleUpdateTaskStatus(task.id, 'completed')}
+                                      className="h-8 px-3.5 text-xs font-bold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white whitespace-nowrap cursor-pointer shadow-xs"
+                                    >
+                                      <Check className="w-3.5 h-3.5" />
+                                      <span>Finalizar Tarefa</span>
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400">
+                                      ✅ Concluída{' '}
+                                      {task.completed_at
+                                        ? `em ${new Date(task.completed_at).toLocaleString('pt-BR', {
+                                            day: '2-digit',
+                                            month: '2-digit',
+                                            hour: '2-digit',
+                                            minute: '2-digit',
+                                          })}`
+                                        : ''}
+                                    </span>
+                                    <Button
+                                      size="sm"
+                                      variant="outline"
+                                      onClick={() => handleUpdateTaskStatus(task.id, 'pending')}
+                                      className="h-7 px-2.5 text-[11px] whitespace-nowrap cursor-pointer"
+                                    >
+                                      Reabrir
+                                    </Button>
+                                  </div>
+                                )}
+                              </div>
                             </div>
 
-                            {/* BARRA DE DECISÃO DE 1 CLIQUE: CONSULTA AO CLIENTE NA BAIXA DE TRABALHADOR */}
-                            {isResignationClientConsult && task.solicitud?.id && task.status !== 'completed' && (
-                              <div className="mb-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex flex-wrap items-center justify-between gap-2">
+                            {isResignationClientConsult && task.solicitud?.id && !isCompleted && (
+                              <div className="mt-3 p-3 rounded-lg bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 flex flex-wrap items-center justify-between gap-2">
                                 <div className="text-xs font-semibold text-purple-900 dark:text-purple-200">
                                   🎯 Decisão do Cliente sobre a vaga do trabalhador em Aviso Prévio:
                                 </div>
@@ -1621,63 +1923,6 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                                 </div>
                               </div>
                             )}
-
-                            {/* AÇÕES DA TAREFA */}
-                            <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100 dark:border-slate-800/80">
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="datetime-local"
-                                  defaultValue={task.scheduled_for ? task.scheduled_for.slice(0, 16) : ''}
-                                  onBlur={e => {
-                                    if (e.target.value) handleScheduleTask(task.id, e.target.value);
-                                  }}
-                                  className="px-2 py-1 text-[11px] rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800"
-                                  title="Programar data/hora na Agenda"
-                                />
-
-                                {(task.conversation_id || task.worker_id) && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() =>
-                                      openDrawer({
-                                        tab: 'chat',
-                                        conversationId: task.conversation_id,
-                                        workerId: task.worker_id
-                                      })
-                                    }
-                                    className="h-7 text-xs gap-1 text-emerald-600 border-emerald-200 hover:bg-emerald-50"
-                                  >
-                                    <MessageSquare className="w-3.5 h-3.5" />
-                                    Abrir no MCS Chat
-                                  </Button>
-                                )}
-                              </div>
-
-                              <div className="flex items-center gap-2">
-                                {task.status === 'pending' && (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleUpdateTaskStatus(task.id, 'in_progress')}
-                                    className="h-7 text-xs gap-1"
-                                  >
-                                    <Play className="w-3 h-3" />
-                                    Iniciar
-                                  </Button>
-                                )}
-                                {task.status !== 'completed' && (
-                                  <Button
-                                    size="sm"
-                                    onClick={() => handleUpdateTaskStatus(task.id, 'completed')}
-                                    className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
-                                  >
-                                    <Check className="w-3.5 h-3.5" />
-                                    Concluir Tarefa
-                                  </Button>
-                                )}
-                              </div>
-                            </div>
                           </div>
                         );
                       })}

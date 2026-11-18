@@ -15,7 +15,10 @@ export function useSolicitudActions(solicitudId: string | undefined) {
       queryClient.invalidateQueries({ queryKey: ['solicitud-detail', selectedEmpresaId, sid] });
     }
     queryClient.invalidateQueries({ queryKey: ['solicitudes', selectedEmpresaId] });
-    queryClient.invalidateQueries({ queryKey: ['department-tasks', selectedEmpresaId] });
+    queryClient.invalidateQueries({ queryKey: ['department-tasks'] });
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('mcs:tasks-updated'));
+    }
   };
 
   const startTask = useMutation({
