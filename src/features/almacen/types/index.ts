@@ -152,6 +152,8 @@ export interface DemandaWorkerAlmacen {
   alojamento_nome: string | null;
   alojamento_endereco: string | null;
   alojamento_cidade: string | null;
+  is_replacement: boolean;
+  replacement_code?: string | null;
 }
 
 export interface DemandaPedidoAlmacen {
