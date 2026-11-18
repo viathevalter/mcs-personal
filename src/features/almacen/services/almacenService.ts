@@ -1,4 +1,5 @@
 import { supabase } from '@/shared/supabase/client';
+import { logisticsService } from '@/features/logistica/services/logisticsService';
 import type {
   AlmacenEpi,
   AlmacenEmpresa,
@@ -15,6 +16,17 @@ import type {
   RequiredEpiPreview,
 } from '../types';
 import { STANDARD_SIZES } from '../types';
+
+function normalizeSizeCode(raw?: string | null): string | null {
+  if (!raw) return null;
+  const clean = String(raw).trim().toUpperCase();
+  if (!clean) return null;
+  // Extrair S, M, L, XL, XXL, XXXL de formatos como "CAM/XL", "PAN/M", "L (58)", "XL"
+  const match = clean.match(/\b(XXXL|XXL|XL|S|M|L)\b/) || clean.match(/\/(XXXL|XXL|XL|S|M|L)$/);
+  if (match) return match[1];
+  if ((STANDARD_SIZES as readonly string[]).includes(clean)) return clean;
+  return null;
+}
 
 export const almacenService = {
   async getEpis(): Promise<AlmacenEpi[]> {
@@ -246,7 +258,7 @@ export const almacenService = {
   },
 
   async getDemandasPedidos(): Promise<DemandaPedidoAlmacen[]> {
-    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes] = await Promise.all([
+    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes, alocacoesAtivas, alojamentos] = await Promise.all([
       supabase
         .schema('core_comercial')
         .from('pedidos')
@@ -277,6 +289,8 @@ export const almacenService = {
         .select('*, items:almacen_picking_items(*)')
         .neq('status', 'CANCELADO')
         .order('created_at', { ascending: false }),
+      logisticsService.fetchAlocacoesAtivas().catch(() => []),
+      logisticsService.fetchAlojamentos().catch(() => []),
     ]);
 
     if (pedidosRes.error) throw pedidosRes.error;
@@ -292,7 +306,7 @@ export const almacenService = {
         ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').in('id', clientIds)
         : Promise.resolve({ data: [] }),
       siteIds.length
-        ? supabase.schema('core_common').from('client_sites').select('id, name, city').in('id', siteIds)
+        ? supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code, contact_name, contact_phone').in('id', siteIds)
         : Promise.resolve({ data: [] }),
       empresaIds.length
         ? supabase.schema('core_common').from('empresas').select('id, nome, trade_name').in('id', empresaIds)
@@ -305,11 +319,25 @@ export const almacenService = {
     const episMap = new Map(episRes.map((e) => [e.id, e]));
     const jobsMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j.name]));
 
-    // Group job_function_epis by job_function_id
+    // Mapear Alojamentos e Alocações Ativas por worker_id e cod_colab
+    const alojMap = new Map(alojamentos.map((a: any) => [a.id, a]));
+    const alocByWorkerId = new Map<string, any>();
+    const alocByCodColab = new Map<string, any>();
+    for (const al of alocacoesAtivas as any[]) {
+      if (al.worker_id) alocByWorkerId.set(al.worker_id, al);
+      if (al.codigo_colab) alocByCodColab.set(String(al.codigo_colab).trim().toUpperCase(), al);
+    }
+
+    // Group job_function_epis by job_function_id (deduplicated by epi_id)
     const jobEpisMap = new Map<string, RequiredEpiPreview[]>();
+    const seenJobEpi = new Set<string>();
     for (const row of jobEpisRes.data || []) {
       const epi = episMap.get(row.epi_id);
       if (!epi) continue;
+      const dedupKey = `${row.job_function_id}::${epi.id}`;
+      if (seenJobEpi.has(dedupKey)) continue;
+      seenJobEpi.add(dedupKey);
+
       const list = jobEpisMap.get(row.job_function_id) || [];
       list.push({
         epi_id: epi.id,
@@ -382,20 +410,52 @@ export const almacenService = {
         const lastDispatchAt = lastDispatchByWorker.get(w.id) || null;
         const hasRecentDispatch = lastDispatchAt ? new Date(lastDispatchAt).getTime() >= sixMonthsAgo : false;
 
+        // Resolver Alojamento Local do trabalhador
+        const codKey = w.cod_colab ? String(w.cod_colab).trim().toUpperCase() : '';
+        const aloc = alocByWorkerId.get(w.id) || (codKey ? alocByCodColab.get(codKey) : null);
+        let alojTipo: 'alojamento' | 'propio' | 'cliente' | 'pendente' = 'pendente';
+        let alojNome: string | null = null;
+        let alojEndereco: string | null = null;
+        let alojCidade: string | null = null;
+
+        if (aloc) {
+          const tipoStr = String(aloc.tipo_alojamento || aloc.alojamento_nome || '').toLowerCase();
+          if (tipoStr.includes('propio') || tipoStr.includes('próprio')) {
+            alojTipo = 'propio';
+            alojNome = 'Alojamento Próprio';
+          } else if (tipoStr.includes('cliente')) {
+            alojTipo = 'cliente';
+            alojNome = 'Alojamento do Cliente';
+          } else {
+            const alojObj = aloc.alojamento_id ? alojMap.get(aloc.alojamento_id) : null;
+            alojTipo = 'alojamento';
+            alojNome = alojObj?.nome || alojObj?.titulo || aloc.alojamento_nome || 'Alojamento Alocado';
+            const addrParts = [alojObj?.endereco, alojObj?.codigo_postal, alojObj?.municipio || alojObj?.provincia]
+              .filter(Boolean)
+              .join(', ');
+            alojEndereco = addrParts || aloc.endereco || null;
+            alojCidade = alojObj?.municipio || alojObj?.provincia || null;
+          }
+        }
+
         workers.push({
           worker_id: w.id,
           cod_colab: w.cod_colab || null,
           nome: w.nome,
           identificacion: w.dni || w.nie || w.pasaporte || w.nif || null,
           movil: w.movil || null,
-          camiseta: w.camiseta || null,
-          pantalones: w.pantalones || null,
+          camiseta: normalizeSizeCode(w.camiseta),
+          pantalones: normalizeSizeCode(w.pantalones),
           job_function_id: jfId,
           job_function_name: jfName,
           required_epis: requiredEpis,
           existing_order: existingOrder,
           last_dispatch_at: lastDispatchAt,
           has_recent_dispatch: hasRecentDispatch,
+          alojamento_tipo: alojTipo,
+          alojamento_nome: alojNome,
+          alojamento_endereco: alojEndereco,
+          alojamento_cidade: alojCidade,
         });
       }
 
@@ -410,6 +470,10 @@ export const almacenService = {
         client_nome: cli?.trade_name || cli?.legal_name || 'Cliente',
         site_nome: site?.name || null,
         site_cidade: site?.city || null,
+        site_address: site?.address_line || null,
+        site_postal_code: site?.postal_code || null,
+        site_contact_name: site?.contact_name || null,
+        site_contact_phone: site?.contact_phone || null,
         expected_start_date: p.expected_start_date || null,
         operational_status: p.operational_status || null,
         workers,
@@ -433,6 +497,8 @@ export const almacenService = {
     worker: DemandaWorkerAlmacen;
     request_type?: RequestType;
     expected_start_date?: string | null;
+    delivery_method?: DeliveryMethod | null;
+    delivery_address?: string | null;
     observations?: string | null;
     custom_items?: { epi_id: string; item_name: string; size_code: string; quantity: number; unit_cost: number; is_branded: boolean }[];
   }): Promise<PickingOrder> {
@@ -485,6 +551,8 @@ export const almacenService = {
         status: 'PENDENTE',
         camiseta_size: params.worker.camiseta || null,
         pantalones_size: params.worker.pantalones || null,
+        delivery_method: params.delivery_method || null,
+        delivery_address: params.delivery_address || null,
         expected_start_date: params.expected_start_date || null,
         observations: params.observations || (params.worker.has_recent_dispatch ? 'Ya cuenta con Epis y Dotacion Reciente. Proxima Reposicion: 6 meses' : null),
         created_by: userData?.user?.id || null,

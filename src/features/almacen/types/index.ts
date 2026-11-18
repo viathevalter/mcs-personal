@@ -148,6 +148,10 @@ export interface DemandaWorkerAlmacen {
   existing_order?: PickingOrder | null;
   last_dispatch_at?: string | null;
   has_recent_dispatch: boolean;
+  alojamento_tipo: 'alojamento' | 'propio' | 'cliente' | 'pendente';
+  alojamento_nome: string | null;
+  alojamento_endereco: string | null;
+  alojamento_cidade: string | null;
 }
 
 export interface DemandaPedidoAlmacen {
@@ -159,6 +163,10 @@ export interface DemandaPedidoAlmacen {
   client_nome: string;
   site_nome: string | null;
   site_cidade: string | null;
+  site_address: string | null;
+  site_postal_code: string | null;
+  site_contact_name: string | null;
+  site_contact_phone: string | null;
   expected_start_date: string | null;
   operational_status: string | null;
   workers: DemandaWorkerAlmacen[];
