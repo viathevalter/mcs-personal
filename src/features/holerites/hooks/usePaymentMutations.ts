@@ -2,6 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/shared/supabase/client';
 import { toast } from 'sonner';
 
+export interface WorkerPaymentSnapshot {
+    tarifa_hora?: number;
+    horas_trabalhadas?: number;
+    total_proventos?: number;
+    total_descontos?: number;
+    valor_liquido?: number;
+}
+
 export interface MarcarPagosParams {
     workerIds: string[];
     mesReferencia: string;
@@ -15,6 +23,7 @@ export interface MarcarPagosParams {
     comprovanteMime?: string | null;
     observacaoPagamento?: string | null;
     empresaId?: string;
+    workerSnapshots?: Record<string, WorkerPaymentSnapshot>;
 }
 
 export interface EstornarPagamentoParams {
@@ -39,7 +48,8 @@ export function usePaymentMutations() {
             comprovanteSize,
             comprovanteMime,
             observacaoPagamento,
-            empresaId
+            empresaId,
+            workerSnapshots
         }: MarcarPagosParams) => {
             const { data, error } = await supabase.rpc('marcar_holerites_pagos', {
                 payload: {
@@ -54,7 +64,8 @@ export function usePaymentMutations() {
                     comprovante_size: comprovanteSize || null,
                     comprovante_mime: comprovanteMime || null,
                     observacao_pagamento: observacaoPagamento || null,
-                    empresa_id: empresaId || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d'
+                    empresa_id: empresaId || 'bedbc2ad-bb7a-4bb3-986e-07224a9a5a3d',
+                    worker_snapshots: workerSnapshots || {}
                 }
             });
 

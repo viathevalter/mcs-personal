@@ -84,10 +84,11 @@ import { useDeleteHoleriteEvento } from '../hooks/useDeleteHoleriteEvento';
 import { useDeleteDiscount } from '../../discounts/hooks/useDiscountMutations';
 import { isHolding, isHoldingId } from '@/shared/utils/empresaUtils';
 import { useHoleritesStatus } from '../hooks/useHoleritesStatus';
-import { usePaymentMutations } from '../hooks/usePaymentMutations';
+import { usePaymentMutations, type WorkerPaymentSnapshot } from '../hooks/usePaymentMutations';
 import { PaymentConfirmModal, type PaymentConfirmData } from '../components/PaymentConfirmModal';
 import { exportBankTransferSpreadsheet } from '../utils/exportBankTransfer';
 import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
+import { getEffectiveTariffsMapForMonth } from '@/features/workers/api/tariffGovernanceApi';
 
 const PASTEL_CLIENT_STYLES = [
     { badge: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border-indigo-200/70' },
@@ -381,6 +382,12 @@ export function HoleritesPage() {
     const { data: workers, isLoading: isLoadingWorkers } = useWorkersForHolerites(selectedEmpresaId || undefined, mesReferencia);
     const { data: eventos, isLoading: isLoadingEventos } = useHoleriteEventos(mesReferencia);
     const { data: holeritesStatusMap, isLoading: isLoadingStatus } = useHoleritesStatus(mesReferencia);
+    const { data: effectiveTariffsMap } = useQuery({
+        queryKey: ['effective-tariffs-month', mesReferencia],
+        queryFn: () => getEffectiveTariffsMapForMonth(mesReferencia),
+        enabled: Boolean(mesReferencia),
+        refetchOnWindowFocus: false
+    });
     const { marcarPagos, isMarcarPagosLoading, estornarPagamento, isEstornarLoading } = usePaymentMutations();
     const { data: contratantesUnicos = [] } = useUniqueContratantes();
     const { mutate: deleteBatch, isPending: isDeletingBatch } = useDeleteHorasBatch();
@@ -1218,7 +1225,21 @@ export function HoleritesPage() {
             }
         }
 
-        const baseTarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
+        const hStatus = holeritesStatusMap?.get(worker.id);
+        const frozenPaidTarifa =
+            hStatus?.status === 'pago' && hStatus?.tarifa_hora && Number(hStatus.tarifa_hora) > 0
+                ? Number(hStatus.tarifa_hora)
+                : null;
+        const scheduledMonthTarifa = effectiveTariffsMap?.get(worker.id);
+        const cadastroTarifaHora = Number(worker.worker_beneficios_settings?.tarifa_hora || 0);
+
+        const baseTarifaHora =
+            frozenPaidTarifa !== null
+                ? frozenPaidTarifa
+                : scheduledMonthTarifa !== undefined && scheduledMonthTarifa > 0
+                    ? scheduledMonthTarifa
+                    : cadastroTarifaHora;
+
         const manualTariffEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_tarifa');
         const isManualTariff = Boolean(
             manualTariffEvent &&
@@ -1503,7 +1524,7 @@ export function HoleritesPage() {
         });
 
         return rows;
-    }, [filteredWorkers, contratanteFilter, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, empresas, mesReferencia, getWorkerEffectiveActivity]);
+    }, [filteredWorkers, contratanteFilter, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, empresas, mesReferencia, getWorkerEffectiveActivity, effectiveTariffsMap, holeritesStatusMap]);
 
     const sortedFolhaRows = React.useMemo(() => {
         if (!folhaRows) return [];
@@ -1622,6 +1643,28 @@ export function HoleritesPage() {
             return;
         }
 
+        const workerSnapshots: Record<string, WorkerPaymentSnapshot> = {};
+        selectedRowsList.forEach(r => {
+            const prev = workerSnapshots[r.workerId];
+            if (!prev) {
+                workerSnapshots[r.workerId] = {
+                    tarifa_hora: r.tarifaHora,
+                    horas_trabalhadas: r.totalHoras,
+                    total_proventos: r.proventos,
+                    total_descontos: r.descontos,
+                    valor_liquido: r.liquido
+                };
+            } else {
+                workerSnapshots[r.workerId] = {
+                    tarifa_hora: r.tarifaHora || prev.tarifa_hora,
+                    horas_trabalhadas: (prev.horas_trabalhadas || 0) + r.totalHoras,
+                    total_proventos: (prev.total_proventos || 0) + r.proventos,
+                    total_descontos: (prev.total_descontos || 0) + r.descontos,
+                    valor_liquido: (prev.valor_liquido || 0) + r.liquido
+                };
+            }
+        });
+
         marcarPagos({
             workerIds: targetWorkerIds,
             mesReferencia,
@@ -1634,7 +1677,8 @@ export function HoleritesPage() {
             comprovanteSize: data.comprovanteSize,
             comprovanteMime: data.comprovanteMime,
             observacaoPagamento: data.observacaoPagamento,
-            empresaId: selectedEmpresaId || undefined
+            empresaId: selectedEmpresaId || undefined,
+            workerSnapshots
         }, {
             onSuccess: () => {
                 setIsPaymentModalOpen(false);
@@ -1672,7 +1716,7 @@ export function HoleritesPage() {
             map.set(w.id, { totalProventos: proventos, totalDescontos: descontos, valorLiquido: liquido, totalHoras, tarifaHora });
         });
         return map;
-    }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, contratanteFilter, empresas]);
+    }, [workers, eventos, allDiscounts, allHousingBenefits, dbHoursSummary, contratanteFilter, empresas, effectiveTariffsMap, holeritesStatusMap]);
 
     const housingBenefitsMap = React.useMemo(() => {
         const map = new Map<string, number>();
@@ -1946,6 +1990,8 @@ export function HoleritesPage() {
                                 workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
                                 housingBenefitsMap={housingBenefitsMap}
                                 allDiscounts={allDiscounts}
+                                effectiveTariffsMap={effectiveTariffsMap}
+                                holeritesStatusMap={holeritesStatusMap}
                             />
 
                             <ExportHoleritesDialog
@@ -2014,6 +2060,8 @@ export function HoleritesPage() {
                             workerMonthlyActivityMap={dbHoursSummary?.workerMonthlyActivityMap}
                             housingBenefitsMap={housingBenefitsMap}
                             allDiscounts={allDiscounts}
+                            effectiveTariffsMap={effectiveTariffsMap}
+                            holeritesStatusMap={holeritesStatusMap}
                         />
                         <Button
                             size="sm"

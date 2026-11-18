@@ -38,6 +38,8 @@ interface BatchHoleritesExportDialogProps {
     workerMonthlyActivityMap?: Map<string, { contratante: string; cliente_nombre: string }>;
     housingBenefitsMap?: Map<string, number>;
     allDiscounts?: any[];
+    effectiveTariffsMap?: Map<string, number>;
+    holeritesStatusMap?: Map<string, any>;
 }
 
 export function BatchHoleritesExportDialog({
@@ -50,6 +52,8 @@ export function BatchHoleritesExportDialog({
     workerMonthlyActivityMap,
     housingBenefitsMap,
     allDiscounts = [],
+    effectiveTariffsMap,
+    holeritesStatusMap,
 }: BatchHoleritesExportDialogProps) {
     const [open, setOpen] = useState(false);
     const [exportScope, setExportScope] = useState<'all_filtered' | 'selected'>(
@@ -118,9 +122,22 @@ export function BatchHoleritesExportDialog({
                         0
                     );
 
+                const hStatus = holeritesStatusMap?.get(w.id);
+                const frozenPaidTarifa =
+                    hStatus?.status === 'pago' && hStatus?.tarifa_hora && Number(hStatus.tarifa_hora) > 0
+                        ? Number(hStatus.tarifa_hora)
+                        : null;
+                const scheduledMonthTarifa = effectiveTariffsMap?.get(w.id);
+                const baseTarifaHora =
+                    frozenPaidTarifa !== null
+                        ? frozenPaidTarifa
+                        : scheduledMonthTarifa !== undefined && scheduledMonthTarifa > 0
+                            ? scheduledMonthTarifa
+                            : Number(w.worker_beneficios_settings?.tarifa_hora || 0);
+
                 const tarifaHora = (manualTarifaEvento && manualTarifaEvento.horas_referencia !== null && manualTarifaEvento.horas_referencia !== undefined && Number(manualTarifaEvento.horas_referencia) > 0)
                     ? Number(manualTarifaEvento.horas_referencia)
-                    : Number(w.worker_beneficios_settings?.tarifa_hora || 0);
+                    : baseTarifaHora;
 
                 const proventosAvulsos = workerEventos
                     .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')

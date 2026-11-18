@@ -1035,22 +1035,43 @@ export async function getEffectiveTariffsMapForMonth(mesReferencia: string): Pro
     const map = new Map<string, number>();
     if (!mesReferencia) return map;
 
-    const { data, error } = await supabase
-        .schema('core_personal')
-        .from('worker_tariff_schedules')
-        .select('worker_id, tarifa_hora, mes_inicio')
-        .lte('mes_inicio', mesReferencia)
-        .order('mes_inicio', { ascending: false });
+    const cleanMonth = mesReferencia.substring(0, 7);
 
-    if (error || !data) {
-        return map;
-    }
+    const [{ data: schedules }, { data: futureAuditLogs }] = await Promise.all([
+        supabase
+            .schema('core_personal')
+            .from('worker_tariff_schedules')
+            .select('worker_id, tarifa_hora, mes_inicio')
+            .lte('mes_inicio', cleanMonth)
+            .order('mes_inicio', { ascending: false }),
+        supabase
+            .schema('core_personal')
+            .from('worker_tariff_audit_logs')
+            .select('worker_id, tarifa_anterior, tarifa_nova, mes_vigencia, created_at')
+            .gt('mes_vigencia', cleanMonth)
+            .order('mes_vigencia', { ascending: true })
+            .order('created_at', { ascending: true })
+    ]);
 
-    for (const row of data) {
-        if (!map.has(row.worker_id)) {
-            map.set(row.worker_id, Number(row.tarifa_hora || 0));
+    // 1. Apply active schedule for months >= mes_inicio
+    if (schedules) {
+        for (const row of schedules) {
+            if (row.worker_id && !map.has(row.worker_id) && Number(row.tarifa_hora || 0) > 0) {
+                map.set(row.worker_id, Number(row.tarifa_hora));
+            }
         }
     }
+
+    // 2. For months BEFORE a future/later tariff raise (mesReferencia < mes_vigencia),
+    // restore the worker's previous tariff (tarifa_anterior) if no earlier schedule was active
+    if (futureAuditLogs) {
+        for (const log of futureAuditLogs) {
+            if (log.worker_id && !map.has(log.worker_id) && Number(log.tarifa_anterior || 0) > 0) {
+                map.set(log.worker_id, Number(log.tarifa_anterior));
+            }
+        }
+    }
+
     return map;
 }
 
