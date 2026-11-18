@@ -25,6 +25,7 @@ import {
   Repeat,
   Plus,
   X,
+  ExternalLink,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { almacenService } from '../services/almacenService';
@@ -184,6 +185,30 @@ export const DemandasAlmacenPage: React.FC = () => {
       .filter(Boolean)
       .join(', ');
   }, [selectedPedido]);
+
+  const sortedDeliveryPoints = useMemo(() => {
+    if (!selectedPedido) return deliveryPoints.map((dp) => ({ ...dp, isNear: false }));
+    const targetZip = (selectedPedido.site_postal_code || '').trim();
+    const targetZipPrefix = targetZip.slice(0, 2);
+    const targetCities = [
+      selectedPedido.site_cidade,
+      ...selectedPedido.workers.map((w) => w.alojamento_cidade),
+    ]
+      .filter(Boolean)
+      .map((c) => String(c).trim().toLowerCase());
+
+    const scored = deliveryPoints.map((dp) => {
+      let score = 0;
+      const dpZip = (dp.postal_code || '').trim();
+      const dpCity = (dp.city || '').trim().toLowerCase();
+      if (targetZip && dpZip && targetZip === dpZip) score += 10;
+      else if (targetZipPrefix && dpZip && dpZip.startsWith(targetZipPrefix)) score += 5;
+      if (dpCity && targetCities.some((c) => c.includes(dpCity) || dpCity.includes(c))) score += 4;
+      return { ...dp, score, isNear: score > 0 };
+    });
+
+    return scored.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
+  }, [deliveryPoints, selectedPedido]);
 
   // Reset address preview when switching pedido
   useEffect(() => {
@@ -675,8 +700,9 @@ export const DemandasAlmacenPage: React.FC = () => {
                           className="flex-1 h-8 text-xs rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 px-2"
                         >
                           <option value="">Selecionar Agência / Ponto Nacex salvo...</option>
-                          {deliveryPoints.map((dp) => (
+                          {sortedDeliveryPoints.map((dp) => (
                             <option key={dp.id} value={dp.id}>
+                              {dp.isNear ? '★ ' : ''}
                               {dp.name} {dp.nacex_code ? `(${dp.nacex_code})` : ''} {dp.city ? `- ${dp.city}` : ''}
                             </option>
                           ))}
@@ -690,6 +716,22 @@ export const DemandasAlmacenPage: React.FC = () => {
                         >
                           <Plus className="h-3.5 w-3.5" /> Agência
                         </Button>
+                        <a
+                          href="https://www.nacex.es/irHome.do"
+                          target="_blank"
+                          rel="noreferrer"
+                          onClick={() => {
+                            const refLoc = selectedPedido.site_postal_code || selectedPedido.site_cidade;
+                            if (refLoc) {
+                              navigator.clipboard.writeText(refLoc);
+                              toast.info(`CEP/Cidade (${refLoc}) copiado para buscar no site da Nacex!`);
+                            }
+                          }}
+                          title="Abrir Localizador Nacex (copia CEP/Cidade da obra)"
+                          className="h-8 px-2.5 text-xs font-medium rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 hover:bg-slate-50 flex items-center gap-1 text-slate-600 dark:text-slate-300"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5" /> Nacex
+                        </a>
                       </div>
                     )}
 
