@@ -210,9 +210,10 @@ export function GlobalHubPage() {
         if (module.id === 'chat') {
             const { data: { session } } = await supabase.auth.getSession();
             const baseUrl = import.meta.env.VITE_CHAT_URL || 'https://mcs-chat.vercel.app';
+            const returnOrigin = typeof window !== 'undefined' ? window.location.origin : 'https://mcs.gestaologinpro.com';
             
             if (session) {
-                const ssoUrl = `${baseUrl}/api/auth/sso?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}`;
+                const ssoUrl = `${baseUrl}/api/auth/sso?access_token=${encodeURIComponent(session.access_token)}&refresh_token=${encodeURIComponent(session.refresh_token)}&return_origin=${encodeURIComponent(returnOrigin)}`;
                 window.open(ssoUrl, '_blank');
             } else {
                 window.open(baseUrl, '_blank');
