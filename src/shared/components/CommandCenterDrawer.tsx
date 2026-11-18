@@ -1544,6 +1544,19 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
                               </div>
                             )}
 
+                            {task.metadata?.audit_url && (
+                              <div className="mb-3">
+                                <a
+                                  href={task.metadata.audit_url}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs transition-colors"
+                                >
+                                  📊 Abrir Relatório Completo de Auditoria no MCS-Chat ({task.metadata.channel_name || 'Canal'})
+                                </a>
+                              </div>
+                            )}
+
                             {/* Metadados de Trabalhador, Pedido e Agendamento */}
                             <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 dark:text-slate-400 mb-3">
                               {worker && (
