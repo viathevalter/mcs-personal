@@ -1934,7 +1934,12 @@ export function CommandCenterProvider({ children }: { children: React.ReactNode 
 
                   <div className="space-y-2.5">
                     {tasks
-                      .filter(t => t.status !== 'completed' && (t.scheduled_for || t.due_date))
+                      .filter(
+                        t =>
+                          isMyTask(t) &&
+                          (t.status === 'pending' || t.status === 'in_progress') &&
+                          (t.scheduled_for || t.due_date)
+                      )
                       .sort((a, b) => {
                         const da = new Date(a.scheduled_for || a.due_date).getTime();
                         const db = new Date(b.scheduled_for || b.due_date).getTime();
