@@ -19,6 +19,10 @@ import {
   Calendar,
   Truck,
   Phone,
+  Copy,
+  MessageCircle,
+  ArrowUpDown,
+  Repeat,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { almacenService } from '../services/almacenService';
@@ -35,6 +39,36 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 type AddressTargetMode = 'OBRA' | 'ALOJAMENTO' | 'NACEX_CUSTOM';
+type PedidoSortBy = 'pendentes' | 'inicio_asc' | 'codigo' | 'cliente';
+
+function getDaysBadgeInfo(dateStr?: string | null): { label: string; className: string } | null {
+  if (!dateStr) return null;
+  const clean = String(dateStr).split('T')[0];
+  const target = new Date(`${clean}T00:00:00`);
+  if (isNaN(target.getTime())) return null;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const diffDays = Math.round((target.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+
+  if (diffDays === 0) {
+    return { label: 'Inicia Hoje', className: 'bg-rose-100 text-rose-800 border-rose-200' };
+  }
+  if (diffDays > 0) {
+    return {
+      label: `Faltam ${diffDays} dia${diffDays > 1 ? 's' : ''}`,
+      className:
+        diffDays <= 3
+          ? 'bg-rose-100 text-rose-800 border-rose-200'
+          : diffDays <= 7
+          ? 'bg-amber-100 text-amber-800 border-amber-200'
+          : 'bg-emerald-100 text-emerald-800 border-emerald-200',
+    };
+  }
+  return {
+    label: `Em curso (${Math.abs(diffDays)}d)`,
+    className: 'bg-blue-100 text-blue-800 border-blue-200',
+  };
+}
 
 export const DemandasAlmacenPage: React.FC = () => {
   const [pedidos, setPedidos] = useState<DemandaPedidoAlmacen[]>([]);
@@ -42,6 +76,7 @@ export const DemandasAlmacenPage: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState<'todos' | 'pendentes' | 'atendidos'>('pendentes');
+  const [sortBy, setSortBy] = useState<PedidoSortBy>('pendentes');
   const [selectedPedidoId, setSelectedPedidoId] = useState<string | null>(null);
   const [busyWorkerId, setBusyWorkerId] = useState<string | null>(null);
   const [isBatchCreating, setIsBatchCreating] = useState(false);
@@ -75,7 +110,7 @@ export const DemandasAlmacenPage: React.FC = () => {
   }, []);
 
   const filteredPedidos = useMemo(() => {
-    return pedidos.filter((p) => {
+    const list = pedidos.filter((p) => {
       if (filterStatus === 'pendentes' && p.pending_count === 0) return false;
       if (filterStatus === 'atendidos' && p.pending_count > 0) return false;
       if (searchTerm.trim()) {
@@ -89,13 +124,32 @@ export const DemandasAlmacenPage: React.FC = () => {
         const matchesWorker = p.workers.some(
           (w) =>
             w.nome.toLowerCase().includes(q) ||
-            (w.alojamento_nome || '').toLowerCase().includes(q)
+            (w.alojamento_nome || '').toLowerCase().includes(q) ||
+            (w.movil || '').toLowerCase().includes(q)
         );
         return matchesPedido || matchesWorker;
       }
       return true;
     });
-  }, [pedidos, filterStatus, searchTerm]);
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'pendentes') {
+        if (b.pending_count !== a.pending_count) return b.pending_count - a.pending_count;
+      }
+      if (sortBy === 'inicio_asc') {
+        const da = a.expected_start_date ? new Date(a.expected_start_date).getTime() : Number.MAX_SAFE_INTEGER;
+        const db = b.expected_start_date ? new Date(b.expected_start_date).getTime() : Number.MAX_SAFE_INTEGER;
+        if (da !== db) return da - db;
+      }
+      if (sortBy === 'codigo') {
+        return a.codigo.localeCompare(b.codigo);
+      }
+      if (sortBy === 'cliente') {
+        return a.client_nome.localeCompare(b.client_nome);
+      }
+      return b.pending_count - a.pending_count;
+    });
+  }, [pedidos, filterStatus, searchTerm, sortBy]);
 
   const selectedPedido = useMemo(
     () => pedidos.find((p) => p.pedido_id === selectedPedidoId) || filteredPedidos[0] || null,
@@ -362,6 +416,21 @@ export const DemandasAlmacenPage: React.FC = () => {
                 </button>
               ))}
             </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-[11px] font-semibold text-slate-500 flex items-center gap-1">
+                <ArrowUpDown className="h-3 w-3" /> Ordenar:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value as PedidoSortBy)}
+                className="flex-1 h-7 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-2"
+              >
+                <option value="pendentes">Mais Pendentes</option>
+                <option value="inicio_asc">Início Mais Próximo</option>
+                <option value="codigo">Código do Pedido</option>
+                <option value="cliente">Nome do Cliente</option>
+              </select>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800/80">
@@ -372,6 +441,8 @@ export const DemandasAlmacenPage: React.FC = () => {
             ) : (
               filteredPedidos.map((p) => {
                 const isSelected = selectedPedido?.pedido_id === p.pedido_id;
+                const daysInfo = getDaysBadgeInfo(p.expected_start_date);
+                const hasReplacements = p.workers.some((w) => w.is_replacement && !w.existing_order);
                 return (
                   <button
                     key={p.pedido_id}
@@ -383,9 +454,16 @@ export const DemandasAlmacenPage: React.FC = () => {
                     }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">
-                        {p.codigo}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-sm text-slate-900 dark:text-white tracking-tight">
+                          {p.codigo}
+                        </span>
+                        {hasReplacements && (
+                          <span title="Possui Reemplazos Pendentes" className="text-[10px] px-1.5 py-0.5 rounded bg-purple-100 text-purple-700 font-semibold">
+                            Reemplazo
+                          </span>
+                        )}
+                      </div>
                       {p.pending_count > 0 ? (
                         <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 font-semibold text-[11px] rounded-full">
                           {p.pending_count} pendente{p.pending_count > 1 ? 's' : ''}
@@ -403,16 +481,21 @@ export const DemandasAlmacenPage: React.FC = () => {
                       <span className="flex items-center gap-1 truncate">
                         <Building2 className="h-3 w-3 flex-shrink-0" /> {p.empresa_nome}
                       </span>
-                      <span className="flex items-center gap-1 flex-shrink-0">
-                        <Calendar className="h-3 w-3" /> {formatDate(p.expected_start_date)}
+                      <span className="flex items-center gap-1 flex-shrink-0 font-medium text-slate-700 dark:text-slate-300">
+                        <Calendar className="h-3 w-3 text-emerald-600" /> {formatDate(p.expected_start_date)}
                       </span>
                     </div>
-                    {(p.site_cidade || p.site_nome) && (
-                      <div className="text-[11px] text-slate-400 mt-1 flex items-center gap-1 truncate">
+                    <div className="flex items-center justify-between mt-1.5 gap-2">
+                      <span className="text-[11px] text-slate-400 flex items-center gap-1 truncate">
                         <MapPin className="h-3 w-3 flex-shrink-0 text-slate-400" />
-                        {p.site_cidade || p.site_nome}
-                      </div>
-                    )}
+                        {p.site_cidade || p.site_nome || '-'}
+                      </span>
+                      {daysInfo && (
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border flex-shrink-0 ${daysInfo.className}`}>
+                          {daysInfo.label}
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })
@@ -439,10 +522,18 @@ export const DemandasAlmacenPage: React.FC = () => {
                       <Badge className="bg-slate-900 text-white dark:bg-slate-700 rounded-md">
                         {selectedPedido.empresa_nome}
                       </Badge>
-                      <Badge variant="outline" className="gap-1 text-xs font-medium">
+                      <Badge variant="outline" className="gap-1.5 text-xs font-bold border-emerald-300 bg-emerald-50/70 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300">
                         <Calendar className="h-3.5 w-3.5 text-emerald-600" />
                         Início: {formatDate(selectedPedido.expected_start_date)}
                       </Badge>
+                      {(() => {
+                        const dInfo = getDaysBadgeInfo(selectedPedido.expected_start_date);
+                        return dInfo ? (
+                          <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${dInfo.className}`}>
+                            {dInfo.label}
+                          </span>
+                        ) : null;
+                      })()}
                     </div>
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-300 mt-1">
                       {selectedPedido.client_nome}
@@ -574,6 +665,12 @@ export const DemandasAlmacenPage: React.FC = () => {
                                 {w.cod_colab}
                               </span>
                             )}
+                            {w.is_replacement && (
+                              <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-100 gap-1 text-[11px]">
+                                <Repeat className="h-3 w-3" />
+                                Reemplazo {w.replacement_code ? `(${w.replacement_code})` : ''}
+                              </Badge>
+                            )}
                             {w.has_recent_dispatch && (
                               <Badge className="bg-amber-100 text-amber-800 hover:bg-amber-100 gap-1 text-[11px]">
                                 <Clock className="h-3 w-3" /> Kit recente (&lt;6m)
@@ -587,6 +684,32 @@ export const DemandasAlmacenPage: React.FC = () => {
                               {w.job_function_name || 'Função não definida'}
                             </span>
                             {w.identificacion && <span>Doc: {w.identificacion}</span>}
+                            {w.movil && (
+                              <span className="inline-flex items-center gap-1.5 text-slate-700 dark:text-slate-200 font-medium bg-slate-100 dark:bg-slate-800/80 px-2 py-0.5 rounded-md">
+                                <Phone className="h-3 w-3 text-emerald-600" />
+                                <span>{w.movil}</span>
+                                <button
+                                  type="button"
+                                  title="Copiar telefone para MCS Chat"
+                                  onClick={() => {
+                                    navigator.clipboard.writeText(w.movil!);
+                                    toast.success(`Telefone de ${w.nome} copiado!`);
+                                  }}
+                                  className="text-slate-400 hover:text-slate-700 dark:hover:text-white ml-0.5"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </button>
+                                <a
+                                  href={`https://wa.me/${w.movil.replace(/[^0-9]/g, '')}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  title="Abrir WhatsApp / Chat"
+                                  className="text-emerald-600 hover:text-emerald-700"
+                                >
+                                  <MessageCircle className="h-3.5 w-3.5" />
+                                </a>
+                              </span>
+                            )}
                           </div>
 
                           {/* Alojamento Local Badge */}

@@ -258,7 +258,7 @@ export const almacenService = {
   },
 
   async getDemandasPedidos(): Promise<DemandaPedidoAlmacen[]> {
-    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes, alocacoesAtivas, alojamentos] = await Promise.all([
+    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes, alocacoesAtivas, alojamentos, solicitudesRes, targetsRes] = await Promise.all([
       supabase
         .schema('core_comercial')
         .from('pedidos')
@@ -269,7 +269,7 @@ export const almacenService = {
         .schema('core_personal')
         .from('worker_assignments')
         .select(`
-          id, pedido_id, empresa_id, client_id, client_site_id, status,
+          id, pedido_id, solicitud_id, replacement_of_assignment_id, empresa_id, client_id, client_site_id, status,
           planned_start_date, start_date, job_function_id, job_function_name_snapshot,
           worker:workers(
             id, cod_colab, nome, movil, dni, nie, pasaporte, nif, camiseta, pantalones, funcion
@@ -291,6 +291,17 @@ export const almacenService = {
         .order('created_at', { ascending: false }),
       logisticsService.fetchAlocacoesAtivas().catch(() => []),
       logisticsService.fetchAlojamentos().catch(() => []),
+      supabase
+        .schema('core_operacoes')
+        .from('solicitudes_operativas')
+        .select('id, pedido_id, codigo, tipo, status')
+        .neq('status', 'cancelled'),
+      supabase
+        .schema('core_operacoes')
+        .from('solicitud_targets')
+        .select('id, solicitud_id, source_pedido_id, source_assignment_id, target_assignment_id, target_worker_id, action_type, requires_replacement, status')
+        .in('action_type', ['replace', 'offboard'])
+        .in('status', ['pending', 'in_progress', 'completed']),
     ]);
 
     if (pedidosRes.error) throw pedidosRes.error;
@@ -376,13 +387,36 @@ export const almacenService = {
       }
     }
 
-    // Group assignments by pedido_id
+    // Mapear Solicitudes e Reemplazos -> Pedido
+    const solicitudesMap = new Map<string, any>((solicitudesRes.data || []).map((s: any) => [s.id, s]));
+    const solicitudToPedidoMap = new Map<string, string>();
+    for (const s of solicitudesRes.data || []) {
+      if (s.pedido_id) solicitudToPedidoMap.set(s.id, s.pedido_id);
+    }
+    for (const t of targetsRes.data || []) {
+      if (t.solicitud_id && t.source_pedido_id && !solicitudToPedidoMap.has(t.solicitud_id)) {
+        solicitudToPedidoMap.set(t.solicitud_id, t.source_pedido_id);
+      }
+    }
+    const assignmentById = new Map<string, any>(assignments.map((a: any) => [a.id, a]));
+
+    // Group assignments by pedido_id (including reemplazos linked via solicitud_id or replacement_of_assignment_id)
     const assignmentsByPedido = new Map<string, any[]>();
     for (const a of assignments) {
-      if (!a.pedido_id || !a.worker) continue;
-      const list = assignmentsByPedido.get(a.pedido_id) || [];
+      if (!a.worker) continue;
+      let resolvedPedidoId = a.pedido_id;
+      if (!resolvedPedidoId && a.solicitud_id) {
+        resolvedPedidoId = solicitudToPedidoMap.get(a.solicitud_id) || null;
+      }
+      if (!resolvedPedidoId && a.replacement_of_assignment_id) {
+        const orig = assignmentById.get(a.replacement_of_assignment_id);
+        if (orig?.pedido_id) resolvedPedidoId = orig.pedido_id;
+      }
+      if (!resolvedPedidoId) continue;
+
+      const list = assignmentsByPedido.get(resolvedPedidoId) || [];
       list.push(a);
-      assignmentsByPedido.set(a.pedido_id, list);
+      assignmentsByPedido.set(resolvedPedidoId, list);
     }
 
     const result: DemandaPedidoAlmacen[] = [];
@@ -438,6 +472,9 @@ export const almacenService = {
           }
         }
 
+        const solObj = a.solicitud_id ? solicitudesMap.get(a.solicitud_id) : null;
+        const isReplacement = Boolean(a.solicitud_id || a.replacement_of_assignment_id);
+
         workers.push({
           worker_id: w.id,
           cod_colab: w.cod_colab || null,
@@ -456,6 +493,8 @@ export const almacenService = {
           alojamento_nome: alojNome,
           alojamento_endereco: alojEndereco,
           alojamento_cidade: alojCidade,
+          is_replacement: isReplacement,
+          replacement_code: solObj?.codigo || null,
         });
       }
 
