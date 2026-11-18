@@ -35,6 +35,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
   const { startTask, completeTask } = useSolicitudActions(undefined);
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [viewTab, setViewTab] = useState<'open' | 'completed'>('open');
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
 
@@ -47,6 +48,12 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
 
   const filteredTasks = useMemo(() => {
     return tasks.filter((task) => {
+      if (viewTab === 'open') {
+        if (task.status === 'completed' || task.status === 'cancelled') return false;
+      } else {
+        if (task.status !== 'completed') return false;
+      }
+
       const solicitudCode = task.solicitud?.codigo || '';
       const solicitudTitle = task.solicitud?.title || '';
       const taskTitle = task.title || '';
@@ -68,7 +75,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
       
       return textMatch && statusMatch && priorityMatch;
     });
-  }, [tasks, searchTerm, statusFilter, priorityFilter, t]);
+  }, [tasks, viewTab, searchTerm, statusFilter, priorityFilter, t]);
 
   return (
     <div className="flex flex-col space-y-6 flex-1 min-h-0 overflow-hidden">
@@ -127,8 +134,57 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
         </Card>
       </div>
 
-      {/* Barra de Filtros e Busca */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-800 shrink-0">
+      {/* Abas Pendentes vs Finalizadas + Barra de Filtros e Busca */}
+      <div className="flex flex-col gap-3 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-xl border border-slate-200 dark:border-slate-800 shrink-0">
+        <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-slate-200 dark:border-slate-800">
+          <div className="flex items-center gap-2 bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl">
+            <button
+              type="button"
+              onClick={() => {
+                setViewTab('open');
+                setStatusFilter('all');
+              }}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                viewTab === 'open'
+                  ? 'bg-indigo-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
+              }`}
+            >
+              <span>⏳ Pendentes & Em Andamento</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  viewTab === 'open' ? 'bg-white text-indigo-700' : 'bg-slate-300 text-slate-800'
+                }`}
+              >
+                {stats.pending + stats.inProgress + stats.blocked}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => {
+                setViewTab('completed');
+                setStatusFilter('all');
+              }}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-2 ${
+                viewTab === 'completed'
+                  ? 'bg-emerald-600 text-white shadow-xs'
+                  : 'text-slate-600 dark:text-slate-300 hover:bg-white/60'
+              }`}
+            >
+              <span>✅ Finalizadas / Concluídas</span>
+              <span
+                className={`px-1.5 py-0.5 rounded-full text-[10px] font-extrabold ${
+                  viewTab === 'completed' ? 'bg-white text-emerald-700' : 'bg-emerald-100 text-emerald-800'
+                }`}
+              >
+                {stats.completed}
+              </span>
+            </button>
+          </div>
+        </div>
+
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="relative flex-1 max-w-md">
           <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
@@ -192,6 +248,7 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
               {t('torre_controle.department_tasks.clear_filters')}
             </Button>
           )}
+        </div>
         </div>
       </div>
 
@@ -274,29 +331,31 @@ export function DepartmentTaskBoard({ title, departmentCodes, onTaskClick }: Pro
                     )}
                   </TableCell>
                   <TableCell className="text-right">
-                    {task.status === 'pending' && (
-                      <Button 
-                        variant="outline" 
-                        size="sm" 
-                        className="text-blue-500 hover:text-blue-600 hover:bg-blue-50"
-                        onClick={() => startTask.mutate(task.id)}
-                        disabled={startTask.isPending}
-                      >
-                        <PlayCircle className="h-4 w-4 mr-2" />
-                        {t('torre_controle.department_tasks.start')}
-                      </Button>
-                    )}
-                    {task.status === 'in_progress' && (
-                      <Button 
-                        variant="default" 
-                        size="sm" 
-                        className="bg-emerald-500 hover:bg-emerald-600"
-                        onClick={() => completeTask.mutate(task.id)}
-                        disabled={completeTask.isPending}
-                      >
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        {t('torre_controle.department_tasks.complete')}
-                      </Button>
+                    {(task.status === 'pending' || task.status === 'in_progress') && (
+                      <div className="flex items-center justify-end gap-2">
+                        {task.status === 'pending' && (
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            className="text-blue-600 hover:text-blue-700 hover:bg-blue-50 h-8 text-xs"
+                            onClick={() => startTask.mutate(task.id)}
+                            disabled={startTask.isPending}
+                          >
+                            <PlayCircle className="h-3.5 w-3.5 mr-1.5" />
+                            {t('torre_controle.department_tasks.start')}
+                          </Button>
+                        )}
+                        <Button 
+                          variant="default" 
+                          size="sm" 
+                          className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 text-xs font-semibold"
+                          onClick={() => completeTask.mutate(task.id)}
+                          disabled={completeTask.isPending}
+                        >
+                          <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />
+                          {t('torre_controle.department_tasks.complete')}
+                        </Button>
+                      </div>
                     )}
                     {task.status === 'completed' && (
                       <div className="text-xs text-emerald-500 font-medium flex flex-col items-end">
