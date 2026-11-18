@@ -108,6 +108,10 @@ export function WorkerTariffTimelineCard({ workerId }: WorkerTariffTimelineCardP
                                             € {ev.tarifaNova.toFixed(2)}/h
                                         </span>
                                     </span>
+                                ) : ev.tarifaNova === 0 && ev.status === 'histórico' ? (
+                                    <span className="text-[11px] font-sans text-muted-foreground italic">
+                                        Histórico de horas
+                                    </span>
                                 ) : (
                                     <span className="font-bold text-indigo-700 dark:text-indigo-400">
                                         € {ev.tarifaNova.toFixed(2)}/h

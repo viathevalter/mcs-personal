@@ -1200,7 +1200,7 @@ export interface WorkerTariffTimelineEvent {
 }
 
 export async function getWorkerCompleteTariffTimeline(workerId: string): Promise<WorkerTariffTimelineEvent[]> {
-    const [assignmentsRes, auditRes, schedulesRes, usersRes] = await Promise.all([
+    const [assignmentsRes, auditRes, schedulesRes, horasRes, usersRes] = await Promise.all([
         supabase
             .schema('core_personal')
             .from('worker_assignments')
@@ -1219,6 +1219,13 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
             .select('*')
             .eq('worker_id', workerId)
             .order('mes_inicio', { ascending: false }),
+        supabase
+            .schema('core_finance')
+            .from('horas_trabalhadas')
+            .select('client_id, data_trabalho, horas_totais')
+            .eq('worker_id', workerId)
+            .order('data_trabalho', { ascending: false })
+            .limit(2000),
         listSystemUsers().catch(() => [] as SystemUser[])
     ]);
 
@@ -1226,7 +1233,14 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
     usersRes.forEach(u => userMap.set(u.id, u));
 
     const assignments = assignmentsRes.data || [];
-    const clientIds = Array.from(new Set(assignments.map((a: any) => a.client_id).filter(Boolean)));
+    const horasRows = horasRes.data || [];
+    const clientIds = Array.from(
+        new Set([
+            ...assignments.map((a: any) => a.client_id).filter(Boolean),
+            ...horasRows.map((h: any) => h.client_id).filter(Boolean)
+        ])
+    );
+
     const clientMap = new Map<string, string>();
     if (clientIds.length > 0) {
         const { data: clients } = await supabase
@@ -1250,8 +1264,11 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
     }
 
     const events: WorkerTariffTimelineEvent[] = [];
+    const assignmentClientIds = new Set<string>();
 
+    // 1. Hiring / Allocations (1 clean line per allocation)
     assignments.forEach((a: any) => {
+        if (a.client_id) assignmentClientIds.add(a.client_id);
         const clientName = a.client_id ? clientMap.get(a.client_id) || 'Cliente' : 'Cliente';
         const creator = a.created_by ? userMap.get(a.created_by) : undefined;
         const startStr = a.start_date || a.planned_start_date;
@@ -1260,12 +1277,29 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
         if (startStr) periodParts.push(`Início: ${new Date(startStr).toLocaleDateString('pt-PT')}`);
         if (endStr) periodParts.push(`Fim: ${new Date(endStr).toLocaleDateString('pt-PT')}`);
 
+        // Check if an initial-hiring audit log exists near this assignment to enrich previous tariff
+        const assignMs = new Date(a.created_at).getTime();
+        const matchingHiringAudit = audits.find(
+            (l: any) =>
+                !l.request_id &&
+                l.autorizado_por_nome === 'Contratação Inicial' &&
+                Math.abs(new Date(l.created_at).getTime() - assignMs) < 5 * 60 * 1000
+        );
+
+        const prevTariff =
+            matchingHiringAudit &&
+            Number(matchingHiringAudit.tarifa_anterior || 0) > 0 &&
+            Number(matchingHiringAudit.tarifa_anterior) !== Number(a.tarifa_acordada || 0)
+                ? Number(matchingHiringAudit.tarifa_anterior)
+                : undefined;
+
         events.push({
             id: `assign-${a.id}`,
             kind: 'contratacao',
             date: a.created_at,
             title: `Contratação: ${clientName}`,
             subtitle: periodParts.join(' • ') || undefined,
+            tarifaAnterior: prevTariff,
             tarifaNova: Number(a.tarifa_acordada || 0),
             mesVigencia: startStr ? String(startStr).slice(0, 7) : undefined,
             actorName: creator ? `${creator.nome} (${creator.email})` : 'Contratação',
@@ -1273,7 +1307,47 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
         });
     });
 
+    // 2. Historical client work from horas_trabalhadas (for legacy/past clients not in worker_assignments)
+    const pastClientHours = new Map<string, { minDt: string; maxDt: string; horas: number }>();
+    horasRows.forEach((h: any) => {
+        if (!h.client_id || assignmentClientIds.has(h.client_id)) return;
+        const dt = h.data_trabalho ? String(h.data_trabalho).slice(0, 10) : '';
+        if (!dt) return;
+        const cur = pastClientHours.get(h.client_id) || { minDt: dt, maxDt: dt, horas: 0 };
+        cur.horas += Number(h.horas_totais || 0);
+        if (dt < cur.minDt) cur.minDt = dt;
+        if (dt > cur.maxDt) cur.maxDt = dt;
+        pastClientHours.set(h.client_id, cur);
+    });
+
+    pastClientHours.forEach((stats, cid) => {
+        const clientName = clientMap.get(cid) || 'Cliente Anterior';
+        events.push({
+            id: `hist-client-${cid}`,
+            kind: 'contratacao',
+            date: stats.maxDt,
+            title: `Histórico: ${clientName}`,
+            subtitle: `${new Date(stats.minDt).toLocaleDateString('pt-PT')} a ${new Date(stats.maxDt).toLocaleDateString('pt-PT')} • ${Math.round(stats.horas)}h trabalhadas`,
+            tarifaNova: 0,
+            status: 'histórico'
+        });
+    });
+
+    // 3. Tariff Audit Logs (skip redundant Contratação Inicial rows already represented by an assignment)
+    const coveredRequestIds = new Set<string>();
     audits.forEach((l: any) => {
+        if (l.request_id) coveredRequestIds.add(l.request_id);
+
+        if (!l.request_id && l.autorizado_por_nome === 'Contratação Inicial') {
+            const logMs = new Date(l.created_at).getTime();
+            const hasMatchingAssignment = assignments.some(
+                (a: any) => Math.abs(new Date(a.created_at).getTime() - logMs) < 5 * 60 * 1000
+            );
+            if (hasMatchingAssignment || Number(l.tarifa_anterior) === Number(l.tarifa_nova)) {
+                return;
+            }
+        }
+
         events.push({
             id: `audit-${l.id}`,
             kind: 'termo_audit',
@@ -1288,12 +1362,18 @@ export async function getWorkerCompleteTariffTimeline(workerId: string): Promise
         });
     });
 
+    // 4. Only show standalone future schedules not already covered by Contratação Inicial or an Audit Term
+    const currentMonth = getCurrentYearMonth();
     (schedulesRes.data || []).forEach((s: any) => {
+        if (s.aprovado_por_nome === 'Contratação Inicial') return;
+        if (s.request_id && coveredRequestIds.has(s.request_id)) return;
+        if (s.mes_inicio <= currentMonth) return;
+
         events.push({
             id: `sch-${s.id}`,
             kind: 'vigencia_agendada',
             date: s.aprovado_em || s.created_at,
-            title: `Vigência por Competência (${formatMesVigenciaLabel(s.mes_inicio)})`,
+            title: `Vigência Agendada (${formatMesVigenciaLabel(s.mes_inicio)})`,
             tarifaNova: Number(s.tarifa_hora || 0),
             mesVigencia: s.mes_inicio,
             authorizerName: s.aprovado_por_nome || undefined

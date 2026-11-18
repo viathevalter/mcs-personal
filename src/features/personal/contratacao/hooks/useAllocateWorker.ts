@@ -32,6 +32,18 @@ export const useAllocateWorker = () => {
       const targetEmpresaId = payload.empresa_id || selectedEmpresaId;
       if (!targetEmpresaId) throw new Error('Nenhuma empresa selecionada');
 
+      // Capture previous tariff BEFORE calling RPC (in case RPC updates worker_beneficios_settings)
+      let tarifaAnterior = 0;
+      if (payload.worker_id) {
+        const { data: prevSetting } = await supabase
+          .schema('core_personal')
+          .from('worker_beneficios_settings')
+          .select('tarifa_hora')
+          .eq('worker_id', payload.worker_id)
+          .maybeSingle();
+        tarifaAnterior = Number(prevSetting?.tarifa_hora || 0);
+      }
+
       const { data, error } = await supabase.schema('core_personal').rpc('alocar_trabalhador_em_vaga', {
         payload: {
           empresa_id: targetEmpresaId,
@@ -53,15 +65,6 @@ export const useAllocateWorker = () => {
           const mesInicio = payload.planned_start_date && /^\d{4}-\d{2}/.test(payload.planned_start_date)
             ? payload.planned_start_date.slice(0, 7)
             : currentMonth;
-
-          const { data: prevSetting } = await supabase
-            .schema('core_personal')
-            .from('worker_beneficios_settings')
-            .select('tarifa_hora')
-            .eq('worker_id', effectiveWorkerId)
-            .maybeSingle();
-
-          const tarifaAnterior = Number(prevSetting?.tarifa_hora || 0);
 
           const { data: authData } = await supabase.auth.getUser();
           const actorEmail = authData?.user?.email || 'Contratação';
@@ -87,18 +90,20 @@ export const useAllocateWorker = () => {
               .upsert({ worker_id: effectiveWorkerId, tarifa_hora: payload.tarifa_acordada }, { onConflict: 'worker_id' });
           }
 
-          await supabase
-            .schema('core_personal')
-            .from('worker_tariff_audit_logs')
-            .insert({
-              worker_id: effectiveWorkerId,
-              tarifa_anterior: tarifaAnterior,
-              tarifa_nova: payload.tarifa_acordada,
-              mes_vigencia: mesInicio,
-              alterado_por_nome: actorEmail,
-              autorizado_por_nome: 'Contratação Inicial',
-              motivo: payload.notes ? `Contratação Inicial: ${payload.notes}` : 'Tarifa definida na alocação (Contratação Inicial)'
-            });
+          if (tarifaAnterior !== Number(payload.tarifa_acordada)) {
+            await supabase
+              .schema('core_personal')
+              .from('worker_tariff_audit_logs')
+              .insert({
+                worker_id: effectiveWorkerId,
+                tarifa_anterior: tarifaAnterior,
+                tarifa_nova: payload.tarifa_acordada,
+                mes_vigencia: mesInicio,
+                alterado_por_nome: actorEmail,
+                autorizado_por_nome: 'Contratação Inicial',
+                motivo: payload.notes ? `Contratação Inicial: ${payload.notes}` : 'Tarifa definida na alocação (Contratação Inicial)'
+              });
+          }
         } catch (tariffSyncErr) {
           console.warn('Could not auto-sync tariff to worker_beneficios_settings:', tariffSyncErr);
         }
