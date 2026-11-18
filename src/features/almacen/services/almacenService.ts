@@ -1,0 +1,622 @@
+import { supabase } from '@/shared/supabase/client';
+import type {
+  AlmacenEpi,
+  AlmacenEmpresa,
+  AlmacenStockItem,
+  AlmacenStockMovement,
+  DemandaPedidoAlmacen,
+  DemandaWorkerAlmacen,
+  DeliveryMethod,
+  MovementType,
+  PickingItem,
+  PickingOrder,
+  PickingStatus,
+  RequestType,
+  RequiredEpiPreview,
+} from '../types';
+import { STANDARD_SIZES } from '../types';
+
+export const almacenService = {
+  async getEpis(): Promise<AlmacenEpi[]> {
+    const { data, error } = await supabase
+      .schema('core_logistica')
+      .from('epis')
+      .select('*')
+      .neq('status', 'archived')
+      .order('name');
+    if (error) throw error;
+    return (data || []) as AlmacenEpi[];
+  },
+
+  async updateEpiConfig(
+    epiId: string,
+    payload: Partial<Pick<AlmacenEpi, 'is_branded' | 'has_sizes' | 'size_category' | 'default_cost'>>
+  ): Promise<void> {
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('epis')
+      .update(payload)
+      .eq('id', epiId);
+    if (error) throw error;
+  },
+
+  async getEmpresas(): Promise<AlmacenEmpresa[]> {
+    const { data, error } = await supabase
+      .schema('core_common')
+      .from('empresas')
+      .select('id, nome, trade_name, legal_name, tax_id')
+      .eq('is_active', true)
+      .order('nome');
+    if (error) throw error;
+    return (data || []) as AlmacenEmpresa[];
+  },
+
+  async getStock(): Promise<AlmacenStockItem[]> {
+    const [stockRes, episRes, empresasRes] = await Promise.all([
+      supabase
+        .schema('core_logistica')
+        .from('almacen_stock')
+        .select('*')
+        .order('sku_code', { ascending: true }),
+      this.getEpis(),
+      this.getEmpresas(),
+    ]);
+    if (stockRes.error) throw stockRes.error;
+
+    const episMap = new Map(episRes.map((e) => [e.id, e]));
+    const empresasMap = new Map(empresasRes.map((e) => [e.id, e]));
+
+    return (stockRes.data || []).map((row: any) => ({
+      ...row,
+      epi: episMap.get(row.epi_id),
+      empresa: row.empresa_id ? empresasMap.get(row.empresa_id) || null : null,
+    })) as AlmacenStockItem[];
+  },
+
+  async getStockMovements(stockId: string): Promise<AlmacenStockMovement[]> {
+    const { data, error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_stock_movements')
+      .select('*')
+      .eq('stock_id', stockId)
+      .order('created_at', { ascending: false })
+      .limit(50);
+    if (error) throw error;
+    return (data || []) as AlmacenStockMovement[];
+  },
+
+  async upsertStockConfig(payload: {
+    id?: string;
+    epi_id: string;
+    empresa_id: string | null;
+    size_code: string;
+    sku_code?: string | null;
+    min_stock: number;
+    location_bin?: string | null;
+    unit_cost?: number | null;
+  }): Promise<AlmacenStockItem> {
+    const normalizedSize = payload.size_code.trim().toUpperCase() || 'UNICO';
+    if (payload.id) {
+      const { data, error } = await supabase
+        .schema('core_logistica')
+        .from('almacen_stock')
+        .update({
+          sku_code: payload.sku_code ?? null,
+          min_stock: payload.min_stock,
+          location_bin: payload.location_bin ?? null,
+          unit_cost: payload.unit_cost ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', payload.id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as AlmacenStockItem;
+    }
+
+    const { data, error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_stock')
+      .insert({
+        epi_id: payload.epi_id,
+        empresa_id: payload.empresa_id,
+        size_code: normalizedSize,
+        sku_code: payload.sku_code ?? null,
+        min_stock: payload.min_stock,
+        location_bin: payload.location_bin ?? null,
+        unit_cost: payload.unit_cost ?? null,
+        quantity_on_hand: 0,
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as AlmacenStockItem;
+  },
+
+  async adjustStock(params: {
+    stockId: string;
+    quantityDelta: number;
+    movementType: MovementType;
+    notes?: string;
+    referenceType?: string;
+    referenceId?: string;
+  }): Promise<void> {
+    const { data: current, error: fetchErr } = await supabase
+      .schema('core_logistica')
+      .from('almacen_stock')
+      .select('id, quantity_on_hand')
+      .eq('id', params.stockId)
+      .single();
+    if (fetchErr) throw fetchErr;
+
+    const prevQty = Number(current.quantity_on_hand || 0);
+    const newQty = Math.max(0, prevQty + params.quantityDelta);
+
+    const { error: updErr } = await supabase
+      .schema('core_logistica')
+      .from('almacen_stock')
+      .update({
+        quantity_on_hand: newQty,
+        updated_at: new Date().toISOString(),
+      })
+      .eq('id', params.stockId);
+    if (updErr) throw updErr;
+
+    const { data: userData } = await supabase.auth.getUser();
+
+    const { error: movErr } = await supabase
+      .schema('core_logistica')
+      .from('almacen_stock_movements')
+      .insert({
+        stock_id: params.stockId,
+        movement_type: params.movementType,
+        quantity_delta: params.quantityDelta,
+        previous_qty: prevQty,
+        new_qty: newQty,
+        reference_type: params.referenceType || 'manual',
+        reference_id: params.referenceId || null,
+        notes: params.notes || null,
+        created_by: userData?.user?.id || null,
+      });
+    if (movErr) throw movErr;
+  },
+
+  async initializeStandardStock(): Promise<number> {
+    const [epis, empresas, existingStock] = await Promise.all([
+      this.getEpis(),
+      this.getEmpresas(),
+      supabase.schema('core_logistica').from('almacen_stock').select('epi_id, empresa_id, size_code'),
+    ]);
+
+    const existingKeys = new Set(
+      (existingStock.data || []).map(
+        (s: any) => `${s.epi_id}::${s.empresa_id || 'SHARED'}::${String(s.size_code).toUpperCase()}`
+      )
+    );
+
+    const toInsert: any[] = [];
+    for (const epi of epis) {
+      if (epi.status !== 'active') continue;
+      const sizes = epi.has_sizes ? [...STANDARD_SIZES] : ['UNICO'];
+      const targetEmpresas: (AlmacenEmpresa | null)[] = epi.is_branded ? empresas : [null];
+
+      for (const emp of targetEmpresas) {
+        for (const sz of sizes) {
+          const empKey = emp ? emp.id : 'SHARED';
+          const key = `${epi.id}::${empKey}::${sz}`;
+          if (existingKeys.has(key)) continue;
+
+          const prefix = epi.size_category === 'camisa' ? 'CAM' : epi.size_category === 'pantalon' ? 'PAN' : epi.code || 'EPI';
+          const empTag = emp ? `-${emp.nome.substring(0, 3).toUpperCase()}` : '';
+          const sku = epi.has_sizes ? `${prefix}/${sz}${empTag}` : `${prefix}`;
+
+          toInsert.push({
+            epi_id: epi.id,
+            empresa_id: emp ? emp.id : null,
+            size_code: sz,
+            sku_code: sku,
+            quantity_on_hand: 0,
+            min_stock: epi.has_sizes ? 5 : 10,
+            unit_cost: epi.default_cost ?? 0,
+          });
+        }
+      }
+    }
+
+    if (toInsert.length === 0) return 0;
+
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_stock')
+      .insert(toInsert);
+    if (error) throw error;
+    return toInsert.length;
+  },
+
+  async updateWorkerSizes(workerId: string, camiseta: string, pantalones: string): Promise<void> {
+    const { error } = await supabase
+      .schema('core_personal')
+      .from('workers')
+      .update({
+        camiseta: camiseta || null,
+        pantalones: pantalones || null,
+      })
+      .eq('id', workerId);
+    if (error) throw error;
+  },
+
+  async getDemandasPedidos(): Promise<DemandaPedidoAlmacen[]> {
+    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes] = await Promise.all([
+      supabase
+        .schema('core_comercial')
+        .from('pedidos')
+        .select('*')
+        .neq('operational_status', 'cancelled')
+        .order('created_at', { ascending: false }),
+      supabase
+        .schema('core_personal')
+        .from('worker_assignments')
+        .select(`
+          id, pedido_id, empresa_id, client_id, client_site_id, status,
+          planned_start_date, start_date, job_function_id, job_function_name_snapshot,
+          worker:workers(
+            id, cod_colab, nome, movil, dni, nie, pasaporte, nif, camiseta, pantalones, funcion
+          )
+        `)
+        .in('status', ['planned', 'active']),
+      supabase
+        .schema('core_logistica')
+        .from('job_function_epis')
+        .select('*')
+        .neq('status', 'archived'),
+      this.getEpis(),
+      supabase.schema('core_comercial').from('job_functions').select('id, name'),
+      supabase
+        .schema('core_logistica')
+        .from('almacen_picking_orders')
+        .select('*, items:almacen_picking_items(*)')
+        .neq('status', 'CANCELADO')
+        .order('created_at', { ascending: false }),
+    ]);
+
+    if (pedidosRes.error) throw pedidosRes.error;
+    const pedidos = pedidosRes.data || [];
+    const assignments = assignmentsRes.data || [];
+
+    const clientIds = [...new Set(pedidos.map((p: any) => p.client_id).filter(Boolean))];
+    const siteIds = [...new Set(pedidos.map((p: any) => p.client_site_id).filter(Boolean))];
+    const empresaIds = [...new Set(pedidos.map((p: any) => p.empresa_id).filter(Boolean))];
+
+    const [clientsRes, sitesRes, empresasRes] = await Promise.all([
+      clientIds.length
+        ? supabase.schema('core_common').from('clients').select('id, trade_name, legal_name').in('id', clientIds)
+        : Promise.resolve({ data: [] }),
+      siteIds.length
+        ? supabase.schema('core_common').from('client_sites').select('id, name, city').in('id', siteIds)
+        : Promise.resolve({ data: [] }),
+      empresaIds.length
+        ? supabase.schema('core_common').from('empresas').select('id, nome, trade_name').in('id', empresaIds)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
+    const sitesMap = new Map((sitesRes.data || []).map((s: any) => [s.id, s]));
+    const empresasMap = new Map((empresasRes.data || []).map((e: any) => [e.id, e]));
+    const episMap = new Map(episRes.map((e) => [e.id, e]));
+    const jobsMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j.name]));
+
+    // Group job_function_epis by job_function_id
+    const jobEpisMap = new Map<string, RequiredEpiPreview[]>();
+    for (const row of jobEpisRes.data || []) {
+      const epi = episMap.get(row.epi_id);
+      if (!epi) continue;
+      const list = jobEpisMap.get(row.job_function_id) || [];
+      list.push({
+        epi_id: epi.id,
+        epi_name: epi.name,
+        epi_code: epi.code,
+        is_branded: epi.is_branded,
+        has_sizes: epi.has_sizes,
+        size_category: epi.size_category,
+        quantity: row.quantity || 1,
+        is_required: row.is_required ?? true,
+        renewal_period_days: row.renewal_period_days ?? null,
+        unit_cost: Number(epi.default_cost || 0),
+      });
+      jobEpisMap.set(row.job_function_id, list);
+    }
+
+    // Index picking orders by pedido_id::worker_id and also last dispatch per worker_id
+    const pickingOrders = (pickingRes.data || []) as PickingOrder[];
+    const orderByPedidoWorker = new Map<string, PickingOrder>();
+    const lastDispatchByWorker = new Map<string, string>();
+    const sixMonthsAgo = Date.now() - 180 * 24 * 60 * 60 * 1000;
+
+    for (const po of pickingOrders) {
+      if (po.pedido_id && po.worker_id) {
+        const key = `${po.pedido_id}::${po.worker_id}`;
+        if (!orderByPedidoWorker.has(key)) {
+          orderByPedidoWorker.set(key, po);
+        }
+      }
+      if (po.worker_id && (po.status === 'DESPACHADO' || po.status === 'ENTREGUE')) {
+        const dt = po.dispatched_at || po.created_at;
+        const existingDt = lastDispatchByWorker.get(po.worker_id);
+        if (!existingDt || dt > existingDt) {
+          lastDispatchByWorker.set(po.worker_id, dt);
+        }
+      }
+    }
+
+    // Group assignments by pedido_id
+    const assignmentsByPedido = new Map<string, any[]>();
+    for (const a of assignments) {
+      if (!a.pedido_id || !a.worker) continue;
+      const list = assignmentsByPedido.get(a.pedido_id) || [];
+      list.push(a);
+      assignmentsByPedido.set(a.pedido_id, list);
+    }
+
+    const result: DemandaPedidoAlmacen[] = [];
+
+    for (const p of pedidos) {
+      const pAssignments = assignmentsByPedido.get(p.id) || [];
+      if (pAssignments.length === 0) continue;
+
+      const emp = empresasMap.get(p.empresa_id);
+      const cli = clientsMap.get(p.client_id);
+      const site = sitesMap.get(p.client_site_id);
+
+      const seenWorkers = new Set<string>();
+      const workers: DemandaWorkerAlmacen[] = [];
+
+      for (const a of pAssignments) {
+        const w = a.worker;
+        if (!w || seenWorkers.has(w.id)) continue;
+        seenWorkers.add(w.id);
+
+        const jfId = a.job_function_id || null;
+        const jfName = a.job_function_name_snapshot || (jfId ? jobsMap.get(jfId) : null) || w.funcion || null;
+        const requiredEpis = jfId ? jobEpisMap.get(jfId) || [] : [];
+        const existingOrder = orderByPedidoWorker.get(`${p.id}::${w.id}`) || null;
+        const lastDispatchAt = lastDispatchByWorker.get(w.id) || null;
+        const hasRecentDispatch = lastDispatchAt ? new Date(lastDispatchAt).getTime() >= sixMonthsAgo : false;
+
+        workers.push({
+          worker_id: w.id,
+          cod_colab: w.cod_colab || null,
+          nome: w.nome,
+          identificacion: w.dni || w.nie || w.pasaporte || w.nif || null,
+          movil: w.movil || null,
+          camiseta: w.camiseta || null,
+          pantalones: w.pantalones || null,
+          job_function_id: jfId,
+          job_function_name: jfName,
+          required_epis: requiredEpis,
+          existing_order: existingOrder,
+          last_dispatch_at: lastDispatchAt,
+          has_recent_dispatch: hasRecentDispatch,
+        });
+      }
+
+      const pendingCount = workers.filter((w) => !w.existing_order).length;
+
+      result.push({
+        pedido_id: p.id,
+        codigo: p.codigo,
+        empresa_id: p.empresa_id || null,
+        empresa_nome: emp?.trade_name || emp?.nome || 'Empresa',
+        client_id: p.client_id || null,
+        client_nome: cli?.trade_name || cli?.legal_name || 'Cliente',
+        site_nome: site?.name || null,
+        site_cidade: site?.city || null,
+        expected_start_date: p.expected_start_date || null,
+        operational_status: p.operational_status || null,
+        workers,
+        pending_count: pendingCount,
+        total_workers: workers.length,
+      });
+    }
+
+    // Pedidos com pendentes primeiro
+    result.sort((a, b) => b.pending_count - a.pending_count);
+    return result;
+  },
+
+  async createPickingOrder(params: {
+    pedido_id: string | null;
+    pedido_codigo: string | null;
+    empresa_id: string | null;
+    empresa_nome: string | null;
+    client_id: string | null;
+    client_nome: string | null;
+    worker: DemandaWorkerAlmacen;
+    request_type?: RequestType;
+    expected_start_date?: string | null;
+    observations?: string | null;
+    custom_items?: { epi_id: string; item_name: string; size_code: string; quantity: number; unit_cost: number; is_branded: boolean }[];
+  }): Promise<PickingOrder> {
+    const stockList = await this.getStock();
+    const { data: userData } = await supabase.auth.getUser();
+
+    // Gerar número sequencial único
+    const year = new Date().getFullYear();
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
+    const tsSuffix = Date.now().toString().slice(-4);
+    const orderNumber = `SEP-${year}-${tsSuffix}${randomSuffix}`;
+
+    const itemsSource = params.custom_items
+      ? params.custom_items
+      : params.worker.required_epis.map((re) => {
+          let sizeCode = 'UNICO';
+          if (re.has_sizes) {
+            if (re.size_category === 'camisa') sizeCode = (params.worker.camiseta || 'L').toUpperCase();
+            else if (re.size_category === 'pantalon') sizeCode = (params.worker.pantalones || 'L').toUpperCase();
+          }
+          return {
+            epi_id: re.epi_id,
+            item_name: re.epi_name,
+            size_code: sizeCode,
+            quantity: re.quantity,
+            unit_cost: re.unit_cost,
+            is_branded: re.is_branded,
+          };
+        });
+
+    const { data: orderData, error: orderErr } = await supabase
+      .schema('core_logistica')
+      .from('almacen_picking_orders')
+      .insert({
+        order_number: orderNumber,
+        pedido_id: params.pedido_id,
+        pedido_codigo: params.pedido_codigo,
+        empresa_id: params.empresa_id,
+        empresa_nome: params.empresa_nome,
+        client_id: params.client_id,
+        client_nome: params.client_nome,
+        worker_id: params.worker.worker_id,
+        cod_colab: params.worker.cod_colab,
+        worker_nome: params.worker.nome,
+        worker_identificacion: params.worker.identificacion,
+        worker_phone: params.worker.movil,
+        job_function_id: params.worker.job_function_id,
+        job_function_name: params.worker.job_function_name,
+        request_type: params.request_type || 'ASIGNACION',
+        status: 'PENDENTE',
+        camiseta_size: params.worker.camiseta || null,
+        pantalones_size: params.worker.pantalones || null,
+        expected_start_date: params.expected_start_date || null,
+        observations: params.observations || (params.worker.has_recent_dispatch ? 'Ya cuenta con Epis y Dotacion Reciente. Proxima Reposicion: 6 meses' : null),
+        created_by: userData?.user?.id || null,
+      })
+      .select('*')
+      .single();
+
+    if (orderErr) throw orderErr;
+
+    if (itemsSource.length > 0) {
+      const itemsToInsert = itemsSource.map((item) => {
+        const matchedStock = stockList.find(
+          (s) =>
+            s.epi_id === item.epi_id &&
+            s.size_code.toUpperCase() === item.size_code.toUpperCase() &&
+            (item.is_branded ? s.empresa_id === params.empresa_id : s.empresa_id === null)
+        );
+        return {
+          picking_order_id: orderData.id,
+          epi_id: item.epi_id,
+          stock_id: matchedStock?.id || null,
+          item_name: item.item_name,
+          size_code: item.size_code,
+          sku_code: matchedStock?.sku_code || null,
+          quantity_requested: item.quantity,
+          quantity_picked: 0,
+          is_checked: false,
+          unit_cost: item.unit_cost || matchedStock?.unit_cost || 0,
+        };
+      });
+
+      const { error: itemsErr } = await supabase
+        .schema('core_logistica')
+        .from('almacen_picking_items')
+        .insert(itemsToInsert);
+      if (itemsErr) throw itemsErr;
+    }
+
+    return orderData as PickingOrder;
+  },
+
+  async getPickingOrders(statusFilter?: PickingStatus | 'TODOS'): Promise<PickingOrder[]> {
+    let query = supabase
+      .schema('core_logistica')
+      .from('almacen_picking_orders')
+      .select('*, items:almacen_picking_items(*)')
+      .order('created_at', { ascending: false });
+
+    if (statusFilter && statusFilter !== 'TODOS') {
+      query = query.eq('status', statusFilter);
+    }
+
+    const { data, error } = await query;
+    if (error) throw error;
+    return (data || []) as PickingOrder[];
+  },
+
+  async togglePickingItemCheck(itemId: string, isChecked: boolean, quantityPicked: number): Promise<void> {
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_picking_items')
+      .update({
+        is_checked: isChecked,
+        quantity_picked: quantityPicked,
+      })
+      .eq('id', itemId);
+    if (error) throw error;
+  },
+
+  async updatePickingStatus(orderId: string, status: PickingStatus): Promise<void> {
+    const updates: any = {
+      status,
+      updated_at: new Date().toISOString(),
+    };
+    if (status === 'CONFERIDO') updates.prepared_at = new Date().toISOString();
+    if (status === 'ENTREGUE') updates.delivered_at = new Date().toISOString();
+
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_picking_orders')
+      .update(updates)
+      .eq('id', orderId);
+    if (error) throw error;
+  },
+
+  async dispatchPickingOrder(params: {
+    order: PickingOrder;
+    deliveryMethod: DeliveryMethod;
+    trackingCode?: string;
+    deliveryAddress?: string;
+  }): Promise<void> {
+    const { order } = params;
+    const now = new Date().toISOString();
+
+    // Deduzir estoque dos itens vinculados que ainda não foram baixados
+    if (order.status !== 'DESPACHADO' && order.status !== 'ENTREGUE') {
+      const movType: MovementType =
+        order.request_type === 'REPOSICION'
+          ? 'SAIDA_REPOSICION'
+          : order.request_type === 'DETERIORO'
+          ? 'SAIDA_DETERIORO'
+          : 'SAIDA_ASIGNACION';
+
+      for (const item of order.items || []) {
+        const qty = item.quantity_picked > 0 ? item.quantity_picked : item.quantity_requested;
+        if (item.stock_id && qty > 0) {
+          await this.adjustStock({
+            stockId: item.stock_id,
+            quantityDelta: -qty,
+            movementType: movType,
+            referenceType: 'picking_order',
+            referenceId: order.id,
+            notes: `Despacho ${order.order_number} - ${order.worker_nome}`,
+          });
+        }
+      }
+    }
+
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('almacen_picking_orders')
+      .update({
+        status: 'DESPACHADO',
+        delivery_method: params.deliveryMethod,
+        tracking_code: params.trackingCode || null,
+        delivery_address: params.deliveryAddress || null,
+        dispatched_at: now,
+        prepared_at: order.prepared_at || now,
+        updated_at: now,
+      })
+      .eq('id', order.id);
+
+    if (error) throw error;
+  },
+};
