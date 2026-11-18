@@ -18,12 +18,41 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        // Get initial session
-        supabase.auth.getSession().then(({ data: { session } }) => {
-            setSession(session);
-            setUser(session?.user ?? null);
+        const initAuth = async () => {
+            if (typeof window !== 'undefined') {
+                const url = new URL(window.location.href);
+                const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ''));
+                const accessToken = url.searchParams.get('access_token') || hashParams.get('access_token');
+                const refreshToken = url.searchParams.get('refresh_token') || hashParams.get('refresh_token');
+
+                if (accessToken && refreshToken) {
+                    try {
+                        const { data, error } = await supabase.auth.setSession({
+                            access_token: accessToken,
+                            refresh_token: refreshToken,
+                        });
+                        url.searchParams.delete('access_token');
+                        url.searchParams.delete('refresh_token');
+                        window.history.replaceState({}, '', url.pathname + url.search);
+                        if (!error && data?.session) {
+                            setSession(data.session);
+                            setUser(data.session.user);
+                            setLoading(false);
+                            return;
+                        }
+                    } catch (e) {
+                        console.warn('SSO token restoration failed:', e);
+                    }
+                }
+            }
+
+            const { data: { session: initialSession } } = await supabase.auth.getSession();
+            setSession(initialSession);
+            setUser(initialSession?.user ?? null);
             setLoading(false);
-        });
+        };
+
+        initAuth();
 
         // Listen to auth changes
         const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
