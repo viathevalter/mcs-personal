@@ -1321,7 +1321,10 @@ export async function approveDocumentRequest(
                 .eq('status', 'ATIVO')
                 .maybeSingle();
 
-            if (existingIban) {
+                        const normExisting = (existingIban?.iban || '').replace(/\s+/g, '').toUpperCase();
+            const normNew = finalIban.replace(/\s+/g, '').toUpperCase();
+
+            if (existingIban && normExisting === normNew) {
                 await supabase
                     .schema('core_personal')
                     .from('worker_ibans')
@@ -1335,6 +1338,14 @@ export async function approveDocumentRequest(
                     })
                     .eq('id', existingIban.id);
             } else {
+                if (existingIban) {
+                    await supabase
+                        .schema('core_personal')
+                        .from('worker_ibans')
+                        .update({ status: 'INATIVO', updated_at: new Date().toISOString() })
+                        .eq('worker_id', workerId)
+                        .eq('status', 'ATIVO');
+                }
                 await supabase
                     .schema('core_personal')
                     .from('worker_ibans')
