@@ -10,6 +10,28 @@ export type RequestType = 'ASIGNACION' | 'REPOSICION' | 'DETERIORO';
 
 export type DeliveryMethod = 'NACEX' | 'RECOGIDA' | 'OBRA' | 'ALOJAMIENTO';
 
+export type CarrierStatus =
+  | 'PENDENTE_ENVIO'
+  | 'EM_TRANSITO'
+  | 'DISPONIVEL_RETIRADA'
+  | 'ENTREGUE'
+  | 'INCIDENCIA';
+
+export interface AlmacenDeliveryPoint {
+  id: string;
+  name: string;
+  point_type: 'NACEX_AGENCIA' | 'NACEX_SHOP' | 'OBRA_FIXA' | 'OUTRO';
+  nacex_code: string | null;
+  address_line: string;
+  postal_code: string | null;
+  city: string | null;
+  province: string | null;
+  phone: string | null;
+  notes: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
 export type MovementType =
   | 'ENTRADA_COMPRA'
   | 'SAIDA_ASIGNACION'
@@ -105,8 +127,12 @@ export interface PickingOrder {
   camiseta_size: string | null;
   pantalones_size: string | null;
   delivery_method: DeliveryMethod | null;
+  delivery_point_id?: string | null;
   tracking_code: string | null;
   delivery_address: string | null;
+  carrier_status?: CarrierStatus | null;
+  carrier_status_detail?: string | null;
+  carrier_last_sync_at?: string | null;
   signature_token: string;
   signed_at: string | null;
   signed_by_name: string | null;

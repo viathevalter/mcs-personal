@@ -23,10 +23,13 @@ import {
   MessageCircle,
   ArrowUpDown,
   Repeat,
+  Plus,
+  X,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { almacenService } from '../services/almacenService';
 import type {
+  AlmacenDeliveryPoint,
   AlmacenStockItem,
   DeliveryMethod,
   DemandaPedidoAlmacen,
@@ -82,19 +85,34 @@ export const DemandasAlmacenPage: React.FC = () => {
   const [isBatchCreating, setIsBatchCreating] = useState(false);
 
   // Delivery destination state for the selected pedido
+  const [deliveryPoints, setDeliveryPoints] = useState<AlmacenDeliveryPoint[]>([]);
+  const [selectedDeliveryPointId, setSelectedDeliveryPointId] = useState<string>('');
   const [addressMode, setAddressMode] = useState<AddressTargetMode>('OBRA');
   const [deliveryMethod, setDeliveryMethod] = useState<DeliveryMethod>('NACEX');
   const [customDeliveryAddress, setCustomDeliveryAddress] = useState('');
 
+  // New Delivery Point modal
+  const [showNewPointModal, setShowNewPointModal] = useState(false);
+  const [newPointName, setNewPointName] = useState('');
+  const [newPointType, setNewPointType] = useState<'NACEX_AGENCIA' | 'NACEX_SHOP' | 'OBRA_FIXA' | 'OUTRO'>('NACEX_AGENCIA');
+  const [newPointNacexCode, setNewPointNacexCode] = useState('');
+  const [newPointAddress, setNewPointAddress] = useState('');
+  const [newPointPostalCode, setNewPointPostalCode] = useState('');
+  const [newPointCity, setNewPointCity] = useState('');
+  const [newPointPhone, setNewPointPhone] = useState('');
+  const [isSavingPoint, setIsSavingPoint] = useState(false);
+
   const loadData = async () => {
     setIsLoading(true);
     try {
-      const [demandasData, stockData] = await Promise.all([
+      const [demandasData, stockData, pointsData] = await Promise.all([
         almacenService.getDemandasPedidos(),
         almacenService.getStock(),
+        almacenService.getDeliveryPoints().catch(() => []),
       ]);
       setPedidos(demandasData);
       setStock(stockData);
+      setDeliveryPoints(pointsData);
       if (!selectedPedidoId && demandasData.length > 0) {
         setSelectedPedidoId(demandasData[0].pedido_id);
       }
@@ -270,6 +288,7 @@ export const DemandasAlmacenPage: React.FC = () => {
         request_type: 'ASIGNACION',
         expected_start_date: pedido.expected_start_date,
         delivery_method: deliveryMethod,
+        delivery_point_id: addressMode === 'NACEX_CUSTOM' && selectedDeliveryPointId ? selectedDeliveryPointId : null,
         delivery_address: targetAddress,
       });
       toast.success(`Ordem de separação gerada para ${worker.nome}`);
@@ -303,6 +322,7 @@ export const DemandasAlmacenPage: React.FC = () => {
           request_type: 'ASIGNACION',
           expected_start_date: pedido.expected_start_date,
           delivery_method: deliveryMethod,
+          delivery_point_id: addressMode === 'NACEX_CUSTOM' && selectedDeliveryPointId ? selectedDeliveryPointId : null,
           delivery_address: resolveWorkerDeliveryAddress(w),
         });
       }
@@ -631,6 +651,48 @@ export const DemandasAlmacenPage: React.FC = () => {
                       </button>
                     </div>
 
+                    {addressMode === 'NACEX_CUSTOM' && (
+                      <div className="flex gap-1.5 items-center">
+                        <select
+                          value={selectedDeliveryPointId}
+                          onChange={(e) => {
+                            const id = e.target.value;
+                            setSelectedDeliveryPointId(id);
+                            const found = deliveryPoints.find((dp) => dp.id === id);
+                            if (found) {
+                              const full = [
+                                found.name,
+                                found.nacex_code ? `(${found.nacex_code})` : '',
+                                found.address_line,
+                                found.postal_code,
+                                found.city,
+                              ]
+                                .filter(Boolean)
+                                .join(' - ');
+                              setCustomDeliveryAddress(full);
+                            }
+                          }}
+                          className="flex-1 h-8 text-xs rounded-lg border border-emerald-300 dark:border-emerald-800 bg-white dark:bg-slate-900 px-2"
+                        >
+                          <option value="">Selecionar Agência / Ponto Nacex salvo...</option>
+                          {deliveryPoints.map((dp) => (
+                            <option key={dp.id} value={dp.id}>
+                              {dp.name} {dp.nacex_code ? `(${dp.nacex_code})` : ''} {dp.city ? `- ${dp.city}` : ''}
+                            </option>
+                          ))}
+                        </select>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setShowNewPointModal(true)}
+                          className="h-8 px-2.5 text-xs gap-1 border-emerald-300 text-emerald-700 hover:bg-emerald-100"
+                        >
+                          <Plus className="h-3.5 w-3.5" /> Agência
+                        </Button>
+                      </div>
+                    )}
+
                     <Input
                       value={customDeliveryAddress}
                       onChange={(e) => setCustomDeliveryAddress(e.target.value)}
@@ -852,6 +914,140 @@ export const DemandasAlmacenPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* Modal: Cadastrar Agência / Ponto Nacex */}
+      {showNewPointModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl max-w-md w-full p-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-bold">Cadastrar Agência / Ponto Nacex</h3>
+              <button onClick={() => setShowNewPointModal(false)} className="text-slate-400 hover:text-slate-600">
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <form
+              onSubmit={async (e) => {
+                e.preventDefault();
+                if (!newPointName.trim() || !newPointAddress.trim()) {
+                  toast.warning('Nome e Endereço são obrigatórios');
+                  return;
+                }
+                setIsSavingPoint(true);
+                try {
+                  const created = await almacenService.createDeliveryPoint({
+                    name: newPointName.trim(),
+                    point_type: newPointType,
+                    nacex_code: newPointNacexCode.trim() || undefined,
+                    address_line: newPointAddress.trim(),
+                    postal_code: newPointPostalCode.trim() || undefined,
+                    city: newPointCity.trim() || undefined,
+                    phone: newPointPhone.trim() || undefined,
+                  });
+                  setDeliveryPoints((prev) => [...prev, created]);
+                  setSelectedDeliveryPointId(created.id);
+                  const full = [
+                    created.name,
+                    created.nacex_code ? `(${created.nacex_code})` : '',
+                    created.address_line,
+                    created.postal_code,
+                    created.city,
+                  ]
+                    .filter(Boolean)
+                    .join(' - ');
+                  setCustomDeliveryAddress(full);
+                  setShowNewPointModal(false);
+                  setNewPointName('');
+                  setNewPointNacexCode('');
+                  setNewPointAddress('');
+                  setNewPointPostalCode('');
+                  setNewPointCity('');
+                  setNewPointPhone('');
+                  toast.success('Agência / Ponto cadastrado!');
+                } catch (err: any) {
+                  toast.error(err?.message || 'Erro ao salvar ponto');
+                } finally {
+                  setIsSavingPoint(false);
+                }
+              }}
+              className="space-y-3"
+            >
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-1">Nome da Agência / Ponto *</label>
+                <Input
+                  placeholder="Ex: Agencia Nacex Huelva Centro"
+                  value={newPointName}
+                  onChange={(e) => setNewPointName(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Tipo</label>
+                  <select
+                    value={newPointType}
+                    onChange={(e) => setNewPointType(e.target.value as any)}
+                    className="w-full h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-950 px-2.5 text-sm"
+                  >
+                    <option value="NACEX_AGENCIA">Agência Nacex</option>
+                    <option value="NACEX_SHOP">Ponto Nacex.shop</option>
+                    <option value="OBRA_FIXA">Obra Fixa</option>
+                    <option value="OUTRO">Outro</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Código Nacex (Opcional)</label>
+                  <Input
+                    placeholder="Ex: 2101"
+                    value={newPointNacexCode}
+                    onChange={(e) => setNewPointNacexCode(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-1">Endereço Completo *</label>
+                <Input
+                  placeholder="Rua, número..."
+                  value={newPointAddress}
+                  onChange={(e) => setNewPointAddress(e.target.value)}
+                />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Código Postal</label>
+                  <Input
+                    placeholder="Ex: 21001"
+                    value={newPointPostalCode}
+                    onChange={(e) => setNewPointPostalCode(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="text-xs font-semibold text-slate-500 block mb-1">Cidade</label>
+                  <Input
+                    placeholder="Ex: Huelva"
+                    value={newPointCity}
+                    onChange={(e) => setNewPointCity(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-semibold text-slate-500 block mb-1">Telefone</label>
+                <Input
+                  placeholder="+34 ..."
+                  value={newPointPhone}
+                  onChange={(e) => setNewPointPhone(e.target.value)}
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <Button type="button" variant="outline" onClick={() => setShowNewPointModal(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" disabled={isSavingPoint} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                  {isSavingPoint ? 'Salvando...' : 'Salvar Ponto'}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
