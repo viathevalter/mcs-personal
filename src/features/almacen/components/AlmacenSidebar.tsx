@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Menu,
   Smartphone,
+  RefreshCcw,
 } from 'lucide-react';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
@@ -85,6 +86,7 @@ export const AlmacenSidebar: React.FC = () => {
           <SectionLabel label="Operación & Despachos" />
           <div className="space-y-1">
             <NavItem to="/almacen/demandas" icon={ClipboardList} label="Demandas por Pedido" />
+            <NavItem to="/almacen/reposicao" icon={RefreshCcw} label="Reposições & Histórico" />
             <NavItem to="/almacen/ordenes" icon={PackageCheck} label="Órdenes de Separación" />
           </div>
         </div>

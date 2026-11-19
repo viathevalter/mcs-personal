@@ -16,6 +16,7 @@ import type {
   PickingStatus,
   RequestType,
   RequiredEpiPreview,
+  WorkerReplenishmentRow,
 } from '../types';
 import { STANDARD_SIZES } from '../types';
 
@@ -794,5 +795,177 @@ export const almacenService = {
       .update(updates)
       .eq('id', orderId);
     if (error) throw error;
+  },
+
+  async getJobFunctionRequiredEpis(jobFunctionId: string): Promise<RequiredEpiPreview[]> {
+    const [jobEpisRes, epis] = await Promise.all([
+      supabase
+        .schema('core_logistica')
+        .from('job_function_epis')
+        .select('*')
+        .eq('job_function_id', jobFunctionId)
+        .neq('status', 'archived'),
+      this.getEpis(),
+    ]);
+    const episMap = new Map(epis.map((e) => [e.id, e]));
+    const seen = new Set<string>();
+    const list: RequiredEpiPreview[] = [];
+    for (const row of jobEpisRes.data || []) {
+      const epi = episMap.get(row.epi_id);
+      if (!epi || seen.has(epi.id)) continue;
+      seen.add(epi.id);
+      list.push({
+        epi_id: epi.id,
+        epi_name: epi.name,
+        epi_code: epi.code,
+        is_branded: epi.is_branded,
+        has_sizes: epi.has_sizes,
+        size_category: epi.size_category,
+        quantity: row.quantity || 1,
+        is_required: row.is_required ?? true,
+        renewal_period_days: row.renewal_period_days ?? null,
+        unit_cost: Number(epi.default_cost || 0),
+      });
+    }
+    return list;
+  },
+
+  async getWorkersReplenishmentOverview(): Promise<WorkerReplenishmentRow[]> {
+    const [workersRes, assignmentsRes, ordersRes, pedidosRes, clientsRes, sitesRes, empresasRes, jobsRes, alocacoesAtivas, alojamentos] = await Promise.all([
+      supabase
+        .schema('core_personal')
+        .from('workers')
+        .select('id, cod_colab, nome, movil, dni, nie, pasaporte, nif, camiseta, pantalones, funcion, empresa_id, status_trabajador')
+        .order('nome', { ascending: true })
+        .limit(2000),
+      supabase
+        .schema('core_personal')
+        .from('worker_assignments')
+        .select('id, worker_id, pedido_id, empresa_id, client_id, client_site_id, status, job_function_id, job_function_name_snapshot')
+        .in('status', ['active', 'planned']),
+      supabase
+        .schema('core_logistica')
+        .from('almacen_picking_orders')
+        .select('*, items:almacen_picking_items(*)')
+        .neq('status', 'CANCELADO')
+        .order('created_at', { ascending: false }),
+      supabase.schema('core_comercial').from('pedidos').select('id, codigo, client_id, client_site_id, empresa_id'),
+      supabase.schema('core_common').from('clients').select('id, trade_name, legal_name'),
+      supabase.schema('core_common').from('client_sites').select('id, name, address_line, city, postal_code'),
+      this.getEmpresas(),
+      supabase.schema('core_comercial').from('job_functions').select('id, name'),
+      logisticsService.fetchAlocacoesAtivas().catch(() => []),
+      logisticsService.fetchAlojamentos().catch(() => []),
+    ]);
+
+    if (workersRes.error) throw workersRes.error;
+
+    const pedidosMap = new Map((pedidosRes.data || []).map((p: any) => [p.id, p]));
+    const clientsMap = new Map((clientsRes.data || []).map((c: any) => [c.id, c]));
+    const sitesMap = new Map((sitesRes.data || []).map((s: any) => [s.id, s]));
+    const empresasMap = new Map(empresasRes.map((e) => [e.id, e]));
+    const jobsMap = new Map((jobsRes.data || []).map((j: any) => [j.id, j.name]));
+    const alojMap = new Map(alojamentos.map((a: any) => [a.id, a]));
+
+    const assignmentByWorker = new Map<string, any>();
+    for (const a of assignmentsRes.data || []) {
+      if (!a.worker_id) continue;
+      if (!assignmentByWorker.has(a.worker_id) || a.status === 'active') {
+        assignmentByWorker.set(a.worker_id, a);
+      }
+    }
+
+    const ordersByWorker = new Map<string, PickingOrder[]>();
+    for (const o of (ordersRes.data || []) as PickingOrder[]) {
+      if (!o.worker_id) continue;
+      const list = ordersByWorker.get(o.worker_id) || [];
+      list.push(o);
+      ordersByWorker.set(o.worker_id, list);
+    }
+
+    const alocByWorkerId = new Map<string, any>();
+    const alocByCodColab = new Map<string, any>();
+    for (const al of alocacoesAtivas as any[]) {
+      if (al.worker_id) alocByWorkerId.set(al.worker_id, al);
+      if (al.codigo_colab) alocByCodColab.set(String(al.codigo_colab).trim().toUpperCase(), al);
+    }
+
+    const nowMs = Date.now();
+    const rows: WorkerReplenishmentRow[] = [];
+
+    for (const w of workersRes.data || []) {
+      const statusLower = String(w.status_trabajador || '').toLowerCase();
+      const ass = assignmentByWorker.get(w.id);
+      const history = ordersByWorker.get(w.id) || [];
+
+      // Exibir trabalhadores ativos, alocados em pedido ou que já possuem histórico no Almacén
+      if (statusLower.includes('baixa') || statusLower.includes('inactivo') || statusLower.includes('baja')) {
+        if (!ass && history.length === 0) continue;
+      }
+
+      const ped = ass?.pedido_id ? pedidosMap.get(ass.pedido_id) : null;
+      const empId = ass?.empresa_id || ped?.empresa_id || w.empresa_id || null;
+      const emp = empId ? empresasMap.get(empId) : null;
+      const clientId = ass?.client_id || ped?.client_id || null;
+      const cli = clientId ? clientsMap.get(clientId) : null;
+      const siteId = ass?.client_site_id || ped?.client_site_id || null;
+      const site = siteId ? sitesMap.get(siteId) : null;
+      const siteAddr = site
+        ? [site.address_line, site.postal_code, site.city].filter(Boolean).join(', ')
+        : null;
+
+      const codKey = w.cod_colab ? String(w.cod_colab).trim().toUpperCase() : '';
+      const aloc = alocByWorkerId.get(w.id) || (codKey ? alocByCodColab.get(codKey) : null);
+      let alojNome: string | null = null;
+      let alojEndereco: string | null = null;
+      if (aloc) {
+        const alojObj = aloc.alojamento_id ? alojMap.get(aloc.alojamento_id) : null;
+        alojNome = alojObj?.nome || alojObj?.titulo || aloc.alojamento_nome || null;
+        alojEndereco =
+          [alojObj?.endereco, alojObj?.codigo_postal, alojObj?.municipio || alojObj?.provincia]
+            .filter(Boolean)
+            .join(', ') ||
+          aloc.endereco ||
+          null;
+      }
+
+      const lastOrder = history[0] || null;
+      const lastDispatched = history.find((o) => o.status === 'DESPACHADO' || o.status === 'ENTREGUE') || lastOrder;
+      const lastDateStr = lastDispatched ? (lastDispatched.dispatched_at || lastDispatched.created_at) : null;
+      const daysSince = lastDateStr
+        ? Math.max(0, Math.floor((nowMs - new Date(lastDateStr).getTime()) / (1000 * 60 * 60 * 24)))
+        : null;
+
+      const jfId = ass?.job_function_id || null;
+      const jfName = ass?.job_function_name_snapshot || (jfId ? jobsMap.get(jfId) : null) || w.funcion || null;
+
+      rows.push({
+        worker_id: w.id,
+        cod_colab: w.cod_colab || null,
+        nome: w.nome,
+        identificacion: w.dni || w.nie || w.pasaporte || w.nif || null,
+        movil: w.movil || null,
+        camiseta: normalizeSizeCode(w.camiseta),
+        pantalones: normalizeSizeCode(w.pantalones),
+        empresa_id: empId,
+        empresa_nome: emp?.trade_name || emp?.nome || null,
+        client_id: clientId,
+        client_nome: cli?.trade_name || cli?.legal_name || null,
+        pedido_id: ass?.pedido_id || null,
+        pedido_codigo: ped?.codigo || null,
+        job_function_id: jfId,
+        job_function_name: jfName,
+        alojamento_nome: alojNome,
+        alojamento_endereco: alojEndereco,
+        site_address: siteAddr,
+        last_order: lastOrder,
+        last_dispatch_at: lastDateStr,
+        days_since_last: daysSince,
+        total_orders: history.length,
+        history,
+      });
+    }
+
+    return rows;
   },
 };

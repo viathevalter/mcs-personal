@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   ClipboardList,
   Search,
@@ -75,6 +76,7 @@ function getDaysBadgeInfo(dateStr?: string | null): { label: string; className: 
 }
 
 export const DemandasAlmacenPage: React.FC = () => {
+  const navigate = useNavigate();
   const [pedidos, setPedidos] = useState<DemandaPedidoAlmacen[]>([]);
   const [stock, setStock] = useState<AlmacenStockItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -383,10 +385,19 @@ export const DemandasAlmacenPage: React.FC = () => {
             Confira alocação de alojamento, endereço da obra, medidas e gere ordens de separação com destino apontado.
           </p>
         </div>
-        <Button variant="outline" onClick={loadData} disabled={isLoading} className="gap-2 rounded-xl">
-          <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-          Atualizar
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            onClick={() => navigate('/almacen/reposicao')}
+            className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl"
+          >
+            <Plus className="h-4 w-4" />
+            Incluir Dotação / Reposição
+          </Button>
+          <Button variant="outline" onClick={loadData} disabled={isLoading} className="gap-2 rounded-xl">
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            Atualizar
+          </Button>
+        </div>
       </div>
 
       {/* KPIs */}
