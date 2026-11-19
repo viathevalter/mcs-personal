@@ -23,7 +23,11 @@
     "patrimonio": "Ativos & Patrimônio",
     "expand": "Expandir menu",
     "collapse": "Recolher menu",
-    "access": "Gestão de Acessos"
+    "access": "Gestão de Acessos",
+    "sectionOperational": "Operação & Efetivo",
+    "sectionDocs": "Documentação & Legal",
+    "sectionPayroll": "Folha & Benefícios",
+    "sectionTreasury": "Tesouraria & Restrito"
   },
   "topbar": {
     "themeLight": "Claro",
@@ -603,6 +607,7 @@
       "noCompany": "Nenhuma empresa",
       "profile": "Perfil",
       "noProfile": "Nenhum perfil",
+      "allStatusesAlert": "Todos os Status (Alerta)",
       "statusTrabOptions": {
         "ativos": "Ativos",
         "inativos": "Inativos",
@@ -659,7 +664,10 @@
       "alta": "Alta",
       "pendingAlta": "Pendente Alta",
       "baixa": "Baixa",
-      "pendingBaixa": "Pendente Baixa"
+      "pendingBaixa": "Pendente Baixa",
+      "emRegularizacao": "Em Regularização",
+      "referentTo": "Referente a:",
+      "allStatuses": "Todos os Status"
     },
     "table": {
       "cod": "Cód. Colab",
@@ -668,7 +676,76 @@
       "role": "Função",
       "client": "Cliente",
       "statusTrab": "Status Trab.",
-      "security": "Seguridade"
+      "security": "Seguridade",
+      "quickAction": "Ação Rápida",
+      "updateBtn": "Atualizar"
+    },
+    "controls": {
+      "newReactivated": "Novos / Reativados",
+      "exportExcel": "Exportar para Excel",
+      "importTariffs": "Importar Tarifas (Excel)"
+    },
+    "alerts": {
+      "pendingTitle": "Atividades Operacionais Pendentes de Atualização (RH & Seguridade):",
+      "allWithAlert": "Todos com Alerta",
+      "baixas": "Baixas / Fim de Obra",
+      "reemplazo": "Substituições / Reemplazo",
+      "desistiu": "Desistências",
+      "logistica": "Alerta Logística / Checkout",
+      "backToActive": "Voltar p/ Ativos",
+      "operationalAlert": "Alerta Operacional",
+      "dateLabel": "Data:"
+    },
+    "badges": {
+      "new": "NOVO",
+      "pendingHousingCheckout": "Checkout Alojamento Pendente"
+    },
+    "exportModal": {
+      "title": "Exportar Trabalhadores (Excel)",
+      "desc": "Selecione as colunas que deseja enviar para a planilha.\nA exportação utilizará os filtros ativos atuais na sua tela.",
+      "fields": "Campos para exportar",
+      "selectAll": "Marcar todos",
+      "deselectAll": "Desmarcar todos",
+      "includeHistory": "Incluir histórico completo de designações (clientes)",
+      "includeHistoryDesc": "Se marcado, trabalhadores que atuaram em múltiplas empresas ou clientes serão repetidos em linhas separadas para cada designação.",
+      "cancel": "Cancelar",
+      "exporting": "Processando Arquivo...",
+      "exportBtn": "Baixar Planilha",
+      "noWorkers": "Nenhum trabalhador encontrado com os filtros atuais.",
+      "error": "Erro ao exportar planilha. Tente novamente.",
+      "sheetName": "Trabalhadores",
+      "filePrefix": "Trabalhadores_Mastercorp_",
+      "columns": {
+        "cod_colab": "Cód. Colab",
+        "nome": "Nome Completo",
+        "status_trabajador": "Status Trabalhador",
+        "status_seguridad": "Status Segurança",
+        "data_ingresso": "Data Ingresso (Admissão)",
+        "data_baixa": "Data Fim (Desligamento)",
+        "data_alta_seguridad": "Data Alta Segurança",
+        "data_baixa_seguridad": "Data Baixa Segurança",
+        "contratante": "Empresa Contratante",
+        "cliente_nombre": "Cliente/Obra",
+        "funcion": "Função",
+        "niss": "NISS",
+        "nif": "NIF",
+        "dni": "DNI",
+        "nie": "NIE",
+        "pasaporte": "Passaporte",
+        "nacionalidade": "Nacionalidade",
+        "fecha_nacimiento": "Data Nascimento",
+        "movil": "Telefone",
+        "email": "E-mail",
+        "camiseta": "T-Shirt (Camiseta)",
+        "pantalones": "Calça (Pantalones)"
+      },
+      "historyCols": {
+        "codpedido": "Cód. Pedido / Designação",
+        "tiposervico": "Tipo de Serviço",
+        "fechainiciopedido": "Data Início Designação",
+        "fechafinpedido": "Data Fim Designação",
+        "fechasalidatrabajador": "Data Saída Designação"
+      }
     },
     "messages": {
       "selectCompany": "Selecione uma empresa para carregar os trabalhadores.",

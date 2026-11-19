@@ -64,7 +64,7 @@ export function WorkersPage() {
     const navigate = useNavigate();
     const [searchParams, setSearchParams] = useSearchParams();
     const { selectedEmpresaId } = useEmpresa();
-    const { t } = useTranslation();
+    const { t, i18n } = useTranslation();
     const { role: globalRole, canEditFeature, canViewFeature } = useRole();
 
     const canEditStatus = globalRole !== 'visualizador' && canEditFeature('rh.workers.edit_status', 'rrhh') && canEditFeature('rh.workers', 'rrhh');
@@ -95,9 +95,10 @@ export function WorkersPage() {
     const onlyNovos = searchParams.get('onlyNovos') === 'true';
 
     const anosDisponiveis = [currentDate.getFullYear() - 1, currentDate.getFullYear(), currentDate.getFullYear() + 1];
+    const monthLocale = i18n.language?.startsWith('es') ? 'es-ES' : i18n.language?.startsWith('fr') ? 'fr-FR' : i18n.language?.startsWith('en') ? 'en-US' : 'pt-BR';
     const mesesDisponiveis = Array.from({ length: 12 }, (_, i) => ({
         value: i + 1,
-        label: new Date(2000, i, 1).toLocaleString('pt-BR', { month: 'long' }).toUpperCase()
+        label: new Date(2000, i, 1).toLocaleString(monthLocale, { month: 'long' }).toUpperCase()
     }));
 
     const updateSearchParams = (updates: Record<string, string | string[] | null | undefined>) => {
@@ -218,12 +219,12 @@ export function WorkersPage() {
     const alertasLogistica = Number(kpis?.alertas_logistica || 0);
 
     const statusScopeLabel = statusTrabajador.length === 0
-        ? 'Todos os Status'
+        ? t('workersPage.kpi.allStatuses')
         : statusTrabajador.map(st => {
             if (st === 'ativos') return t('workersPage.kpi.active', 'Activos');
             if (st === 'inativos') return t('workersPage.kpi.inactive', 'Inactivos');
             if (st === 'pendientes_ingreso') return t('workersPage.kpi.pendingEntry', 'Pendientes Ingreso');
-            if (st === 'desistiu') return 'Desistiu';
+            if (st === 'desistiu') return t('workersPage.filters.statusTrabOptions.desistiu');
             return st;
         }).join(', ');
 
@@ -270,7 +271,7 @@ export function WorkersPage() {
                             className={`h-7 px-2 text-xs ${onlyNovos ? "bg-emerald-500 hover:bg-emerald-600 text-white" : "text-muted-foreground hover:text-foreground"}`}
                         >
                             <UserCheck className="w-3.5 h-3.5 mr-1" />
-                            Novos / Reativados
+                            {t('workersPage.controls.newReactivated')}
                         </Button>
                     </div>
                 </div>
@@ -280,7 +281,7 @@ export function WorkersPage() {
                         trigger={
                             <Button variant="outline" size="sm" className="h-8 border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700 text-xs">
                                 <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
-                                Exportar para Excel
+                                {t('workersPage.controls.exportExcel')}
                             </Button>
                         }
                         currentFilters={{
@@ -298,7 +299,7 @@ export function WorkersPage() {
                         <ImportTarifasDialog trigger={
                             <Button variant="outline" size="sm" className="h-8 border-indigo-200 hover:bg-indigo-50 hover:text-indigo-700 text-xs">
                                 <DownloadCloud className="mr-1.5 h-3.5 w-3.5" />
-                                Importar Tarifas (Excel)
+                                {t('workersPage.controls.importTariffs')}
                             </Button>
                         } />
                     )}
@@ -334,7 +335,7 @@ export function WorkersPage() {
                             ]}
                             selected={statusTrabajador}
                             onChange={(newStatus) => updateSearchParams({ statusTrabajador: newStatus, page: '1' })}
-                            placeholder={alertaFilter && statusTrabajador.length === 0 ? 'Todos os Status (Alerta)' : t('workersPage.filters.statusTrab')}
+                            placeholder={alertaFilter && statusTrabajador.length === 0 ? t('workersPage.filters.allStatusesAlert') : t('workersPage.filters.statusTrab')}
                         />
                     </div>
                     <div className="w-full">
@@ -389,7 +390,7 @@ export function WorkersPage() {
                     <div className="flex flex-wrap items-center justify-between gap-2 bg-rose-50/70 dark:bg-rose-950/20 border border-rose-200/80 dark:border-rose-900/50 px-3 py-2 rounded-lg">
                         <div className="flex items-center gap-2 text-xs font-semibold text-rose-900 dark:text-rose-200">
                             <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
-                            <span>Atividades Operacionais Pendentes de Atualização (RH & Seguridade):</span>
+                            <span>{t('workersPage.alerts.pendingTitle')}</span>
                         </div>
                         <div className="flex flex-wrap items-center gap-1.5">
                             <button
@@ -402,7 +403,7 @@ export function WorkersPage() {
                                 }`}
                             >
                                 <AlertTriangle className="w-3.5 h-3.5" />
-                                Todos com Alerta ({totalAlertas})
+                                {t('workersPage.alerts.allWithAlert')} ({totalAlertas})
                             </button>
 
                             <button
@@ -415,7 +416,7 @@ export function WorkersPage() {
                                 }`}
                             >
                                 <UserX className="w-3.5 h-3.5" />
-                                Baixas / Fim de Obra ({alertasBaixa})
+                                {t('workersPage.alerts.baixas')} ({alertasBaixa})
                             </button>
 
                             <button
@@ -428,7 +429,7 @@ export function WorkersPage() {
                                 }`}
                             >
                                 <RefreshCw className="w-3.5 h-3.5" />
-                                Substituições / Reemplazo ({alertasReemplazo})
+                                {t('workersPage.alerts.reemplazo')} ({alertasReemplazo})
                             </button>
 
                             <button
@@ -441,7 +442,7 @@ export function WorkersPage() {
                                 }`}
                             >
                                 <Ban className="w-3.5 h-3.5" />
-                                Desistências ({alertasDesistiu})
+                                {t('workersPage.alerts.desistiu')} ({alertasDesistiu})
                             </button>
 
                             <button
@@ -454,7 +455,7 @@ export function WorkersPage() {
                                 }`}
                             >
                                 <Home className="w-3.5 h-3.5" />
-                                Alerta Logística / Checkout ({alertasLogistica})
+                                {t('workersPage.alerts.logistica')} ({alertasLogistica})
                             </button>
 
                             {alertaFilter && (
@@ -464,7 +465,7 @@ export function WorkersPage() {
                                     className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-200/60 dark:text-slate-300"
                                 >
                                     <X className="w-3.5 h-3.5" />
-                                    Voltar p/ Ativos
+                                    {t('workersPage.alerts.backToActive')}
                                 </button>
                             )}
                         </div>
@@ -552,7 +553,7 @@ export function WorkersPage() {
                                 <ShieldAlert className="w-3.5 h-3.5 text-slate-500" /> {t('workersPage.kpi.securityTitle')}
                             </h3>
                             <span className="text-[10px] font-medium px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
-                                Referente a: <strong>{statusScopeLabel}</strong>
+                                {t('workersPage.kpi.referentTo')} <strong>{statusScopeLabel}</strong>
                             </span>
                         </div>
                         <div className="grid grid-cols-2 lg:grid-cols-5 gap-2">
@@ -596,7 +597,7 @@ export function WorkersPage() {
                             >
                                 <CardContent className="p-2.5">
                                     <div className="flex flex-col gap-0.5">
-                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground truncate" title="Em Regularização">Em Regularização</span>
+                                        <span className="text-[11px] leading-tight font-medium text-muted-foreground truncate" title={t('workersPage.kpi.emRegularizacao')}>{t('workersPage.kpi.emRegularizacao')}</span>
                                         <span className="text-2xl font-bold tracking-tight text-sky-600 dark:text-sky-400">{kpisLoading ? '-' : kpis.seguridade_em_regularizacao}</span>
                                     </div>
                                 </CardContent>
@@ -665,7 +666,7 @@ export function WorkersPage() {
                                 </TableHead>
                                 {canEditStatus && (
                                     <TableHead className="font-semibold text-foreground text-right pr-4">
-                                        Ação Rápida
+                                        {t('workersPage.table.quickAction')}
                                     </TableHead>
                                 )}
                             </TableRow>
@@ -716,7 +717,7 @@ export function WorkersPage() {
                                         : 'bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800';
 
                                 const alertSummaryText = hasAlert
-                                    ? `${worker.alerta_label || 'Alerta Operacional'}${worker.alerta_codigo ? ` (${worker.alerta_codigo})` : ''}${worker.alerta_cliente ? ` • ${worker.alerta_cliente}` : ''}${alertDateFormatted ? ` • Data: ${alertDateFormatted}` : ''}${worker.alerta_pendencia ? ` → ${worker.alerta_pendencia}` : ''}`
+                                    ? `${worker.alerta_label || t('workersPage.alerts.operationalAlert')}${worker.alerta_codigo ? ` (${worker.alerta_codigo})` : ''}${worker.alerta_cliente ? ` • ${worker.alerta_cliente}` : ''}${alertDateFormatted ? ` • ${t('workersPage.alerts.dateLabel')} ${alertDateFormatted}` : ''}${worker.alerta_pendencia ? ` → ${worker.alerta_pendencia}` : ''}`
                                     : null;
 
                                 return (
@@ -734,7 +735,7 @@ export function WorkersPage() {
                                             <div className="flex flex-col gap-1">
                                                 <div className="flex items-center gap-2 flex-wrap">
                                                     <span className="font-semibold text-foreground">{worker.nome}</span>
-                                                    {onlyNovos && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0 text-[10px] px-1.5 py-0">NOVO</Badge>}
+                                                    {onlyNovos && <Badge className="bg-emerald-100 text-emerald-800 hover:bg-emerald-200 border-0 text-[10px] px-1.5 py-0">{t('workersPage.badges.new')}</Badge>}
                                                 </div>
 
                                                 {hasAlert && (
@@ -753,7 +754,7 @@ export function WorkersPage() {
                                                         {worker.alerta_logistica && worker.alerta_tipo !== 'logistica' && (
                                                             <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold border bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/50 dark:text-indigo-300 dark:border-indigo-800">
                                                                 <Home className="w-3 h-3 shrink-0" />
-                                                                Checkout Alojamento Pendente
+                                                                {t('workersPage.badges.pendingHousingCheckout')}
                                                             </span>
                                                         )}
 

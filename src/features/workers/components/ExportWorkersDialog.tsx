@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import * as XLSX from 'xlsx';
-import { DownloadCloud, Loader2 } from 'lucide-react';
+import { DownloadCloud, History, Loader2 } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import {
     Dialog,
     DialogContent,
@@ -15,7 +16,7 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Label } from '@/components/ui/label';
 import { useEmpresa } from '@/app/providers/EmpresaProvider';
 import { supabase } from '@/shared/supabase/client';
-import { listWorkers } from '../api/workersApi';
+import { listWorkers, type WorkerAlocacao } from '../api/workersApi';
 import type { Worker } from '@/shared/types/corePersonal';
 
 interface ExportWorkersDialogProps {
@@ -32,41 +33,54 @@ interface ExportWorkersDialogProps {
     };
 }
 
-const EXPORTABLE_COLUMNS = [
-    { id: 'cod_colab', label: 'Cód. Colab' },
-    { id: 'nome', label: 'Nome Completo' },
-    { id: 'status_trabajador', label: 'Status Trabalhador' },
-    { id: 'status_seguridad', label: 'Status Segurança' },
-    { id: 'data_ingresso', label: 'Data Ingresso (Admissão)' },
-    { id: 'data_baixa', label: 'Data Fim (Desligamento)' },
-    { id: 'data_alta_seguridad', label: 'Data Alta Segurança' },
-    { id: 'data_baixa_seguridad', label: 'Data Baixa Segurança' },
-    { id: 'contratante', label: 'Empresa Contratante' },
-    { id: 'cliente_nombre', label: 'Cliente/Obra' },
-    { id: 'funcion', label: 'Função' },
-    { id: 'niss', label: 'NISS' },
-    { id: 'nif', label: 'NIF' },
-    { id: 'dni', label: 'DNI' },
-    { id: 'nie', label: 'NIE' },
-    { id: 'pasaporte', label: 'Passaporte' },
-    { id: 'nacionalidade', label: 'Nacionalidade' },
-    { id: 'fecha_nacimiento', label: 'Data Nascimento' },
-    { id: 'movil', label: 'Telefone' },
-    { id: 'email', label: 'E-mail' },
-    { id: 'camiseta', label: 'T-Shirt (Camiseta)' },
-    { id: 'pantalones', label: 'Calça (Pantalones)' },
-];
+const EXPORTABLE_COLUMN_IDS = [
+    'cod_colab',
+    'nome',
+    'status_trabajador',
+    'status_seguridad',
+    'data_ingresso',
+    'data_baixa',
+    'data_alta_seguridad',
+    'data_baixa_seguridad',
+    'contratante',
+    'cliente_nombre',
+    'funcion',
+    'niss',
+    'nif',
+    'dni',
+    'nie',
+    'pasaporte',
+    'nacionalidade',
+    'fecha_nacimiento',
+    'movil',
+    'email',
+    'camiseta',
+    'pantalones',
+] as const;
+
+type ExportableColumnId = (typeof EXPORTABLE_COLUMN_IDS)[number];
+
+interface AllocationRow extends WorkerAlocacao {
+    cod_colab: string;
+}
 
 export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDialogProps) {
+    const { t } = useTranslation();
     const { selectedEmpresaId } = useEmpresa();
     const [isOpen, setIsOpen] = useState(false);
     const [isExporting, setIsExporting] = useState(false);
+    const [includeAllocationHistory, setIncludeAllocationHistory] = useState(false);
     
     // Default selected columns
     const [selectedColumns, setSelectedColumns] = useState<string[]>([
         'cod_colab', 'nome', 'status_trabajador', 'status_seguridad', 
         'data_ingresso', 'data_baixa', 'contratante', 'cliente_nombre'
     ]);
+
+    const exportableColumns: { id: ExportableColumnId; label: string }[] = EXPORTABLE_COLUMN_IDS.map((id) => ({
+        id,
+        label: t(`workersPage.exportModal.columns.${id}`),
+    }));
 
     const handleToggleColumn = (colId: string) => {
         setSelectedColumns(prev => 
@@ -76,7 +90,7 @@ export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDi
 
     const handleSelectAll = (select: boolean) => {
         if (select) {
-            setSelectedColumns(EXPORTABLE_COLUMNS.map(c => c.id));
+            setSelectedColumns([...EXPORTABLE_COLUMN_IDS]);
         } else {
             setSelectedColumns([]);
         }
@@ -100,7 +114,7 @@ export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDi
             const workers = response.data;
 
             if (workers.length === 0) {
-                alert("Nenhum trabalhador encontrado com os filtros atuais.");
+                alert(t('workersPage.exportModal.noWorkers'));
                 setIsExporting(false);
                 return;
             }
@@ -143,35 +157,108 @@ export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDi
                 });
             }
 
-            // Map workers to row data based on selected columns
-            const rows = enrichedWorkers.map((worker) => {
+            // Optionally fetch full allocation / client assignment history per worker
+            const allocationsMap = new Map<string, AllocationRow[]>();
+            if (includeAllocationHistory) {
+                const codColabs = Array.from(
+                    new Set(
+                        enrichedWorkers
+                            .map((w) => w.cod_colab?.trim())
+                            .filter((c): c is string => Boolean(c))
+                    )
+                );
+
+                const chunkSize = 200;
+                for (let i = 0; i < codColabs.length; i += chunkSize) {
+                    const chunk = codColabs.slice(i, i + chunkSize);
+                    const { data: allocData, error: allocError } = await supabase
+                        .schema('core_personal')
+                        .from('vw_worker_allocations')
+                        .select('cod_colab, codpedido, cliente_nombre, contratante, tiposervico, fechainiciopedido, fechafinpedido, fechasalidatrabajador, funcion, inserted_at')
+                        .in('cod_colab', chunk)
+                        .order('fechainiciopedido', { ascending: false, nullsFirst: false })
+                        .order('inserted_at', { ascending: false });
+
+                    if (allocError) throw allocError;
+                    if (allocData) {
+                        for (const alloc of allocData as AllocationRow[]) {
+                            const key = alloc.cod_colab?.trim();
+                            if (!key) continue;
+                            const existing = allocationsMap.get(key) || [];
+                            existing.push(alloc);
+                            allocationsMap.set(key, existing);
+                        }
+                    }
+                }
+            }
+
+            const buildRow = (worker: Worker, alloc?: AllocationRow): Record<string, any> => {
                 const rowData: Record<string, any> = {};
-                
+
+                const effectiveWorker: Worker = alloc
+                    ? {
+                        ...worker,
+                        contratante: alloc.contratante || worker.contratante,
+                        cliente_nombre: alloc.cliente_nombre || worker.cliente_nombre,
+                        funcion: alloc.funcion || worker.funcion,
+                    }
+                    : worker;
+
                 // Keep the exact order of columns as selected
-                EXPORTABLE_COLUMNS.forEach(col => {
+                exportableColumns.forEach(col => {
                     if (selectedColumns.includes(col.id)) {
-                        rowData[col.label] = worker[col.id as keyof Worker] || '';
+                        rowData[col.label] = effectiveWorker[col.id as keyof Worker] || '';
                     }
                 });
-                
+
+                if (includeAllocationHistory) {
+                    if (!selectedColumns.includes('contratante')) {
+                        rowData[t('workersPage.exportModal.columns.contratante')] = effectiveWorker.contratante || '';
+                    }
+                    if (!selectedColumns.includes('cliente_nombre')) {
+                        rowData[t('workersPage.exportModal.columns.cliente_nombre')] = effectiveWorker.cliente_nombre || '';
+                    }
+                    rowData[t('workersPage.exportModal.historyCols.codpedido')] = alloc?.codpedido || '';
+                    rowData[t('workersPage.exportModal.historyCols.tiposervico')] = alloc?.tiposervico || '';
+                    rowData[t('workersPage.exportModal.historyCols.fechainiciopedido')] = alloc?.fechainiciopedido || '';
+                    rowData[t('workersPage.exportModal.historyCols.fechafinpedido')] = alloc?.fechafinpedido || '';
+                    rowData[t('workersPage.exportModal.historyCols.fechasalidatrabajador')] = alloc?.fechasalidatrabajador || '';
+                }
+
                 return rowData;
-            });
+            };
+
+            // Map workers (and optionally each allocation) to row data
+            const rows: Record<string, any>[] = [];
+            for (const worker of enrichedWorkers) {
+                if (includeAllocationHistory) {
+                    const key = worker.cod_colab?.trim();
+                    const workerAllocs = key ? allocationsMap.get(key) : undefined;
+                    if (workerAllocs && workerAllocs.length > 0) {
+                        for (const alloc of workerAllocs) {
+                            rows.push(buildRow(worker, alloc));
+                        }
+                    } else {
+                        rows.push(buildRow(worker));
+                    }
+                } else {
+                    rows.push(buildRow(worker));
+                }
+            }
 
             // Generate Excel
             const worksheet = XLSX.utils.json_to_sheet(rows);
             const workbook = XLSX.utils.book_new();
-            XLSX.utils.book_append_sheet(workbook, worksheet, "Trabalhadores");
-            
-            // Format dates simply if needed (Optional: auto-size columns could be added here)
+            XLSX.utils.book_append_sheet(workbook, worksheet, t('workersPage.exportModal.sheetName'));
             
             // Save file
             const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
-            XLSX.writeFile(workbook, `Trabalhadores_Mastercorp_${timestamp}.xlsx`);
+            XLSX.writeFile(workbook, `${t('workersPage.exportModal.filePrefix')}${timestamp}.xlsx`);
             
             setIsOpen(false);
         } catch (error) {
             console.error("Failed to export workers:", error);
-            alert("Erro ao exportar planilha. Tente novamente.");
+            alert(t('workersPage.exportModal.error'));
         } finally {
             setIsExporting(false);
         }
@@ -184,48 +271,72 @@ export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDi
             </DialogTrigger>
             <DialogContent className="sm:max-w-[600px]">
                 <DialogHeader>
-                    <DialogTitle>Exportar Trabalhadores (Excel)</DialogTitle>
-                    <DialogDescription>
-                        Selecione as colunas que deseja enviar para a planilha. {`\n`}
-                        A exportação utilizará os filtros ativos atuais na sua tela.
+                    <DialogTitle>{t('workersPage.exportModal.title')}</DialogTitle>
+                    <DialogDescription className="whitespace-pre-line">
+                        {t('workersPage.exportModal.desc')}
                     </DialogDescription>
                 </DialogHeader>
 
-                <div className="py-4">
-                    <div className="flex justify-between items-center mb-4">
-                        <Label className="font-semibold text-base">Campos para exportar</Label>
-                        <div className="flex gap-3 text-sm">
-                            <button onClick={() => handleSelectAll(true)} className="text-primary hover:underline">
-                                Marcar todos
-                            </button>
-                            <button onClick={() => handleSelectAll(false)} className="text-muted-foreground hover:underline">
-                                Desmarcar todos
-                            </button>
+                <div className="py-4 space-y-4">
+                    <div>
+                        <div className="flex justify-between items-center mb-4">
+                            <Label className="font-semibold text-base">{t('workersPage.exportModal.fields')}</Label>
+                            <div className="flex gap-3 text-sm">
+                                <button type="button" onClick={() => handleSelectAll(true)} className="text-primary hover:underline">
+                                    {t('workersPage.exportModal.selectAll')}
+                                </button>
+                                <button type="button" onClick={() => handleSelectAll(false)} className="text-muted-foreground hover:underline">
+                                    {t('workersPage.exportModal.deselectAll')}
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div className="grid grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-2">
+                            {exportableColumns.map(col => (
+                                <div key={col.id} className="flex items-center space-x-2">
+                                    <Checkbox 
+                                        id={`col-${col.id}`} 
+                                        checked={selectedColumns.includes(col.id)}
+                                        onCheckedChange={() => handleToggleColumn(col.id)}
+                                    />
+                                    <Label 
+                                        htmlFor={`col-${col.id}`} 
+                                        className="text-sm font-normal cursor-pointer"
+                                    >
+                                        {col.label}
+                                    </Label>
+                                </div>
+                            ))}
                         </div>
                     </div>
-                    
-                    <div className="grid grid-cols-2 gap-3 max-h-[350px] overflow-y-auto pr-2">
-                        {EXPORTABLE_COLUMNS.map(col => (
-                            <div key={col.id} className="flex items-center space-x-2">
-                                <Checkbox 
-                                    id={`col-${col.id}`} 
-                                    checked={selectedColumns.includes(col.id)}
-                                    onCheckedChange={() => handleToggleColumn(col.id)}
-                                />
-                                <Label 
-                                    htmlFor={`col-${col.id}`} 
-                                    className="text-sm font-normal cursor-pointer"
+
+                    <div className="rounded-lg border border-emerald-200 dark:border-emerald-900/60 bg-emerald-50/50 dark:bg-emerald-950/20 p-3">
+                        <div className="flex items-start space-x-2.5">
+                            <Checkbox
+                                id="include-allocation-history"
+                                checked={includeAllocationHistory}
+                                onCheckedChange={(checked) => setIncludeAllocationHistory(checked === true)}
+                                className="mt-0.5"
+                            />
+                            <div className="grid gap-1 leading-none">
+                                <Label
+                                    htmlFor="include-allocation-history"
+                                    className="text-sm font-semibold cursor-pointer flex items-center gap-1.5 text-emerald-900 dark:text-emerald-200"
                                 >
-                                    {col.label}
+                                    <History className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                    {t('workersPage.exportModal.includeHistory')}
                                 </Label>
+                                <p className="text-xs text-muted-foreground leading-snug">
+                                    {t('workersPage.exportModal.includeHistoryDesc')}
+                                </p>
                             </div>
-                        ))}
+                        </div>
                     </div>
                 </div>
 
-                <DialogFooter className="mt-4">
+                <DialogFooter className="mt-2">
                     <Button variant="outline" onClick={() => setIsOpen(false)} disabled={isExporting}>
-                        Cancelar
+                        {t('workersPage.exportModal.cancel')}
                     </Button>
                     <Button 
                         onClick={handleExport} 
@@ -235,12 +346,12 @@ export function ExportWorkersDialog({ trigger, currentFilters }: ExportWorkersDi
                         {isExporting ? (
                             <>
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Processando Arquivo...
+                                {t('workersPage.exportModal.exporting')}
                             </>
                         ) : (
                             <>
                                 <DownloadCloud className="mr-2 h-4 w-4" />
-                                Baixar Planilha
+                                {t('workersPage.exportModal.exportBtn')}
                             </>
                         )}
                     </Button>

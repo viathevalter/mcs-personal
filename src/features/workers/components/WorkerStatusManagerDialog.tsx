@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { useTranslation } from 'react-i18next';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { format } from 'date-fns';
@@ -76,6 +77,7 @@ export function WorkerStatusManagerDialog({
     compact = false,
     alertBanner
 }: WorkerStatusManagerDialogProps) {
+    const { t } = useTranslation();
     const [open, setOpen] = useState(false);
     const [timelineOpen, setTimelineOpen] = useState(false);
     const { mutate: updateStatusUnified, isPending } = useUpdateWorkerStatusUnified();
@@ -135,7 +137,7 @@ export function WorkerStatusManagerDialog({
                             className="h-7 px-2.5 text-[11px] font-semibold text-primary hover:text-primary/90 border-primary/40 hover:border-primary bg-primary/5 hover:bg-primary/10 shadow-xs gap-1"
                         >
                             <UserCheck className="w-3.5 h-3.5" />
-                            Atualizar
+                            {t('workersPage.table.updateBtn')}
                         </Button>
                     ) : (
                         <Button variant="outline" className="text-primary hover:text-primary/80 border-primary shadow-sm hover:shadow-md transition-all gap-2">
