@@ -137,6 +137,8 @@ import { DemandasAlmacenPage } from '../features/almacen/pages/DemandasAlmacenPa
 import { OrdensSeparacaoPage } from '../features/almacen/pages/OrdensSeparacaoPage';
 import { EstoqueAlmacenPage } from '../features/almacen/pages/EstoqueAlmacenPage';
 import { ReposicaoAlmacenPage } from '../features/almacen/pages/ReposicaoAlmacenPage';
+import { CatalogoEpisAlmacenPage } from '../features/almacen/pages/CatalogoEpisAlmacenPage';
+import { KitsPerfisAlmacenPage } from '../features/almacen/pages/KitsPerfisAlmacenPage';
 
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
 import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
@@ -585,6 +587,14 @@ export const router = createBrowserRouter([
                     {
                         path: 'estoque',
                         element: <EstoqueAlmacenPage />
+                    },
+                    {
+                        path: 'catalogo-epis',
+                        element: <CatalogoEpisAlmacenPage />
+                    },
+                    {
+                        path: 'kits-perfis',
+                        element: <KitsPerfisAlmacenPage />
                     }
                 ]
             },
