@@ -1361,27 +1361,28 @@ ${actionType === 'replacement' ? '<p><strong>Importante (Seguridade Social / RH 
         }
         
         const selectedPedido = pedidos.find(p => p.id?.toString() === selectedPedidoId);
+        const assignmentWithPedido = selectedList.find(a => a.pedido_id) || firstAssignment;
         const originPedidoId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
             ? (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
                 ? (selectedReemplazo?.pedido_id || null)
-                : (selectedPedidoId !== 'all' ? selectedPedidoId : (firstAssignment?.pedido_id || null))
-            : (firstAssignment?.pedido_id || null);
+                : (selectedPedidoId !== 'all' ? selectedPedidoId : (assignmentWithPedido?.pedido_id || null))
+            : (assignmentWithPedido?.pedido_id || null);
 
         const clientId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
             ? (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
                 ? (selectedReemplazo?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || null)
-                : (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null)
+                : (selectedPedido?.client_id || (selectedClientId !== 'all' ? selectedClientId : null) || assignmentWithPedido?.client_id || firstAssignment?.client_id || null)
             : (actionType === 'relocation')
                 ? (targetClientId !== 'all' ? targetClientId : null)
-                : ((selectedClientId !== 'all' ? selectedClientId : null) || firstAssignment?.client_id || null);
+                : ((selectedClientId !== 'all' ? selectedClientId : null) || assignmentWithPedido?.client_id || firstAssignment?.client_id || null);
 
         const clientSiteId = (actionType === 'order_extension' || actionType === 'order_termination' || actionType === 'order_postponement' || actionType === 'order_cancellation' || actionType === 'order_pause')
             ? (actionType === 'order_cancellation' && cancellationOriginType === 'reemplazo')
                 ? (selectedReemplazo?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || null)
-                : (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null)
+                : (selectedPedido?.client_site_id || (selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || assignmentWithPedido?.client_site_id || firstAssignment?.client_site_id || null)
             : (actionType === 'relocation')
                 ? (targetClientSiteId !== 'all' ? targetClientSiteId : null)
-                : ((selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || firstAssignment?.client_site_id || null);
+                : ((selectedClientSiteId !== 'all' ? selectedClientSiteId : null) || assignmentWithPedido?.client_site_id || firstAssignment?.client_site_id || null);
 
         // Map the selected assignments to the payload target structure
         const targets = selectedList.map(a => ({
