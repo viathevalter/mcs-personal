@@ -136,6 +136,7 @@ import { AlmacenLayout } from '../features/almacen/layout/AlmacenLayout';
 import { DemandasAlmacenPage } from '../features/almacen/pages/DemandasAlmacenPage';
 import { OrdensSeparacaoPage } from '../features/almacen/pages/OrdensSeparacaoPage';
 import { EstoqueAlmacenPage } from '../features/almacen/pages/EstoqueAlmacenPage';
+import { ReposicaoAlmacenPage } from '../features/almacen/pages/ReposicaoAlmacenPage';
 
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
 import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
@@ -572,6 +573,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'demandas',
                         element: <DemandasAlmacenPage />
+                    },
+                    {
+                        path: 'reposicao',
+                        element: <ReposicaoAlmacenPage />
                     },
                     {
                         path: 'ordenes',

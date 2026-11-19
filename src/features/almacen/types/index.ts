@@ -202,4 +202,30 @@ export interface DemandaPedidoAlmacen {
   total_workers: number;
 }
 
+export interface WorkerReplenishmentRow {
+  worker_id: string;
+  cod_colab: string | null;
+  nome: string;
+  identificacion: string | null;
+  movil: string | null;
+  camiseta: string | null;
+  pantalones: string | null;
+  empresa_id: string | null;
+  empresa_nome: string | null;
+  client_id: string | null;
+  client_nome: string | null;
+  pedido_id: string | null;
+  pedido_codigo: string | null;
+  job_function_id: string | null;
+  job_function_name: string | null;
+  alojamento_nome: string | null;
+  alojamento_endereco: string | null;
+  site_address: string | null;
+  last_order: PickingOrder | null;
+  last_dispatch_at: string | null;
+  days_since_last: number | null;
+  total_orders: number;
+  history: PickingOrder[];
+}
+
 export const STANDARD_SIZES = ['S', 'M', 'L', 'XL', 'XXL', 'XXXL'] as const;
