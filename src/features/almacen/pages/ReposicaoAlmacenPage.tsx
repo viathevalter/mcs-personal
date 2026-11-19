@@ -20,6 +20,9 @@ import {
   PackagePlus,
   Sparkles,
   Home,
+  LayoutGrid,
+  List,
+  ArrowUpDown,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { almacenService } from '../services/almacenService';
@@ -38,6 +41,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 
 type FilterTab = 'todos' | '90d' | '180d' | 'sem_envio' | 'com_historico';
+type ViewMode = 'gallery' | 'list';
+type WorkerSortBy = 'nome_asc' | 'nome_desc' | 'codigo_asc' | 'codigo_desc' | 'dias_desc' | 'dias_asc';
 
 interface SelectedCustomItem {
   epi: AlmacenEpi;
@@ -53,6 +58,9 @@ export const ReposicaoAlmacenPage: React.FC = () => {
 
   const [searchTerm, setSearchTerm] = useState('');
   const [filterTab, setFilterTab] = useState<FilterTab>('todos');
+  const [viewMode, setViewMode] = useState<ViewMode>('gallery');
+  const [sortBy, setSortBy] = useState<WorkerSortBy>('nome_asc');
+  const [displayLimit, setDisplayLimit] = useState(150);
 
   // History Gallery Modal
   const [historyWorker, setHistoryWorker] = useState<WorkerReplenishmentRow | null>(null);
@@ -102,26 +110,58 @@ export const ReposicaoAlmacenPage: React.FC = () => {
   }, [workers]);
 
   const filteredWorkers = useMemo(() => {
-    return workers.filter((w) => {
+    const norm = (s: string) =>
+      s
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
+
+    const list = workers.filter((w) => {
       if (filterTab === '90d' && (w.days_since_last === null || w.days_since_last < 90)) return false;
       if (filterTab === '180d' && (w.days_since_last === null || w.days_since_last < 180)) return false;
       if (filterTab === 'sem_envio' && w.total_orders > 0) return false;
       if (filterTab === 'com_historico' && w.total_orders === 0) return false;
 
       if (searchTerm.trim()) {
-        const q = searchTerm.toLowerCase();
+        const q = norm(searchTerm.trim());
         return (
-          w.nome.toLowerCase().includes(q) ||
-          (w.cod_colab || '').toLowerCase().includes(q) ||
-          (w.empresa_nome || '').toLowerCase().includes(q) ||
-          (w.client_nome || '').toLowerCase().includes(q) ||
-          (w.pedido_codigo || '').toLowerCase().includes(q) ||
-          (w.movil || '').toLowerCase().includes(q)
+          norm(w.nome).includes(q) ||
+          norm(w.cod_colab || '').includes(q) ||
+          norm(w.empresa_nome || '').includes(q) ||
+          norm(w.client_nome || '').includes(q) ||
+          norm(w.pedido_codigo || '').includes(q) ||
+          norm(w.movil || '').includes(q)
         );
       }
       return true;
     });
-  }, [workers, filterTab, searchTerm]);
+
+    return [...list].sort((a, b) => {
+      if (sortBy === 'nome_asc') return a.nome.localeCompare(b.nome, 'es', { sensitivity: 'base' });
+      if (sortBy === 'nome_desc') return b.nome.localeCompare(a.nome, 'es', { sensitivity: 'base' });
+      if (sortBy === 'codigo_asc') {
+        const ca = a.cod_colab || 'ZZZZZ';
+        const cb = b.cod_colab || 'ZZZZZ';
+        return ca.localeCompare(cb, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      if (sortBy === 'codigo_desc') {
+        const ca = a.cod_colab || '';
+        const cb = b.cod_colab || '';
+        return cb.localeCompare(ca, undefined, { numeric: true, sensitivity: 'base' });
+      }
+      if (sortBy === 'dias_desc') {
+        const da = a.days_since_last ?? -1;
+        const db = b.days_since_last ?? -1;
+        return db - da;
+      }
+      if (sortBy === 'dias_asc') {
+        const da = a.days_since_last ?? Number.MAX_SAFE_INTEGER;
+        const db = b.days_since_last ?? Number.MAX_SAFE_INTEGER;
+        return da - db;
+      }
+      return 0;
+    });
+  }, [workers, filterTab, searchTerm, sortBy]);
 
   const modalWorkerSuggestions = useMemo(() => {
     const norm = (s: string) =>
@@ -376,18 +416,64 @@ export const ReposicaoAlmacenPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Search & Filter Tabs */}
-      <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
-        <div className="relative w-full md:w-96">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
-          <Input
-            placeholder="Buscar trabalhador, código, empresa, pedido ou telefone..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-9 rounded-xl bg-white dark:bg-slate-900"
-          />
+      {/* Search, Sort, View Toggle & Filter Tabs */}
+      <div className="flex flex-col xl:flex-row gap-3 items-stretch xl:items-center justify-between">
+        <div className="flex flex-col sm:flex-row gap-2.5 flex-1">
+          <div className="relative w-full sm:w-80">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <Input
+              placeholder="Buscar trabalhador, código, empresa, pedido..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-9 rounded-xl bg-white dark:bg-slate-900"
+            />
+          </div>
+
+          {/* Ordenação */}
+          <div className="flex items-center gap-1.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 h-10">
+            <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 flex-shrink-0" />
+            <select
+              value={sortBy}
+              onChange={(e) => setSortBy(e.target.value as WorkerSortBy)}
+              className="text-xs font-semibold bg-transparent outline-none text-slate-700 dark:text-slate-200"
+            >
+              <option value="nome_asc">Nome (A → Z)</option>
+              <option value="nome_desc">Nome (Z → A)</option>
+              <option value="codigo_asc">Código Numérico (Crescente)</option>
+              <option value="codigo_desc">Código Numérico (Decrescente)</option>
+              <option value="dias_desc">Mais Dias Sem Reposição</option>
+              <option value="dias_asc">Envio Mais Recente</option>
+            </select>
+          </div>
+
+          {/* Toggle Galeria / Lista */}
+          <div className="inline-flex items-center bg-slate-200/70 dark:bg-slate-800 p-1 rounded-xl h-10 self-start">
+            <button
+              type="button"
+              onClick={() => setViewMode('gallery')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                viewMode === 'gallery'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              <LayoutGrid className="h-3.5 w-3.5" /> Galeria
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode('list')}
+              className={`px-3 py-1 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                viewMode === 'list'
+                  ? 'bg-white dark:bg-slate-900 text-emerald-600 shadow-sm'
+                  : 'text-slate-600 dark:text-slate-300'
+              }`}
+            >
+              <List className="h-3.5 w-3.5" /> Lista
+            </button>
+          </div>
         </div>
-        <div className="flex flex-wrap gap-1.5">
+
+        <div className="flex flex-wrap gap-1.5 items-center">
           {[
             { id: 'todos', label: 'Todos' },
             { id: 'com_historico', label: 'Com Histórico' },
@@ -410,14 +496,79 @@ export const ReposicaoAlmacenPage: React.FC = () => {
         </div>
       </div>
 
-      {/* Workers Gallery / List */}
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {/* Workers Scrollable Container (Gallery or List) */}
+      <div className="h-[calc(100vh-370px)] min-h-[380px] overflow-y-auto pr-1.5 rounded-2xl">
         {isLoading ? (
-          <div className="col-span-full p-12 text-center text-slate-400">Carregando trabalhadores...</div>
+          <div className="p-12 text-center text-slate-400">Carregando trabalhadores...</div>
         ) : filteredWorkers.length === 0 ? (
-          <div className="col-span-full p-12 text-center text-slate-400">Nenhum trabalhador encontrado.</div>
+          <div className="p-12 text-center text-slate-400">Nenhum trabalhador encontrado.</div>
+        ) : viewMode === 'list' ? (
+          <div className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm text-left">
+              <thead className="bg-slate-50 dark:bg-slate-950 border-b border-slate-200 dark:border-slate-800 sticky top-0 z-10">
+                <tr>
+                  <th className="px-4 py-3 font-semibold text-xs text-slate-500">Código</th>
+                  <th className="px-4 py-3 font-semibold text-xs text-slate-500">Trabalhador</th>
+                  <th className="px-4 py-3 font-semibold text-xs text-slate-500">Empresa / Cliente</th>
+                  <th className="px-4 py-3 font-semibold text-xs text-slate-500">Medidas</th>
+                  <th className="px-4 py-3 font-semibold text-xs text-slate-500">Último Envio</th>
+                  <th className="px-4 py-3 font-semibold text-xs text-slate-500 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                {filteredWorkers.slice(0, displayLimit).map((w) => (
+                  <tr key={w.worker_id} className="hover:bg-slate-50 dark:hover:bg-slate-800/40">
+                    <td className="px-4 py-3 font-mono text-xs text-slate-600 dark:text-slate-300">
+                      {w.cod_colab || '-'}
+                    </td>
+                    <td className="px-4 py-3">
+                      <div className="font-bold text-sm text-slate-900 dark:text-white">{w.nome}</div>
+                      <div className="text-xs text-slate-500 flex items-center gap-2">
+                        <span>{w.job_function_name || '-'}</span>
+                        {w.movil && <span className="text-emerald-600 font-medium">{w.movil}</span>}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      <div className="font-semibold">{w.empresa_nome || '-'}</div>
+                      <div className="text-slate-500 truncate max-w-[220px]">
+                        {w.client_nome || '-'} {w.pedido_codigo ? `(${w.pedido_codigo})` : ''}
+                      </div>
+                    </td>
+                    <td className="px-4 py-3 text-xs">
+                      <span className="font-mono font-semibold">
+                        Cam: {w.camiseta || '--'} / Cal: {w.pantalones || '--'}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      {formatDaysBadge(w.days_since_last)}
+                      {w.last_order && (
+                        <div className="text-[10px] font-mono text-slate-400 mt-1">
+                          {w.last_order.order_number}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right">
+                      <div className="inline-flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" onClick={() => setHistoryWorker(w)} className="h-8 text-xs gap-1">
+                          <History className="h-3.5 w-3.5" /> ({w.total_orders})
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => openModalForWorker(w)}
+                          className="h-8 text-xs bg-emerald-600 hover:bg-emerald-700 text-white gap-1"
+                        >
+                          <PackagePlus className="h-3.5 w-3.5" /> Reposição
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
-          filteredWorkers.slice(0, 120).map((w) => (
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredWorkers.slice(0, displayLimit).map((w) => (
             <div
               key={w.worker_id}
               className="bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-col justify-between gap-3 hover:border-emerald-300 dark:hover:border-emerald-800 transition-colors"
@@ -532,7 +683,19 @@ export const ReposicaoAlmacenPage: React.FC = () => {
                 </Button>
               </div>
             </div>
-          ))
+          ))}
+          </div>
+        )}
+
+        {!isLoading && filteredWorkers.length > displayLimit && (
+          <div className="flex justify-center gap-2 py-4">
+            <Button variant="outline" size="sm" onClick={() => setDisplayLimit((d) => d + 150)}>
+              Carregar mais ({filteredWorkers.length - displayLimit} restantes)
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => setDisplayLimit(filteredWorkers.length)}>
+              Mostrar todos ({filteredWorkers.length})
+            </Button>
+          </div>
         )}
       </div>
 
