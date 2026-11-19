@@ -83,6 +83,47 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
     enabled: !!selectedEmpresaId && isOpen
   });
   
+  const { data: almacenSizes = [] } = useQuery({
+    queryKey: ['almacen_sizes_active'],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .schema('core_logistica')
+        .from('almacen_sizes')
+        .select('id, category, code, label, sort_order')
+        .eq('is_active', true)
+        .order('sort_order', { ascending: true });
+      if (error) return [];
+      return data || [];
+    },
+    enabled: isOpen,
+  });
+
+  const camisaSizeOptions = useMemo(() => {
+    const list = almacenSizes.filter((s: any) => s.category === 'camisa');
+    if (list.length > 0) return list;
+    return [
+      { code: 'S', label: 'S (50/52)' },
+      { code: 'M', label: 'M (54/56)' },
+      { code: 'L', label: 'L (58)' },
+      { code: 'XL', label: 'XL (60)' },
+      { code: 'XXL', label: 'XXL (62)' },
+      { code: 'XXXL', label: 'XXXL (64)' },
+    ];
+  }, [almacenSizes]);
+
+  const pantalonSizeOptions = useMemo(() => {
+    const list = almacenSizes.filter((s: any) => s.category === 'pantalon');
+    if (list.length > 0) return list;
+    return [
+      { code: 'S', label: 'S (38/40)' },
+      { code: 'M', label: 'M (42/44)' },
+      { code: 'L', label: 'L (46)' },
+      { code: 'XL', label: 'XL (52)' },
+      { code: 'XXL', label: 'XXL (54)' },
+      { code: 'XXXL', label: 'XXXL (56)' },
+    ];
+  }, [almacenSizes]);
+
   const [selectedWorkerId, setSelectedWorkerId] = useState('');
   const [searchWorker, setSearchWorker] = useState('');
   const [selectedFunctionFilter, setSelectedFunctionFilter] = useState('');
@@ -715,12 +756,9 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">Selecione...</option>
-                  <option value="S (50/52)">S (50/52)</option>
-                  <option value="M(54/56)">M(54/56)</option>
-                  <option value="L(58)">L(58)</option>
-                  <option value="XL(60)">XL(60)</option>
-                  <option value="XXL(62)">XXL(62)</option>
-                  <option value="XXXL(64)">XXXL(64)</option>
+                  {camisaSizeOptions.map((sz: any) => (
+                    <option key={sz.code} value={sz.code}>{sz.label}</option>
+                  ))}
                 </select>
               </div>
 
@@ -735,12 +773,9 @@ export const AllocateWorkerDialog: React.FC<AllocateWorkerDialogProps> = ({ isOp
                   className="w-full px-3 py-2 border border-slate-300 dark:border-slate-700 rounded-lg bg-white dark:bg-slate-900 text-slate-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none text-sm"
                 >
                   <option value="">Selecione...</option>
-                  <option value="S (38/40)">S (38/40)</option>
-                  <option value="M(42/44)">M(42/44)</option>
-                  <option value="L(46)">L(46)</option>
-                  <option value="XL(52)">XL(52)</option>
-                  <option value="XXL(54)">XXL(54)</option>
-                  <option value="XXXL(56)">XXXL(56)</option>
+                  {pantalonSizeOptions.map((sz: any) => (
+                    <option key={sz.code} value={sz.code}>{sz.label}</option>
+                  ))}
                 </select>
               </div>
 

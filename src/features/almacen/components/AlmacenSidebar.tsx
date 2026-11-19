@@ -11,6 +11,7 @@ import {
   RefreshCcw,
   HardHat,
   ShieldCheck,
+  Ruler,
 } from 'lucide-react';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
@@ -99,6 +100,7 @@ export const AlmacenSidebar: React.FC = () => {
             <NavItem to="/almacen/estoque" icon={Boxes} label="Stock & Mínimos" />
             <NavItem to="/almacen/catalogo-epis" icon={HardHat} label="Catálogo de EPIs" />
             <NavItem to="/almacen/kits-perfis" icon={ShieldCheck} label="Kits por Perfil" />
+            <NavItem to="/almacen/tamanhos" icon={Ruler} label="Grade de Tamanhos" />
           </div>
         </div>
 
