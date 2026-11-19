@@ -140,6 +140,8 @@ import { ReposicaoAlmacenPage } from '../features/almacen/pages/ReposicaoAlmacen
 import { CatalogoEpisAlmacenPage } from '../features/almacen/pages/CatalogoEpisAlmacenPage';
 import { KitsPerfisAlmacenPage } from '../features/almacen/pages/KitsPerfisAlmacenPage';
 import { TamanhosAlmacenPage } from '../features/almacen/pages/TamanhosAlmacenPage';
+import { MobilePickingPage } from '../features/almacen/pages/MobilePickingPage';
+import { PublicAlmacenSignPage } from '../features/almacen/pages/PublicAlmacenSignPage';
 
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
 import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
@@ -227,6 +229,11 @@ export const router = createBrowserRouter([
     {
         path: '/public/termo-alojamento/:token',
         element: <PublicTermoAlojamentoPage />,
+        errorElement: <RootErrorBoundary />,
+    },
+    {
+        path: '/public/almacen-firmar/:token',
+        element: <PublicAlmacenSignPage />,
         errorElement: <RootErrorBoundary />,
     },
     {
@@ -600,6 +607,10 @@ export const router = createBrowserRouter([
                     {
                         path: 'tamanhos',
                         element: <TamanhosAlmacenPage />
+                    },
+                    {
+                        path: 'mobile',
+                        element: <MobilePickingPage />
                     }
                 ]
             },

@@ -10,6 +10,9 @@ import {
   Square,
   ExternalLink,
   X,
+  Copy,
+  Send,
+  CheckCircle2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { almacenService } from '../services/almacenService';
@@ -371,6 +374,51 @@ export const OrdensSeparacaoPage: React.FC = () => {
                   )}
                 </div>
               )}
+
+              {/* Assinatura Digital do Trabalhador */}
+              <div className="p-3.5 rounded-xl bg-slate-50 dark:bg-slate-950/40 border border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                {selectedOrder.signed_at ? (
+                  <div className="text-xs text-emerald-700 dark:text-emerald-300 flex items-center gap-2 font-semibold">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    Assinado digitalmente por {selectedOrder.signed_by_name} em{' '}
+                    {new Date(selectedOrder.signed_at).toLocaleString('es-ES')}
+                  </div>
+                ) : (
+                  <div className="text-xs text-slate-600 dark:text-slate-300">
+                    <span className="font-semibold">Assinatura Digital Pendente:</span> envie o link para o trabalhador confirmar o recebimento.
+                  </div>
+                )}
+                <div className="flex items-center gap-1.5 flex-shrink-0">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1"
+                    onClick={() => {
+                      const url = `${window.location.origin}/public/almacen-firmar/${selectedOrder.signature_token}`;
+                      navigator.clipboard.writeText(url);
+                      toast.success('Link de assinatura copiado!');
+                    }}
+                  >
+                    <Copy className="h-3 w-3" /> Copiar Link
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-xs gap-1 text-emerald-700 border-emerald-300"
+                    onClick={() => {
+                      const url = `${window.location.origin}/public/almacen-firmar/${selectedOrder.signature_token}`;
+                      const msg = `Hola ${selectedOrder.worker_nome}, tu dotación/EPIs (${selectedOrder.order_number}) ha sido enviada. Por favor confirma y firma la recepción en este enlace: ${url}`;
+                      const digits = (selectedOrder.worker_phone || '').replace(/[^0-9]/g, '');
+                      window.open(
+                        digits ? `https://wa.me/${digits}?text=${encodeURIComponent(msg)}` : `https://wa.me/?text=${encodeURIComponent(msg)}`,
+                        '_blank'
+                      );
+                    }}
+                  >
+                    <Send className="h-3 w-3" /> WhatsApp
+                  </Button>
+                </div>
+              </div>
 
               {/* Workflow Actions */}
               <div className="flex flex-wrap gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
