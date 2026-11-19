@@ -835,7 +835,8 @@ export const almacenService = {
       supabase
         .schema('core_personal')
         .from('workers')
-        .select('id, cod_colab, nome, movil, dni, nie, pasaporte, nif, camiseta, pantalones, funcion, empresa_id, status_trabajador')
+        .select('id, cod_colab, nome, movil, dni, nie, pasaporte, nif, camiseta, pantalones, funcion, contratante, cliente, status_trabajador')
+        .is('deleted_at', null)
         .order('nome', { ascending: true })
         .limit(2000),
       supabase
@@ -904,8 +905,21 @@ export const almacenService = {
       }
 
       const ped = ass?.pedido_id ? pedidosMap.get(ass.pedido_id) : null;
-      const empId = ass?.empresa_id || ped?.empresa_id || w.empresa_id || null;
-      const emp = empId ? empresasMap.get(empId) : null;
+      let empId: string | null = ass?.empresa_id || ped?.empresa_id || null;
+      let emp = empId ? empresasMap.get(empId) : null;
+      if (!emp && w.contratante) {
+        const contUpper = String(w.contratante).trim().toUpperCase();
+        const matchedEmp = empresasRes.find(
+          (e) =>
+            e.nome.toUpperCase().includes(contUpper) ||
+            contUpper.includes(e.nome.toUpperCase()) ||
+            (e.trade_name && (e.trade_name.toUpperCase().includes(contUpper) || contUpper.includes(e.trade_name.toUpperCase())))
+        );
+        if (matchedEmp) {
+          emp = matchedEmp;
+          empId = matchedEmp.id;
+        }
+      }
       const clientId = ass?.client_id || ped?.client_id || null;
       const cli = clientId ? clientsMap.get(clientId) : null;
       const siteId = ass?.client_site_id || ped?.client_site_id || null;
@@ -948,9 +962,9 @@ export const almacenService = {
         camiseta: normalizeSizeCode(w.camiseta),
         pantalones: normalizeSizeCode(w.pantalones),
         empresa_id: empId,
-        empresa_nome: emp?.trade_name || emp?.nome || null,
+        empresa_nome: emp?.trade_name || emp?.nome || w.contratante || null,
         client_id: clientId,
-        client_nome: cli?.trade_name || cli?.legal_name || null,
+        client_nome: cli?.trade_name || cli?.legal_name || w.cliente || null,
         pedido_id: ass?.pedido_id || null,
         pedido_codigo: ped?.codigo || null,
         job_function_id: jfId,
