@@ -596,16 +596,41 @@ export const DemandasAlmacenPage: React.FC = () => {
                     </p>
                   </div>
 
-                  {selectedPedido.pending_count > 0 && (
+                  <div className="flex items-center gap-2 flex-wrap">
                     <Button
-                      onClick={() => handleCreateBatch(selectedPedido)}
-                      disabled={isBatchCreating}
-                      className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl shadow-sm shadow-emerald-600/20"
+                      variant="outline"
+                      size="sm"
+                      onClick={async () => {
+                        const next = !selectedPedido.almacen_concluido;
+                        try {
+                          await almacenService.setPedidoAlmacenConcluido(selectedPedido.pedido_id, next);
+                          toast.success(
+                            next
+                              ? `Pedido ${selectedPedido.codigo} marcado como concluído no Almacén!`
+                              : `Pedido ${selectedPedido.codigo} reaberto no Almacén!`
+                          );
+                          await loadData();
+                        } catch (err: any) {
+                          toast.error(err?.message || 'Erro ao atualizar status no Almacén');
+                        }
+                      }}
+                      className="gap-1.5 rounded-xl text-xs"
                     >
-                      <PackagePlus className="h-4 w-4" />
-                      {isBatchCreating ? 'Gerando...' : `Gerar ${selectedPedido.pending_count} Pendente(s)`}
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                      {selectedPedido.almacen_concluido ? 'Reabrir no Almacén' : 'Concluir no Almacén'}
                     </Button>
-                  )}
+
+                    {selectedPedido.pending_count > 0 && (
+                      <Button
+                        onClick={() => handleCreateBatch(selectedPedido)}
+                        disabled={isBatchCreating}
+                        className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 rounded-xl shadow-sm shadow-emerald-600/20"
+                      >
+                        <PackagePlus className="h-4 w-4" />
+                        {isBatchCreating ? 'Gerando...' : `Gerar ${selectedPedido.pending_count} Pendente(s)`}
+                      </Button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Site Address + Delivery Target Selector */}

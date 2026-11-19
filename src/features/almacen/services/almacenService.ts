@@ -262,7 +262,7 @@ export const almacenService = {
   },
 
   async getDemandasPedidos(): Promise<DemandaPedidoAlmacen[]> {
-    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes, alocacoesAtivas, alojamentos, solicitudesRes, targetsRes] = await Promise.all([
+    const [pedidosRes, assignmentsRes, jobEpisRes, episRes, jobsRes, pickingRes, alocacoesAtivas, alojamentos, solicitudesRes, targetsRes, almacenStatusRes] = await Promise.all([
       supabase
         .schema('core_comercial')
         .from('pedidos')
@@ -306,6 +306,10 @@ export const almacenService = {
         .select('id, solicitud_id, source_pedido_id, source_assignment_id, target_assignment_id, target_worker_id, action_type, requires_replacement, status')
         .in('action_type', ['replace', 'offboard'])
         .in('status', ['pending', 'in_progress', 'completed']),
+      supabase
+        .schema('core_logistica')
+        .from('almacen_pedido_status')
+        .select('pedido_id, status'),
     ]);
 
     if (pedidosRes.error) throw pedidosRes.error;
@@ -423,6 +427,12 @@ export const almacenService = {
       assignmentsByPedido.set(resolvedPedidoId, list);
     }
 
+    const concludedPedidoIds = new Set(
+      (almacenStatusRes.data || [])
+        .filter((s: any) => s.status === 'CONCLUIDO')
+        .map((s: any) => s.pedido_id)
+    );
+
     const result: DemandaPedidoAlmacen[] = [];
 
     for (const p of pedidos) {
@@ -502,7 +512,8 @@ export const almacenService = {
         });
       }
 
-      const pendingCount = workers.filter((w) => !w.existing_order).length;
+      const isConcluded = concludedPedidoIds.has(p.id);
+      const pendingCount = isConcluded ? 0 : workers.filter((w) => !w.existing_order).length;
 
       result.push({
         pedido_id: p.id,
@@ -519,6 +530,7 @@ export const almacenService = {
         site_contact_phone: site?.contact_phone || null,
         expected_start_date: p.expected_start_date || null,
         operational_status: p.operational_status || null,
+        almacen_concluido: isConcluded,
         workers,
         pending_count: pendingCount,
         total_workers: workers.length,
@@ -1191,5 +1203,22 @@ export const almacenService = {
       is_active: payload.is_active,
     });
     if (error) throw error;
+  },
+
+  async setPedidoAlmacenConcluido(pedidoId: string, concluido: boolean): Promise<void> {
+    if (concluido) {
+      const { error } = await supabase
+        .schema('core_logistica')
+        .from('almacen_pedido_status')
+        .upsert({ pedido_id: pedidoId, status: 'CONCLUIDO', completed_at: new Date().toISOString() });
+      if (error) throw error;
+    } else {
+      const { error } = await supabase
+        .schema('core_logistica')
+        .from('almacen_pedido_status')
+        .delete()
+        .eq('pedido_id', pedidoId);
+      if (error) throw error;
+    }
   },
 };
