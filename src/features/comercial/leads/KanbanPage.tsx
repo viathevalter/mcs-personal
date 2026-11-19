@@ -183,6 +183,14 @@ export function KanbanPage() {
     return map;
   }, [allStages]);
 
+  const allStagesByIdMap = useMemo(() => {
+    const map = new Map<string, KanbanStage>();
+    allStages.forEach(st => {
+      map.set(st.id, st);
+    });
+    return map;
+  }, [allStages]);
+
   // Local UI State
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [selectedStageFilter, setSelectedStageFilter] = useState<string>('all');
@@ -601,16 +609,54 @@ export function KanbanPage() {
     searchTerm,
   ]);
 
+  // Lead helper for Stage Object — matches by ID first, then by exact stage name (preventing order_index shift across companies!)
+  const getStageForLead = (lead: Lead): KanbanStage | undefined => {
+    if (lead.stage_id) {
+      const directMatch = stages.find(s => s.id === lead.stage_id);
+      if (directMatch) return directMatch;
+
+      const sourceStage = allStagesByIdMap.get(lead.stage_id);
+      if (sourceStage) {
+        const srcLower = sourceStage.name.trim().toLowerCase();
+        const byExactName = stages.find(s => s.name.trim().toLowerCase() === srcLower);
+        if (byExactName) return byExactName;
+
+        if (srcLower.includes('perdido') || srcLower.includes('desvinculado')) {
+          const perdido = stages.find(s => s.name.toLowerCase().includes('perdido'));
+          if (perdido) return perdido;
+        }
+        if (srcLower.includes('whatsapp')) {
+          const wa = stages.find(s => s.name.toLowerCase().includes('whatsapp'));
+          if (wa) return wa;
+        }
+        if (srcLower.includes('liga') || srcLower.includes('llamada')) {
+          const lig =
+            stages.find(s => s.name.toLowerCase().includes('liga')) ||
+            stages.find(s => s.name.toLowerCase().includes('lido'));
+          if (lig) return lig;
+        }
+        if (srcLower.includes('lido') || srcLower.includes('clicad')) {
+          const lido = stages.find(s => s.name.toLowerCase().includes('lido') || s.name.toLowerCase().includes('clicad'));
+          if (lido) return lido;
+        }
+        if (srcLower.includes('enviado')) {
+          const env = stages.find(s => s.name.toLowerCase().includes('enviado'));
+          if (env) return env;
+        }
+      }
+
+      const order = stageIdToOrderMap.get(lead.stage_id);
+      if (order !== undefined) {
+        const orderMatch = stages.find(s => s.order_index === order);
+        if (orderMatch) return orderMatch;
+      }
+    }
+    return stages.find(s => s.order_index === 1) || stages[0];
+  };
+
   const getLeadsInStage = (stage: KanbanStage) => {
     return filteredLeads
-      .filter(lead => {
-        if (lead.stage_id === stage.id) return true;
-        const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
-        if (leadOrderIndex !== undefined) {
-          return leadOrderIndex === stage.order_index;
-        }
-        return stage.order_index === 1;
-      })
+      .filter(lead => getStageForLead(lead)?.id === stage.id)
       .sort((a, b) => {
         const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
         const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
@@ -642,33 +688,22 @@ export function KanbanPage() {
 
   const countLidoLeads = useMemo(() => {
     if (!lidoStage) return 0;
-    return filteredLeads.filter(lead => {
-      if (lead.stage_id === lidoStage.id) return true;
-      const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
-      return leadOrderIndex === lidoStage.order_index;
-    }).length;
-  }, [filteredLeads, lidoStage, stageIdToOrderMap]);
+    return filteredLeads.filter(lead => getStageForLead(lead)?.id === lidoStage.id).length;
+  }, [filteredLeads, lidoStage, stages, allStagesByIdMap]);
 
   // List Mode Filtered Leads
   const listFilteredLeads = useMemo(() => {
     return filteredLeads
       .filter(lead => {
         if (selectedStageFilter === 'all') return true;
-        const stage = stages.find(s => s.id === selectedStageFilter);
-        if (!stage) return true;
-        if (lead.stage_id === stage.id) return true;
-        const leadOrderIndex = lead.stage_id ? stageIdToOrderMap.get(lead.stage_id) : undefined;
-        if (leadOrderIndex !== undefined) {
-          return leadOrderIndex === stage.order_index;
-        }
-        return stage.order_index === 1;
+        return getStageForLead(lead)?.id === selectedStageFilter;
       })
       .sort((a, b) => {
         const timeA = new Date(a.updated_at || a.created_at || 0).getTime();
         const timeB = new Date(b.updated_at || b.created_at || 0).getTime();
         return timeB - timeA;
       });
-  }, [filteredLeads, selectedStageFilter, stages, stageIdToOrderMap]);
+  }, [filteredLeads, selectedStageFilter, stages, allStagesByIdMap]);
 
   // Pagination for List Mode
   const totalPages = Math.max(1, Math.ceil(listFilteredLeads.length / pageSize));
@@ -676,20 +711,6 @@ export function KanbanPage() {
     const start = (currentPage - 1) * pageSize;
     return listFilteredLeads.slice(start, start + pageSize);
   }, [listFilteredLeads, currentPage, pageSize]);
-
-  // Lead helper for Stage Object
-  const getStageForLead = (lead: Lead): KanbanStage | undefined => {
-    if (lead.stage_id) {
-      const directMatch = stages.find(s => s.id === lead.stage_id);
-      if (directMatch) return directMatch;
-      const order = stageIdToOrderMap.get(lead.stage_id);
-      if (order !== undefined) {
-        const orderMatch = stages.find(s => s.order_index === order);
-        if (orderMatch) return orderMatch;
-      }
-    }
-    return stages.find(s => s.order_index === 1) || stages[0];
-  };
 
   // Selection handlers
   const isAllCurrentPageSelected =
@@ -2039,7 +2060,7 @@ export function KanbanPage() {
                     {tr('Etapa do Funil:', 'Etapa del Embudo:', 'Étape de l’Entonnoir :')}
                   </span>
                   <Select
-                    value={selectedLead.stage_id || ''}
+                    value={getStageForLead(selectedLead)?.id || selectedLead.stage_id || ''}
                     onValueChange={val => handleLeadStageChange(selectedLead.id, val)}
                   >
                     <SelectTrigger className="w-full h-8 text-xs font-semibold bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700">
