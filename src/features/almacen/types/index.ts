@@ -62,6 +62,15 @@ export interface AlmacenEmpresa {
   tax_id?: string | null;
 }
 
+export interface AlmacenSize {
+  id: string;
+  category: 'camisa' | 'pantalon' | 'calzado' | string;
+  code: string;
+  label: string;
+  sort_order: number;
+  is_active: boolean;
+}
+
 export interface AlmacenStockItem {
   id: string;
   epi_id: string;
@@ -72,6 +81,7 @@ export interface AlmacenStockItem {
   quantity_reserved: number;
   min_stock: number;
   location_bin: string | null;
+  supplier_name?: string | null;
   unit_cost: number | null;
   updated_at: string;
   epi?: AlmacenEpi;

@@ -4,6 +4,7 @@ import type {
   AlmacenDeliveryPoint,
   AlmacenEpi,
   AlmacenEmpresa,
+  AlmacenSize,
   AlmacenStockItem,
   AlmacenStockMovement,
   CarrierStatus,
@@ -1142,6 +1143,53 @@ export const almacenService = {
       .from('job_function_epis')
       .update({ status: 'archived', updated_at: new Date().toISOString() })
       .eq('id', id);
+    if (error) throw error;
+  },
+
+  async getSizes(category?: string, onlyActive = false): Promise<AlmacenSize[]> {
+    let q = supabase
+      .schema('core_logistica')
+      .from('almacen_sizes')
+      .select('*')
+      .order('category')
+      .order('sort_order', { ascending: true });
+    if (category) q = q.eq('category', category);
+    if (onlyActive) q = q.eq('is_active', true);
+    const { data, error } = await q;
+    if (error) throw error;
+    return (data || []) as AlmacenSize[];
+  },
+
+  async upsertSize(payload: {
+    id?: string;
+    category: string;
+    code: string;
+    label: string;
+    sort_order: number;
+    is_active: boolean;
+  }): Promise<void> {
+    if (payload.id) {
+      const { id, ...rest } = payload;
+      const { error } = await supabase
+        .schema('core_logistica')
+        .from('almacen_sizes')
+        .update({
+          ...rest,
+          code: rest.code.trim().toUpperCase(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', id);
+      if (error) throw error;
+      return;
+    }
+
+    const { error } = await supabase.schema('core_logistica').from('almacen_sizes').insert({
+      category: payload.category,
+      code: payload.code.trim().toUpperCase(),
+      label: payload.label.trim(),
+      sort_order: payload.sort_order,
+      is_active: payload.is_active,
+    });
     if (error) throw error;
   },
 };
