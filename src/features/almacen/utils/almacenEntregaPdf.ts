@@ -221,9 +221,11 @@ export async function downloadActaEntregaPdf(order: PickingOrder): Promise<void>
     doc.text(`Seguimiento (${order.delivery_method || 'NACEX'}): ${order.tracking_code}`, margin + contentW / 2 + 3, y + 20);
   }
 
-  // QR code on bottom right corner for verification
+  // QR code on bottom right corner for digital signing / verification
   try {
-    const qrDataUrl = await QRCode.toDataURL(`MCS-ALMACEN:${order.order_number}:${order.signature_token}`, { width: 120, margin: 1 });
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://mcs-personal.vercel.app';
+    const signUrl = `${origin}/public/almacen-firmar/${order.signature_token}`;
+    const qrDataUrl = await QRCode.toDataURL(signUrl, { width: 140, margin: 1 });
     doc.addImage(qrDataUrl, 'PNG', pageW - margin - 20, y + 5, 18, 18);
   } catch {
     // ignore qr error
