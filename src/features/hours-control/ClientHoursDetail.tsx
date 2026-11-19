@@ -23,6 +23,8 @@ import { useTranslation } from 'react-i18next';
 import { Input } from '../../components/ui/input';
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../../components/ui/select';
 import { getBatchWorkersMessageCounts } from '../worker-portal/services/workerCommunicationService';
+import { downloadTimesheetPdf, type TimesheetDayEntry } from '../worker-portal/services/timesheetPdfService';
+import { getCompanyBranding } from '../worker-portal/services/companyLogos';
 
 interface WorkerDetail {
     worker_id: string;
@@ -353,6 +355,82 @@ export function ClientHoursDetail() {
             }
         } catch (error) {
             console.error('Error downloading file:', error);
+            toast.error(t('clientHoursDetail.messages.dlError'), { id: 'download_file' });
+        } finally {
+            setActionLoading(null);
+        }
+    };
+
+    const handleDownloadPortalPdf = async (worker: WorkerDetail) => {
+        if (!worker.hour_record_id) return;
+        try {
+            setActionLoading(worker.hour_record_id + '-dl');
+            toast.loading('Gerando folha de horas em PDF...', { id: 'download_file' });
+
+            const { data: hr, error } = await supabase
+                .schema('core_personal')
+                .from('worker_hours')
+                .select('*')
+                .eq('id', worker.hour_record_id)
+                .single();
+
+            if (error || !hr) throw error || new Error('Registro não encontrado');
+
+            let rawDays: any[] = [];
+            if (Array.isArray(hr.apontamentos_diarios)) {
+                rawDays = hr.apontamentos_diarios;
+            } else if (typeof hr.apontamentos_diarios === 'string') {
+                try { rawDays = JSON.parse(hr.apontamentos_diarios); } catch { rawDays = []; }
+            }
+
+            const apontamentos: TimesheetDayEntry[] = rawDays.map((d: any) => {
+                const norm = Number(d?.horasNormais ?? d?.horas_normais ?? 0);
+                const not = Number(d?.horasNoturnas ?? d?.horas_noturnas ?? 0);
+                const tot = Number(d?.totalHoras ?? d?.total_horas ?? (norm + not));
+                return {
+                    dia: Number(d?.dia ?? d?.day ?? 1),
+                    entrada: tot > 0 ? (d?.entrada || d?.inicio || '08:00') : '',
+                    saida: tot > 0 ? (d?.saida || d?.fim || '17:00') : '',
+                    horasNormais: norm,
+                    horasNoturnas: not,
+                    totalHoras: tot,
+                    obra: d?.obra || '',
+                    obra_id: d?.obra_id || '',
+                    obs: d?.obs || ''
+                };
+            });
+
+            const compName = worker.contratante || hr.contratante || 'MCS Personal';
+            const b = getCompanyBranding(compName);
+            const firstObra = apontamentos.find(d => d.obra)?.obra || clientName || '';
+            const sumNorm = apontamentos.reduce((acc, d) => acc + Number(d.horasNormais || 0), 0);
+            const sumNot = apontamentos.reduce((acc, d) => acc + Number(d.horasNoturnas || 0), 0);
+            const sumTot = apontamentos.reduce((acc, d) => acc + Number(d.totalHoras || 0), 0);
+
+            await downloadTimesheetPdf({
+                empresaNome: compName,
+                empresaNif: b?.nif,
+                logoUrl: b?.logoUrl,
+                workerNome: worker.worker_name,
+                workerDoc: worker.pasaporte || 'N/A',
+                workerFuncion: worker.funcion || 'Operador',
+                clienteNome: clientName || hr.cliente_nombre || 'NÃO DEFINIDO',
+                obraNome: firstObra,
+                mes: month,
+                ano: year,
+                apontamentos,
+                totalNormais: Number(hr.total_horas_normais || 0) || sumNorm,
+                totalNoturnas: Number(hr.total_horas_noturnas || 0) || sumNot,
+                totalGeral: Number(hr.horas_totais || 0) || sumTot,
+                encarregadoNome: hr.encarregado_nome,
+                signedAt: hr.signed_at,
+                signedIp: hr.signed_ip,
+                signatureImageUrl: hr.signature_image_url
+            });
+
+            toast.success(t('clientHoursDetail.messages.dlStarted'), { id: 'download_file' });
+        } catch (error) {
+            console.error('Error generating portal PDF:', error);
             toast.error(t('clientHoursDetail.messages.dlError'), { id: 'download_file' });
         } finally {
             setActionLoading(null);
@@ -1497,13 +1575,16 @@ export function ClientHoursDetail() {
                                             )}
                                             {worker.status !== 'pendente' && worker.hour_record_id && (
                                                 <>
-                                                    {worker.file_url && (
+                                                    {(worker.file_url || worker.has_portal_hours || worker.status === 'validado') && (
                                                         <Button
                                                             variant="outline"
                                                             size="sm"
                                                             className="h-8 rounded-xl"
                                                             disabled={actionLoading === worker.hour_record_id + '-dl' || actionLoading === worker.hour_record_id + '-ap' || actionLoading === worker.hour_record_id + '-rj'}
-                                                            onClick={() => handleDownloadFile(worker.file_url, worker.file_name, worker.hour_record_id!)}
+                                                            onClick={() => worker.file_url
+                                                                ? handleDownloadFile(worker.file_url, worker.file_name, worker.hour_record_id!)
+                                                                : handleDownloadPortalPdf(worker)
+                                                            }
                                                             title={t('clientHoursDetail.tooltips.downloadSheet')}
                                                         >
                                                             {actionLoading === worker.hour_record_id + '-dl' ? <Loader2 className="h-4 w-4 animate-spin" /> : <DownloadCloud className="h-4 w-4" />}
