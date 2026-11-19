@@ -34,7 +34,7 @@ interface PreviewHoleriteDialogProps {
     eventosMensais?: HoleriteEvento[];
     fallbackHours?: number;
     overrideTarifaHora?: number;
-    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number }> };
+    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number; tarifaHora?: number }> };
     housingBenefitAmount?: number;
     extraDiscounts?: any[];
     trigger?: React.ReactNode;
@@ -96,7 +96,7 @@ export function PreviewHoleriteDialog({
 
     // 3. Proventos avulsos
     const proventosAvulsos = eventosMensais
-        .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')
+        .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa' && e.categoria !== 'ajuste_manual_clientes')
         .reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
 
     // 4. Descontos (combina lançamentos de eventos e descontos cadastrados no mês)
@@ -403,16 +403,19 @@ export function PreviewHoleriteDialog({
                                             {altaData.detalhamento.clientHoursBreakdown && altaData.detalhamento.clientHoursBreakdown.length > 1 && (
                                                 <div className="bg-indigo-50/40 px-3 py-2 space-y-1 border-t border-b border-indigo-100">
                                                     <span className="text-[10px] font-bold text-indigo-800 uppercase tracking-wider block">Por Cliente / Obra:</span>
-                                                    {altaData.detalhamento.clientHoursBreakdown.map((cb, idx) => (
-                                                        <div key={idx} className="flex justify-between items-center text-[11px] pl-2 border-l-2 border-indigo-300">
-                                                            <span className="font-medium text-slate-700">{cb.clientName}</span>
-                                                            <div className="flex gap-4 font-mono text-slate-600">
-                                                                <span className="w-12 text-right"></span>
-                                                                <span className="w-12 text-right">{Number(cb.hours || 0).toFixed(2)}h</span>
-                                                                <span className="w-16 text-right font-medium">{Number((cb.hours || 0) * (altaData.detalhamento.tarifaHora || 0)).toFixed(2)}€</span>
+                                                    {altaData.detalhamento.clientHoursBreakdown.map((cb, idx) => {
+                                                        const cbTarifa = Number(cb.tarifaHora ?? altaData.detalhamento.tarifaHora ?? 0);
+                                                        return (
+                                                            <div key={idx} className="flex justify-between items-center text-[11px] pl-2 border-l-2 border-indigo-300">
+                                                                <span className="font-medium text-slate-700">{cb.clientName}</span>
+                                                                <div className="flex gap-4 font-mono text-slate-600">
+                                                                    <span className="w-12 text-right">{cbTarifa.toFixed(2)}€</span>
+                                                                    <span className="w-12 text-right">{Number(cb.hours || 0).toFixed(2)}h</span>
+                                                                    <span className="w-16 text-right font-medium">{Number((cb.hours || 0) * cbTarifa).toFixed(2)}€</span>
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                    ))}
+                                                        );
+                                                    })}
                                                 </div>
                                             )}
                                             <div className="px-3 py-2 flex justify-between items-center">
@@ -510,18 +513,27 @@ export function PreviewHoleriteDialog({
                                             </thead>
                                             <tbody className="divide-y divide-slate-100">
                                                 <tr>
-                                                    <td className="py-2 px-3 font-medium">Serviços Prestados (V. Hora: {Number(regularizacaoData.horas.tarifaHora || 0).toFixed(2)}€)</td>
+                                                    <td className="py-2 px-3 font-medium">
+                                                        {regularizacaoData.horas.clientHoursBreakdown &&
+                                                        regularizacaoData.horas.clientHoursBreakdown.length > 1 &&
+                                                        new Set(regularizacaoData.horas.clientHoursBreakdown.map(cb => Number(cb.tarifaHora ?? regularizacaoData.horas.tarifaHora ?? 0).toFixed(2))).size > 1
+                                                            ? 'Serviços Prestados (Tarifas por Obra/Cliente)'
+                                                            : `Serviços Prestados (V. Hora: ${Number(regularizacaoData.horas.tarifaHora || 0).toFixed(2)}€)`}
+                                                    </td>
                                                     <td className="py-2 px-3 text-right font-mono">{Number(regularizacaoData.horas.quantidadeHoras || 0).toFixed(2)}</td>
                                                     <td className="py-2 px-3 text-right font-mono font-semibold">{Number(regularizacaoData.horas.valorTotalHoras || 0).toFixed(2)}€</td>
                                                 </tr>
                                                 {regularizacaoData.horas.clientHoursBreakdown && regularizacaoData.horas.clientHoursBreakdown.length > 1 && (
-                                                    regularizacaoData.horas.clientHoursBreakdown.map((cb, i) => (
-                                                        <tr key={`cl-${i}`} className="bg-indigo-50/30 text-[11px]">
-                                                            <td className="py-1 px-3 pl-6 font-normal text-slate-600">↳ {cb.clientName}</td>
-                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{Number(cb.hours || 0).toFixed(2)}</td>
-                                                            <td className="py-1 px-3 text-right font-mono text-slate-600">{Number((cb.hours || 0) * (regularizacaoData.horas.tarifaHora || 0)).toFixed(2)}€</td>
-                                                        </tr>
-                                                    ))
+                                                    regularizacaoData.horas.clientHoursBreakdown.map((cb, i) => {
+                                                        const cbTarifa = Number(cb.tarifaHora ?? regularizacaoData.horas.tarifaHora ?? 0);
+                                                        return (
+                                                            <tr key={`cl-${i}`} className="bg-indigo-50/30 text-[11px]">
+                                                                <td className="py-1 px-3 pl-6 font-normal text-slate-600">↳ {cb.clientName} ({cbTarifa.toFixed(2)}€/h)</td>
+                                                                <td className="py-1 px-3 text-right font-mono text-slate-600">{Number(cb.hours || 0).toFixed(2)}</td>
+                                                                <td className="py-1 px-3 text-right font-mono text-slate-600">{Number((cb.hours || 0) * cbTarifa).toFixed(2)}€</td>
+                                                            </tr>
+                                                        );
+                                                    })
                                                 )}
                                                 {regularizacaoData.horas.ajudaAlojamento > 0 && (
                                                     <tr>
