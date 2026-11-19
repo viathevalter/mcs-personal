@@ -124,16 +124,22 @@ export const ReposicaoAlmacenPage: React.FC = () => {
   }, [workers, filterTab, searchTerm]);
 
   const modalWorkerSuggestions = useMemo(() => {
+    const norm = (s: string) =>
+      s
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase();
     if (!modalWorkerSearch.trim()) return workers.slice(0, 12);
-    const q = modalWorkerSearch.toLowerCase();
+    const q = norm(modalWorkerSearch.trim());
     return workers
       .filter(
         (w) =>
-          w.nome.toLowerCase().includes(q) ||
-          (w.cod_colab || '').toLowerCase().includes(q) ||
-          (w.identificacion || '').toLowerCase().includes(q)
+          norm(w.nome).includes(q) ||
+          norm(w.cod_colab || '').includes(q) ||
+          norm(w.identificacion || '').includes(q) ||
+          norm(w.empresa_nome || '').includes(q)
       )
-      .slice(0, 15);
+      .slice(0, 20);
   }, [workers, modalWorkerSearch]);
 
   const openModalForWorker = (worker: WorkerReplenishmentRow | null) => {
