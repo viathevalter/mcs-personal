@@ -87,6 +87,7 @@ import { useHoleritesStatus } from '../hooks/useHoleritesStatus';
 import { usePaymentMutations, type WorkerPaymentSnapshot } from '../hooks/usePaymentMutations';
 import { PaymentConfirmModal, type PaymentConfirmData } from '../components/PaymentConfirmModal';
 import { exportBankTransferSpreadsheet } from '../utils/exportBankTransfer';
+import { resolveWorkerSeguridadInMonth } from '../utils/holeriteEngine';
 import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
 import { getEffectiveTariffsMapForMonth } from '@/features/workers/api/tariffGovernanceApi';
 
@@ -1407,7 +1408,12 @@ export function HoleritesPage() {
                                   Array.from(act.allContratantes).some(c => matchesEmpresaFilter(c, contratanteFilter)) ||
                                   (tally.totalHoras > 0 || tally.proventos > 0 || tally.descontos > 0);
 
-        const matchesSeguridad = seguridadFilter === 'all' || worker.status_seguridad === seguridadFilter;
+        const effSeguridad = resolveWorkerSeguridadInMonth(worker, mesReferencia);
+        const matchesSeguridad =
+            seguridadFilter === 'all' ||
+            effSeguridad.effectiveStatusLabel === seguridadFilter ||
+            (seguridadFilter === 'Alta' && effSeguridad.isAlta) ||
+            (seguridadFilter !== 'Alta' && !effSeguridad.isAlta && worker.status_seguridad === seguridadFilter);
 
         if (!matchesSearch || !matchesCliente || !matchesContratante || !matchesSeguridad) return false;
 
@@ -1689,13 +1695,13 @@ export function HoleritesPage() {
 
     const altaCount = React.useMemo(() => {
         if (!sortedFolhaRows) return 0;
-        return sortedFolhaRows.filter(r => r.worker.status_seguridad === 'Alta').length;
-    }, [sortedFolhaRows]);
+        return sortedFolhaRows.filter(r => resolveWorkerSeguridadInMonth(r.worker, mesReferencia).isAlta).length;
+    }, [sortedFolhaRows, mesReferencia]);
 
     const regCount = React.useMemo(() => {
         if (!sortedFolhaRows) return 0;
-        return sortedFolhaRows.filter(r => r.worker.status_seguridad !== 'Alta').length;
-    }, [sortedFolhaRows]);
+        return sortedFolhaRows.filter(r => !resolveWorkerSeguridadInMonth(r.worker, mesReferencia).isAlta).length;
+    }, [sortedFolhaRows, mesReferencia]);
 
     const totalCount = sortedFolhaRows.length;
     const effectivePageSize = pageSize === 'all' ? (totalCount || 1) : pageSize;
@@ -2212,12 +2218,29 @@ export function HoleritesPage() {
                                                         </Badge>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <Badge
-                                                            variant={worker.status_seguridad === 'Alta' ? 'default' : 'secondary'}
-                                                            className={worker.status_seguridad === 'Alta' ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}
-                                                        >
-                                                            {worker.status_seguridad || 'Desconhecido'}
-                                                        </Badge>
+                                                        {(() => {
+                                                            const segInfo = resolveWorkerSeguridadInMonth(worker, mesReferencia);
+                                                            return (
+                                                                <div className="flex flex-col items-start gap-0.5">
+                                                                    <Badge
+                                                                        variant={segInfo.isAlta ? 'default' : 'secondary'}
+                                                                        className={segInfo.isAlta ? 'bg-emerald-500 hover:bg-emerald-600' : 'bg-slate-200 text-slate-700'}
+                                                                        title={
+                                                                            segInfo.wasBeforeAlta && segInfo.altaDateIso
+                                                                                ? `Alta em ${formatDateClean(segInfo.altaDateIso)} — Em Regularização na competência ${mesReferencia}`
+                                                                                : undefined
+                                                                        }
+                                                                    >
+                                                                        {segInfo.effectiveStatusLabel || 'Desconhecido'}
+                                                                    </Badge>
+                                                                    {segInfo.wasBeforeAlta && segInfo.altaDateIso && (
+                                                                        <span className="text-[9px] text-amber-700 dark:text-amber-400 font-medium">
+                                                                            Alta em {formatDateClean(segInfo.altaDateIso)}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            );
+                                                        })()}
                                                     </TableCell>
                                                     <TableCell>
                                                         {(() => {
