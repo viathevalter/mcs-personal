@@ -88,6 +88,7 @@ import { usePaymentMutations, type WorkerPaymentSnapshot } from '../hooks/usePay
 import { PaymentConfirmModal, type PaymentConfirmData } from '../components/PaymentConfirmModal';
 import { exportBankTransferSpreadsheet } from '../utils/exportBankTransfer';
 import { resolveWorkerSeguridadInMonth } from '../utils/holeriteEngine';
+import { parseManualClientsEvent } from '../api/holeritesApi';
 import { normalizeEmpresaName, matchesEmpresaFilter, CANONICAL_EMPRESAS } from '@/shared/utils/empresaNormalizer';
 import { getEffectiveTariffsMapForMonth } from '@/features/workers/api/tariffGovernanceApi';
 
@@ -1206,25 +1207,7 @@ export function HoleritesPage() {
         }
 
         const faturamentoHoras = totalHoras;
-        const manualHoursEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_horas');
-        const isManualHours = Boolean(
-            manualHoursEvent &&
-            manualHoursEvent.horas_referencia !== null &&
-            manualHoursEvent.horas_referencia !== undefined
-        );
-
-        if (isManualHours) {
-            totalHoras = Number(manualHoursEvent!.horas_referencia);
-            if (clientBreakdown.length === 1) {
-                clientBreakdown = [{ ...clientBreakdown[0], hours: totalHoras }];
-            } else if (clientBreakdown.length > 1 && faturamentoHoras > 0) {
-                const ratio = totalHoras / faturamentoHoras;
-                clientBreakdown = clientBreakdown.map(cb => ({
-                    ...cb,
-                    hours: Math.round((cb.hours * ratio + Number.EPSILON) * 100) / 100
-                }));
-            }
-        }
+        const faturamentoClientBreakdown = clientBreakdown.map(cb => ({ clientName: cb.clientName, hours: cb.hours }));
 
         const hStatus = holeritesStatusMap?.get(worker.id);
         const frozenPaidTarifa =
@@ -1241,19 +1224,80 @@ export function HoleritesPage() {
                     ? scheduledMonthTarifa
                     : cadastroTarifaHora;
 
+        const manualClientsEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_clientes');
+        const parsedManualClients = parseManualClientsEvent(manualClientsEvent);
+
+        const manualHoursEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_horas');
         const manualTariffEvent = workerEvents.find(e => e.categoria === 'ajuste_manual_tarifa');
-        const isManualTariff = Boolean(
-            manualTariffEvent &&
-            manualTariffEvent.horas_referencia !== null &&
-            manualTariffEvent.horas_referencia !== undefined &&
-            Number(manualTariffEvent.horas_referencia) > 0
-        );
-        const tarifaHora = isManualTariff ? Number(manualTariffEvent!.horas_referencia) : baseTarifaHora;
-        const vencimentoBase = totalHoras * tarifaHora;
-        const overrideMotivo = manualHoursEvent?.descricao || manualTariffEvent?.descricao || '';
+
+        let isManualHours = false;
+        let isManualTariff = false;
+        let tarifaHora = baseTarifaHora;
+        let vencimentoBase = totalHoras * tarifaHora;
+        let overrideMotivo = '';
+        let clientBreakdownWithTariff: Array<{ clientName: string; hours: number; tarifaHora?: number }> = clientBreakdown.map(cb => ({
+            ...cb,
+            tarifaHora: baseTarifaHora
+        }));
+        let tarifaDisplayLabel = `€ ${Number(baseTarifaHora || 0).toFixed(2)}`;
+
+        if (parsedManualClients && parsedManualClients.clients.length > 0) {
+            clientBreakdownWithTariff = parsedManualClients.clients.map(c => ({
+                clientName: c.clientName,
+                hours: Number(c.hours || 0),
+                tarifaHora: Number(c.tarifaHora || baseTarifaHora)
+            }));
+            totalHoras = Math.round((clientBreakdownWithTariff.reduce((s, c) => s + Number(c.hours || 0), 0) + Number.EPSILON) * 100) / 100;
+            vencimentoBase = Math.round((clientBreakdownWithTariff.reduce((s, c) => s + Number(c.hours || 0) * Number(c.tarifaHora ?? baseTarifaHora), 0) + Number.EPSILON) * 100) / 100;
+            isManualHours = Math.abs(totalHoras - faturamentoHoras) > 0.005 || clientBreakdownWithTariff.some(c => {
+                const fatMatch = faturamentoClientBreakdown.find(f => f.clientName.trim().toLowerCase() === c.clientName.trim().toLowerCase());
+                return fatMatch ? Math.abs(c.hours - fatMatch.hours) > 0.005 : false;
+            });
+            isManualTariff = clientBreakdownWithTariff.some(c => Math.abs(Number(c.tarifaHora ?? baseTarifaHora) - baseTarifaHora) > 0.005);
+            tarifaHora = totalHoras > 0 ? Math.round(((vencimentoBase / totalHoras) + Number.EPSILON) * 100) / 100 : baseTarifaHora;
+            overrideMotivo = parsedManualClients.motivo || '';
+
+            const distinctRates = Array.from(
+                new Set(clientBreakdownWithTariff.map(c => Number(c.tarifaHora ?? baseTarifaHora).toFixed(2)))
+            );
+            tarifaDisplayLabel = distinctRates.length > 1
+                ? distinctRates.map(r => `€ ${r}`).join(' / ')
+                : `€ ${distinctRates[0] || Number(tarifaHora || 0).toFixed(2)}`;
+        } else {
+            isManualHours = Boolean(
+                manualHoursEvent &&
+                manualHoursEvent.horas_referencia !== null &&
+                manualHoursEvent.horas_referencia !== undefined
+            );
+
+            if (isManualHours) {
+                totalHoras = Number(manualHoursEvent!.horas_referencia);
+                if (clientBreakdownWithTariff.length === 1) {
+                    clientBreakdownWithTariff = [{ ...clientBreakdownWithTariff[0], hours: totalHoras }];
+                } else if (clientBreakdownWithTariff.length > 1 && faturamentoHoras > 0) {
+                    const ratio = totalHoras / faturamentoHoras;
+                    clientBreakdownWithTariff = clientBreakdownWithTariff.map(cb => ({
+                        ...cb,
+                        hours: Math.round((cb.hours * ratio + Number.EPSILON) * 100) / 100
+                    }));
+                }
+            }
+
+            isManualTariff = Boolean(
+                manualTariffEvent &&
+                manualTariffEvent.horas_referencia !== null &&
+                manualTariffEvent.horas_referencia !== undefined &&
+                Number(manualTariffEvent.horas_referencia) > 0
+            );
+            tarifaHora = isManualTariff ? Number(manualTariffEvent!.horas_referencia) : baseTarifaHora;
+            clientBreakdownWithTariff = clientBreakdownWithTariff.map(cb => ({ ...cb, tarifaHora }));
+            vencimentoBase = Math.round((totalHoras * tarifaHora + Number.EPSILON) * 100) / 100;
+            overrideMotivo = manualHoursEvent?.descricao || manualTariffEvent?.descricao || '';
+            tarifaDisplayLabel = `€ ${Number(tarifaHora || 0).toFixed(2)}`;
+        }
 
         const proventosEventos = workerEvents
-            .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')
+            .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa' && e.categoria !== 'ajuste_manual_clientes')
             .reduce((sum, e) => sum + Number(e.valor || 0), 0);
 
         const descontosEventos = workerEvents
@@ -1376,13 +1420,15 @@ export function HoleritesPage() {
             faturamentoHoras,
             isManualHours,
             tarifaHora,
+            tarifaDisplayLabel,
             baseTarifaHora,
             isManualTariff,
             overrideMotivo,
             beneficiosFixos: beneficiosFixosArray,
             descontosExtras: workerExtraDiscounts,
             workerEvents,
-            clientBreakdown
+            clientBreakdown: clientBreakdownWithTariff,
+            faturamentoClientBreakdown
         };
     }
 
@@ -1480,6 +1526,7 @@ export function HoleritesPage() {
                         faturamentoHoras: tally.faturamentoHoras,
                         isManualHours: tally.isManualHours,
                         tarifaHora: tally.tarifaHora,
+                        tarifaDisplayLabel: tally.tarifaDisplayLabel,
                         baseTarifaHora: tally.baseTarifaHora,
                         isManualTariff: tally.isManualTariff,
                         overrideMotivo: tally.overrideMotivo,
@@ -1490,6 +1537,7 @@ export function HoleritesPage() {
                         descontosExtras: tally.descontosExtras,
                         workerEvents: tally.workerEvents,
                         clientHoursBreakdown: tally.clientBreakdown && tally.clientBreakdown.length > 0 ? tally.clientBreakdown : effectiveAct.clientHoursBreakdown,
+                        faturamentoClientBreakdown: tally.faturamentoClientBreakdown,
                         cliente_nombre: (tally.clientBreakdown && tally.clientBreakdown[0]?.clientName) || effectiveAct.cliente_nombre,
                         isNewWorker
                     });
@@ -1513,6 +1561,7 @@ export function HoleritesPage() {
                     faturamentoHoras: tally.faturamentoHoras,
                     isManualHours: tally.isManualHours,
                     tarifaHora: tally.tarifaHora,
+                    tarifaDisplayLabel: tally.tarifaDisplayLabel,
                     baseTarifaHora: tally.baseTarifaHora,
                     isManualTariff: tally.isManualTariff,
                     overrideMotivo: tally.overrideMotivo,
@@ -1523,6 +1572,7 @@ export function HoleritesPage() {
                     descontosExtras: tally.descontosExtras,
                     workerEvents: tally.workerEvents,
                     clientHoursBreakdown: tally.clientBreakdown && tally.clientBreakdown.length > 0 ? tally.clientBreakdown : effectiveAct.clientHoursBreakdown,
+                    faturamentoClientBreakdown: tally.faturamentoClientBreakdown,
                     cliente_nombre: (tally.clientBreakdown && tally.clientBreakdown[0]?.clientName) || effectiveAct.cliente_nombre,
                     isNewWorker
                 });
@@ -2144,8 +2194,8 @@ export function HoleritesPage() {
                                     </TableRow>
                                 ) : (
                                     paginatedFolhaRows?.map((row) => {
-                                        const { worker, rowKey, empresaName, empresaId, isMultiCompanySplit, totalHoras, faturamentoHoras, isManualHours, tarifaHora, baseTarifaHora, isManualTariff, overrideMotivo, proventos, descontos, liquido, beneficiosFixos, descontosExtras, workerEvents, clientHoursBreakdown, cliente_nombre, isNewWorker } = row;
-                                        const visibleWorkerEvents = workerEvents.filter((e: any) => e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa');
+                                        const { worker, rowKey, empresaName, empresaId, isMultiCompanySplit, totalHoras, faturamentoHoras, isManualHours, tarifaHora, tarifaDisplayLabel, baseTarifaHora, isManualTariff, overrideMotivo, proventos, descontos, liquido, beneficiosFixos, descontosExtras, workerEvents, clientHoursBreakdown, faturamentoClientBreakdown, cliente_nombre, isNewWorker } = row;
+                                        const visibleWorkerEvents = workerEvents.filter((e: any) => e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa' && e.categoria !== 'ajuste_manual_clientes');
                                         const hasDataForMonth = visibleWorkerEvents.length > 0 || beneficiosFixos.length > 0 || descontosExtras.length > 0 || isManualHours || isManualTariff;
                                         const isExpanded = expandedRows.has(rowKey);
                                         const clientStyle = getClientStyle(cliente_nombre);
@@ -2300,7 +2350,7 @@ export function HoleritesPage() {
                                                                 onClick={() => toast.info('Este holerite já está Pago e consolidado. Estorne o pagamento caso precise alterar horas ou tarifa.')}
                                                             >
                                                                 <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
-                                                                    <span>€ {Number(tarifaHora || 0).toFixed(2)}</span>
+                                                                    <span>{tarifaDisplayLabel || `€ ${Number(tarifaHora || 0).toFixed(2)}`}</span>
                                                                 </div>
                                                                 {isManualTariff && (
                                                                     <Badge
@@ -2325,6 +2375,8 @@ export function HoleritesPage() {
                                                                 baseTarifa={baseTarifaHora}
                                                                 isManualTariff={isManualTariff}
                                                                 initialMotivo={overrideMotivo}
+                                                                clientHoursBreakdown={clientHoursBreakdown}
+                                                                faturamentoClientBreakdown={faturamentoClientBreakdown}
                                                                 defaultFocus="tariff"
                                                                 trigger={
                                                                     <button
@@ -2332,9 +2384,9 @@ export function HoleritesPage() {
                                                                         className="group inline-flex flex-col items-end justify-end rounded px-1.5 py-0.5 hover:bg-indigo-50 dark:hover:bg-indigo-950/60 transition-colors cursor-pointer"
                                                                         title="Clique para ajustar Tarifa ou Horas manualmente"
                                                                     >
-                                                                        <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200">
-                                                                            <span>€ {Number(tarifaHora || 0).toFixed(2)}</span>
-                                                                            <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                                        <div className="flex items-center gap-1 font-medium text-slate-800 dark:text-slate-200 whitespace-nowrap">
+                                                                            <span>{tarifaDisplayLabel || `€ ${Number(tarifaHora || 0).toFixed(2)}`}</span>
+                                                                            <Pencil className="h-3 w-3 text-indigo-500 opacity-0 group-hover:opacity-100 transition-opacity shrink-0" />
                                                                         </div>
                                                                         {isManualTariff && (
                                                                             <Badge
@@ -2393,6 +2445,8 @@ export function HoleritesPage() {
                                                                 baseTarifa={baseTarifaHora}
                                                                 isManualTariff={isManualTariff}
                                                                 initialMotivo={overrideMotivo}
+                                                                clientHoursBreakdown={clientHoursBreakdown}
+                                                                faturamentoClientBreakdown={faturamentoClientBreakdown}
                                                                 defaultFocus="hours"
                                                                 trigger={
                                                                     <button
@@ -2672,6 +2726,8 @@ export function HoleritesPage() {
                                                                                         baseTarifa={baseTarifaHora}
                                                                                         isManualTariff={isManualTariff}
                                                                                         initialMotivo={overrideMotivo}
+                                                                                        clientHoursBreakdown={clientHoursBreakdown}
+                                                                                        faturamentoClientBreakdown={faturamentoClientBreakdown}
                                                                                         defaultFocus="hours"
                                                                                         trigger={
                                                                                             <Button
@@ -2705,7 +2761,7 @@ export function HoleritesPage() {
                                                                             <div>
                                                                                 <span className="text-muted-foreground block">Tarifa por Hora</span>
                                                                                 <span className="font-bold text-slate-800 dark:text-slate-200">
-                                                                                    € {Number(tarifaHora || 0).toFixed(2)}
+                                                                                    {tarifaDisplayLabel || `€ ${Number(tarifaHora || 0).toFixed(2)}`}
                                                                                     {isManualTariff && (
                                                                                         <span className="ml-1.5 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400">
                                                                                             (Manual • Cad: € {Number(baseTarifaHora || 0).toFixed(2)})
@@ -2730,12 +2786,20 @@ export function HoleritesPage() {
                                                                                     Detalhamento das Obras / Clientes:
                                                                                 </span>
                                                                                 <div className="space-y-1">
-                                                                                    {clientHoursBreakdown.map((cb: any, idx: number) => (
-                                                                                        <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60">
-                                                                                            <span className="font-semibold text-slate-700 dark:text-slate-300">{cb.clientName}</span>
-                                                                                            <span className="font-bold text-indigo-700 dark:text-indigo-400">{formatHoursClean(cb.hours)} h</span>
-                                                                                        </div>
-                                                                                    ))}
+                                                                                    {clientHoursBreakdown.map((cb: any, idx: number) => {
+                                                                                        const cbRate = Number(cb.tarifaHora ?? tarifaHora ?? 0);
+                                                                                        const cbVal = Math.round((Number(cb.hours || 0) * cbRate + Number.EPSILON) * 100) / 100;
+                                                                                        return (
+                                                                                            <div key={idx} className="flex justify-between items-center bg-slate-50 dark:bg-slate-800/60 px-2 py-1 rounded border border-slate-200/60 dark:border-slate-700/60 gap-2">
+                                                                                                <span className="font-semibold text-slate-700 dark:text-slate-300 truncate">{cb.clientName}</span>
+                                                                                                <div className="flex items-center gap-2 shrink-0 font-mono text-[11px]">
+                                                                                                    <span className="text-slate-500">€ {cbRate.toFixed(2)}/h</span>
+                                                                                                    <span className="font-bold text-indigo-700 dark:text-indigo-400">{formatHoursClean(cb.hours)} h</span>
+                                                                                                    <span className="font-bold text-emerald-700 dark:text-emerald-400">€ {cbVal.toFixed(2)}</span>
+                                                                                                </div>
+                                                                                            </div>
+                                                                                        );
+                                                                                    })}
                                                                                 </div>
                                                                             </div>
                                                                         )}

@@ -134,6 +134,35 @@ export async function insertHoleriteEventosBatch(events: InsertHoleriteEventoPay
     }
 }
 
+export interface ClientHoursTariffOverride {
+    clientName: string;
+    hours: number;
+    tarifaHora: number;
+}
+
+export function parseManualClientsEvent(evento: any): { clients: ClientHoursTariffOverride[]; motivo?: string } | null {
+    if (!evento || evento.categoria !== 'ajuste_manual_clientes' || !evento.descricao) return null;
+    try {
+        const rawStr = String(evento.descricao).trim();
+        const jsonStart = rawStr.indexOf('{');
+        if (jsonStart === -1) return null;
+        const parsed = JSON.parse(rawStr.substring(jsonStart));
+        if (parsed && Array.isArray(parsed.clients) && parsed.clients.length > 0) {
+            return {
+                clients: parsed.clients.map((c: any) => ({
+                    clientName: String(c.clientName || ''),
+                    hours: Number(c.hours || 0),
+                    tarifaHora: Number(c.tarifaHora || 0)
+                })),
+                motivo: parsed.motivo ? String(parsed.motivo) : undefined
+            };
+        }
+    } catch {
+        return null;
+    }
+    return null;
+}
+
 export interface SaveWorkerMonthlyOverrideParams {
     workerId: string;
     empresaId?: string;
@@ -141,6 +170,7 @@ export interface SaveWorkerMonthlyOverrideParams {
     mesReferencia: string; // e.g. "2026-08"
     manualHours: number | null; // null = clear manual hours override
     manualTarifa: number | null; // null = clear manual tariff override
+    clientOverrides?: ClientHoursTariffOverride[] | null;
     updateCadastroTarifa?: boolean;
     motivo?: string;
 }
@@ -153,6 +183,7 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
         mesReferencia,
         manualHours,
         manualTarifa,
+        clientOverrides = null,
         updateCadastroTarifa = false,
         motivo
     } = params;
@@ -181,7 +212,12 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
     }
 
     // 2. If we need to insert any override event and no parent holerite exists yet for this company, create it
-    const needsEventInsert = (manualHours !== null && !isNaN(manualHours)) || (manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0);
+    const hasClientOverrides = Boolean(clientOverrides && clientOverrides.length > 0);
+    const needsEventInsert =
+        hasClientOverrides ||
+        (manualHours !== null && !isNaN(manualHours)) ||
+        (manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0);
+
     if (!targetHoleriteId && needsEventInsert) {
         const { data: createdHolerite, error: createErr } = await supabase
             .schema('core_personal')
@@ -199,7 +235,7 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
         targetHoleriteId = createdHolerite?.id;
     }
 
-    // 3. Clean up any existing manual hours/tariff override events on the target holerite (or all holerites of the worker in this month if not split)
+    // 3. Clean up any existing manual hours/tariff/client override events on the target holerite
     const holeriteIdsToClean = targetHoleriteId
         ? [targetHoleriteId]
         : (existingHolerites || []).map((h: any) => h.id);
@@ -210,7 +246,7 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
             .from('holerite_eventos')
             .delete()
             .in('holerite_id', holeriteIdsToClean)
-            .in('categoria', ['ajuste_manual_horas', 'ajuste_manual_tarifa']);
+            .in('categoria', ['ajuste_manual_horas', 'ajuste_manual_tarifa', 'ajuste_manual_clientes']);
 
         if (delErr) throw mapSupabaseError(delErr);
     }
@@ -220,26 +256,41 @@ export async function saveWorkerMonthlyOverride(params: SaveWorkerMonthlyOverrid
         const eventsToInsert: any[] = [];
         const labelPrefix = empresaName && empresaName !== '-' ? `[${empresaName}] ` : '';
 
-        if (manualHours !== null && !isNaN(manualHours)) {
+        if (hasClientOverrides && clientOverrides) {
+            const totalClientHours = clientOverrides.reduce((acc, c) => acc + Number(c.hours || 0), 0);
             eventsToInsert.push({
                 holerite_id: targetHoleriteId,
                 tipo_evento: 'provento',
-                categoria: 'ajuste_manual_horas',
-                descricao: motivo?.trim() ? `${labelPrefix}${motivo.trim()}` : `${labelPrefix}Ajuste manual de horas na folha`,
+                categoria: 'ajuste_manual_clientes',
+                descricao: JSON.stringify({
+                    clients: clientOverrides,
+                    motivo: motivo?.trim() || undefined
+                }),
                 valor: 0,
-                referencia_dias_horas: manualHours
+                referencia_dias_horas: Math.round((totalClientHours + Number.EPSILON) * 100) / 100
             });
-        }
+        } else {
+            if (manualHours !== null && !isNaN(manualHours)) {
+                eventsToInsert.push({
+                    holerite_id: targetHoleriteId,
+                    tipo_evento: 'provento',
+                    categoria: 'ajuste_manual_horas',
+                    descricao: motivo?.trim() ? `${labelPrefix}${motivo.trim()}` : `${labelPrefix}Ajuste manual de horas na folha`,
+                    valor: 0,
+                    referencia_dias_horas: manualHours
+                });
+            }
 
-        if (manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0) {
-            eventsToInsert.push({
-                holerite_id: targetHoleriteId,
-                tipo_evento: 'provento',
-                categoria: 'ajuste_manual_tarifa',
-                descricao: motivo?.trim() ? `${labelPrefix}${motivo.trim()}` : `${labelPrefix}Ajuste manual de tarifa na folha`,
-                valor: 0,
-                referencia_dias_horas: manualTarifa
-            });
+            if (manualTarifa !== null && !isNaN(manualTarifa) && manualTarifa > 0) {
+                eventsToInsert.push({
+                    holerite_id: targetHoleriteId,
+                    tipo_evento: 'provento',
+                    categoria: 'ajuste_manual_tarifa',
+                    descricao: motivo?.trim() ? `${labelPrefix}${motivo.trim()}` : `${labelPrefix}Ajuste manual de tarifa na folha`,
+                    valor: 0,
+                    referencia_dias_horas: manualTarifa
+                });
+            }
         }
 
         if (eventsToInsert.length > 0) {

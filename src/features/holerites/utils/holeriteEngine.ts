@@ -156,7 +156,7 @@ export interface HoleriteAltaCalculado {
         totalRemuneracoes: number;
         descontos: HoleriteDescontosDetalhados;
         liquidoReal: number;
-        clientHoursBreakdown?: Array<{ clientName: string; hours: number }>;
+        clientHoursBreakdown?: Array<{ clientName: string; hours: number; tarifaHora?: number }>;
     };
 }
 
@@ -209,7 +209,7 @@ export interface HoleriteRegularizacaoCalculado {
         valorTotalHoras: number;
         ajudaAlojamento: number;
         totalBruto: number;
-        clientHoursBreakdown?: Array<{ clientName: string; hours: number }>;
+        clientHoursBreakdown?: Array<{ clientName: string; hours: number; tarifaHora?: number }>;
     };
     descontos: HoleriteDescontosDetalhados;
     totalLiquido: number;
@@ -529,7 +529,7 @@ export function calculateHoleriteAlta(options: {
     housingBenefitAmount?: number;
     mesReferencia: string;
     empresas?: Empresa[];
-    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string };
+    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number; tarifaHora?: number }> };
     customParams?: Partial<HoleriteParams>;
 }): HoleriteAltaCalculado {
     const {
@@ -550,8 +550,16 @@ export function calculateHoleriteAlta(options: {
     const empresaInfo = resolveEmpresaInfo(worker, empresas, workerMonthlyActivity);
     const periodo = getPeriodoDatas(mesReferencia);
 
-    // 1. Cálculos de Remuneração Real Gerencial
-    const valorHoras = Math.round((horasTrabalhadas * tarifaHora + Number.EPSILON) * 100) / 100;
+    // 1. Cálculos de Remuneração Real Gerencial (suporta múltiplas tarifas por cliente/obra)
+    const breakdownList = workerMonthlyActivity?.clientHoursBreakdown;
+    const hasPerClientTariffs = Boolean(
+        breakdownList &&
+        breakdownList.length > 0 &&
+        breakdownList.some(cb => cb.tarifaHora !== undefined && cb.tarifaHora !== null && Number(cb.tarifaHora) > 0)
+    );
+    const valorHoras = hasPerClientTariffs && breakdownList
+        ? Math.round((breakdownList.reduce((sum, cb) => sum + Number(cb.hours || 0) * Number(cb.tarifaHora ?? tarifaHora), 0) + Number.EPSILON) * 100) / 100
+        : Math.round((horasTrabalhadas * tarifaHora + Number.EPSILON) * 100) / 100;
     const totalAlojamento = Number(alojamento || housingBenefitAmount || 0);
     const totalRemuneracoes = Math.round((valorHoras + totalAlojamento + proventosAdicionais + Number.EPSILON) * 100) / 100;
 
@@ -754,7 +762,7 @@ export function calculateHoleriteRegularizacao(options: {
     eventosDescontos?: any[];
     mesReferencia: string;
     empresas?: Empresa[];
-    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number }> };
+    workerMonthlyActivity?: { contratante?: string; cliente_nombre?: string; clientHoursBreakdown?: Array<{ clientName: string; hours: number; tarifaHora?: number }> };
 }): HoleriteRegularizacaoCalculado {
     const {
         worker,
@@ -771,7 +779,15 @@ export function calculateHoleriteRegularizacao(options: {
     const empresaInfo = resolveEmpresaInfo(worker, empresas, workerMonthlyActivity);
     const periodo = getPeriodoDatas(mesReferencia);
 
-    const valorTotalHoras = Math.round((horasTrabalhadas * tarifaHora + Number.EPSILON) * 100) / 100;
+    const breakdownList = workerMonthlyActivity?.clientHoursBreakdown;
+    const hasPerClientTariffs = Boolean(
+        breakdownList &&
+        breakdownList.length > 0 &&
+        breakdownList.some(cb => cb.tarifaHora !== undefined && cb.tarifaHora !== null && Number(cb.tarifaHora) > 0)
+    );
+    const valorTotalHoras = hasPerClientTariffs && breakdownList
+        ? Math.round((breakdownList.reduce((sum, cb) => sum + Number(cb.hours || 0) * Number(cb.tarifaHora ?? tarifaHora), 0) + Number.EPSILON) * 100) / 100
+        : Math.round((horasTrabalhadas * tarifaHora + Number.EPSILON) * 100) / 100;
     const totalAlojamento = Number(alojamento || housingBenefitAmount || 0);
     const totalBruto = Math.round((valorTotalHoras + totalAlojamento + Number.EPSILON) * 100) / 100;
 

@@ -28,6 +28,7 @@ import {
     type HoleriteRegularizacaoCalculado
 } from '../utils/holeriteEngine';
 import { generateHoleritesBatchZip } from '../utils/pdfGenerator';
+import { parseManualClientsEvent } from '../api/holeritesApi';
 
 interface BatchHoleritesExportDialogProps {
     trigger?: React.ReactNode;
@@ -111,20 +112,13 @@ export function BatchHoleritesExportDialog({
 
                 const isAlta = isWorkerAltaForExport(w);
 
-                // Horas & Tarifa (Prioridade: Ajuste Manual na Folha -> Faturamento -> Legado)
+                // Horas & Tarifa (Prioridade: Ajuste Manual por Cliente -> Ajuste Manual na Folha -> Faturamento -> Legado)
                 const workerEventos = eventos.filter(e => e.trabalhador_id === w.id);
+                const manualClientsEvento = workerEventos.find(e => e.categoria === 'ajuste_manual_clientes');
+                const parsedManualClients = parseManualClientsEvent(manualClientsEvento);
                 const manualHorasEvento = workerEventos.find(e => e.categoria === 'ajuste_manual_horas');
                 const manualTarifaEvento = workerEventos.find(e => e.categoria === 'ajuste_manual_tarifa');
                 const totalHorasEvento = workerEventos.find(e => e.categoria === 'total_horas');
-
-                const horasTrabalhadas = (manualHorasEvento && manualHorasEvento.horas_referencia !== null && manualHorasEvento.horas_referencia !== undefined)
-                    ? Number(manualHorasEvento.horas_referencia)
-                    : Number(
-                        (dbHoursSummary?.sumMap ? dbHoursSummary.sumMap.get(w.id) : 0) ||
-                        totalHorasEvento?.horas_referencia ||
-                        totalHorasEvento?.referencia_dias_horas ||
-                        0
-                    );
 
                 const hStatus = holeritesStatusMap?.get(w.id);
                 const frozenPaidTarifa =
@@ -139,12 +133,21 @@ export function BatchHoleritesExportDialog({
                             ? scheduledMonthTarifa
                             : Number(w.worker_beneficios_settings?.tarifa_hora || 0);
 
-                const tarifaHora = (manualTarifaEvento && manualTarifaEvento.horas_referencia !== null && manualTarifaEvento.horas_referencia !== undefined && Number(manualTarifaEvento.horas_referencia) > 0)
+                let horasTrabalhadas = (manualHorasEvento && manualHorasEvento.horas_referencia !== null && manualHorasEvento.horas_referencia !== undefined)
+                    ? Number(manualHorasEvento.horas_referencia)
+                    : Number(
+                        (dbHoursSummary?.sumMap ? dbHoursSummary.sumMap.get(w.id) : 0) ||
+                        totalHorasEvento?.horas_referencia ||
+                        totalHorasEvento?.referencia_dias_horas ||
+                        0
+                    );
+
+                let tarifaHora = (manualTarifaEvento && manualTarifaEvento.horas_referencia !== null && manualTarifaEvento.horas_referencia !== undefined && Number(manualTarifaEvento.horas_referencia) > 0)
                     ? Number(manualTarifaEvento.horas_referencia)
                     : baseTarifaHora;
 
                 const proventosAvulsos = workerEventos
-                    .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa')
+                    .filter(e => e.tipo === 'provento' && e.categoria !== 'total_horas' && e.categoria !== 'ajuste_manual_horas' && e.categoria !== 'ajuste_manual_tarifa' && e.categoria !== 'ajuste_manual_clientes')
                     .reduce((acc, curr) => acc + Number(curr.valor || 0), 0);
 
                 const workerExtraDiscounts = (allDiscounts || []).filter((d: any) => d.worker_id === w.id && d.reference_date?.startsWith(mesReferencia));
@@ -153,7 +156,19 @@ export function BatchHoleritesExportDialog({
                     ...workerExtraDiscounts
                 ];
                 const housingBenefitAmount = housingBenefitsMap?.get(w.id) || 0;
-                const activity = workerMonthlyActivityMap?.get(w.id);
+                const rawActivity = workerMonthlyActivityMap?.get(w.id);
+                const activity = parsedManualClients && parsedManualClients.clients.length > 0
+                    ? {
+                        ...(rawActivity || { contratante: w.contratante || '', cliente_nombre: parsedManualClients.clients[0]?.clientName || '' }),
+                        clientHoursBreakdown: parsedManualClients.clients
+                    }
+                    : rawActivity;
+
+                if (parsedManualClients && parsedManualClients.clients.length > 0) {
+                    horasTrabalhadas = Math.round((parsedManualClients.clients.reduce((s, c) => s + Number(c.hours || 0), 0) + Number.EPSILON) * 100) / 100;
+                    const totalVal = parsedManualClients.clients.reduce((s, c) => s + Number(c.hours || 0) * Number(c.tarifaHora || baseTarifaHora), 0);
+                    tarifaHora = horasTrabalhadas > 0 ? Math.round(((totalVal / horasTrabalhadas) + Number.EPSILON) * 100) / 100 : baseTarifaHora;
+                }
 
                 if (activity?.companyHoursBreakdown && activity.companyHoursBreakdown.length > 1) {
                     for (const comp of activity.companyHoursBreakdown) {

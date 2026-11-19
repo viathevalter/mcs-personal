@@ -459,11 +459,12 @@ export function generateHoleriteAltaPdf(
             doc.setDrawColor(226, 232, 240);
 
             data.detalhamento.clientHoursBreakdown.forEach(cb => {
+                const cbTarifa = Number(cb.tarifaHora ?? data.detalhamento.tarifaHora ?? 0);
                 doc.rect(margin, y, contentWidth, 5, 'S');
                 doc.text(cb.clientName, margin + 3, y + 3.5);
                 doc.text(formatNumber(cb.hours), margin + contentWidth - 45, y + 3.5, { align: 'right' });
-                doc.text(formatCurrency(data.detalhamento.tarifaHora), margin + contentWidth - 25, y + 3.5, { align: 'right' });
-                doc.text(formatCurrency(cb.hours * data.detalhamento.tarifaHora), margin + contentWidth - 3, y + 3.5, { align: 'right' });
+                doc.text(formatCurrency(cbTarifa), margin + contentWidth - 25, y + 3.5, { align: 'right' });
+                doc.text(formatCurrency(cb.hours * cbTarifa), margin + contentWidth - 3, y + 3.5, { align: 'right' });
                 y += 5;
             });
             y += 6;
@@ -596,22 +597,35 @@ export function generateHoleriteRegularizacaoPdf(data: HoleriteRegularizacaoCalc
     doc.setTextColor(20, 24, 33);
 
     // Linha Serviços / Horas
+    const regBreakdown = data.horas.clientHoursBreakdown || [];
+    const distinctRegTariffs = Array.from(
+        new Set(regBreakdown.map(cb => Number(cb.tarifaHora ?? data.horas.tarifaHora ?? 0).toFixed(2)))
+    );
+    const hasMultiRegTariffs = regBreakdown.length > 1 && distinctRegTariffs.length > 1;
+
     doc.rect(margin, y, tableW, 6, 'S');
-    doc.text(`Serviços Prestados (V. Hora: ${formatNumber(data.horas.tarifaHora)} €)`, margin + 3, y + 4.2);
+    doc.text(
+        hasMultiRegTariffs
+            ? `Serviços Prestados (Tarifas por Obra/Cliente)`
+            : `Serviços Prestados (V. Hora: ${formatNumber(data.horas.tarifaHora)} €)`,
+        margin + 3,
+        y + 4.2
+    );
     doc.text(formatNumber(data.horas.quantidadeHoras), margin + col1W + col2W - 4, y + 4.2, { align: 'right' });
     doc.text(formatNumber(data.horas.valorTotalHoras), margin + tableW - 4, y + 4.2, { align: 'right' });
 
     y += 6;
 
     // Sub-linhas de Detalhamento por Cliente (quando multi-cliente)
-    if (data.horas.clientHoursBreakdown && data.horas.clientHoursBreakdown.length > 1) {
-        data.horas.clientHoursBreakdown.forEach(cb => {
+    if (regBreakdown.length > 1) {
+        regBreakdown.forEach(cb => {
+            const cbTarifa = Number(cb.tarifaHora ?? data.horas.tarifaHora ?? 0);
             doc.rect(margin, y, tableW, 5, 'S');
             doc.setFont('helvetica', 'italic');
             doc.setFontSize(7.5);
-            doc.text(`  ↳ ${cb.clientName}`, margin + 5, y + 3.5);
+            doc.text(`  ↳ ${cb.clientName} (${formatNumber(cbTarifa)} €/h)`, margin + 5, y + 3.5);
             doc.text(formatNumber(cb.hours), margin + col1W + col2W - 4, y + 3.5, { align: 'right' });
-            doc.text(formatNumber(cb.hours * data.horas.tarifaHora), margin + tableW - 4, y + 3.5, { align: 'right' });
+            doc.text(formatNumber(cb.hours * cbTarifa), margin + tableW - 4, y + 3.5, { align: 'right' });
             y += 5;
         });
         doc.setFont('helvetica', 'normal');
