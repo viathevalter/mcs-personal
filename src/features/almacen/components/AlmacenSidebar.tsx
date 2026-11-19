@@ -9,6 +9,8 @@ import {
   Menu,
   Smartphone,
   RefreshCcw,
+  HardHat,
+  ShieldCheck,
 } from 'lucide-react';
 import { useSidebar } from '@/features/operacoes/contexts/SidebarContext';
 
@@ -95,6 +97,8 @@ export const AlmacenSidebar: React.FC = () => {
           <SectionLabel label="Inventario & Catálogo" />
           <div className="space-y-1">
             <NavItem to="/almacen/estoque" icon={Boxes} label="Stock & Mínimos" />
+            <NavItem to="/almacen/catalogo-epis" icon={HardHat} label="Catálogo de EPIs" />
+            <NavItem to="/almacen/kits-perfis" icon={ShieldCheck} label="Kits por Perfil" />
           </div>
         </div>
 

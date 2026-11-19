@@ -982,4 +982,166 @@ export const almacenService = {
 
     return rows;
   },
+
+  async createOrUpdateEpi(payload: {
+    id?: string;
+    code?: string | null;
+    name: string;
+    description?: string | null;
+    category?: string | null;
+    unit?: string | null;
+    default_cost?: number | null;
+    is_branded?: boolean;
+    has_sizes?: boolean;
+    size_category?: string | null;
+    status?: string;
+  }): Promise<AlmacenEpi> {
+    if (payload.id) {
+      const { id, ...rest } = payload;
+      const { data, error } = await supabase
+        .schema('core_logistica')
+        .from('epis')
+        .update({ ...rest, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select('*')
+        .single();
+      if (error) throw error;
+      return data as AlmacenEpi;
+    }
+
+    const { data, error } = await supabase
+      .schema('core_logistica')
+      .from('epis')
+      .insert({
+        code: payload.code || null,
+        name: payload.name,
+        description: payload.description || null,
+        category: payload.category || 'Estandar',
+        unit: payload.unit || 'Ud',
+        default_cost: payload.default_cost ?? 0,
+        is_branded: payload.is_branded ?? false,
+        has_sizes: payload.has_sizes ?? false,
+        size_category: payload.size_category || null,
+        status: payload.status || 'active',
+      })
+      .select('*')
+      .single();
+    if (error) throw error;
+    return data as AlmacenEpi;
+  },
+
+  async getJobFunctionsWithKits(): Promise<
+    {
+      id: string;
+      code: string | null;
+      name: string;
+      description: string | null;
+      risk_level: string | null;
+      items: {
+        id: string;
+        epi_id: string;
+        epi_name: string;
+        epi_code: string | null;
+        quantity: number;
+        is_required: boolean;
+        renewal_period_days: number | null;
+      }[];
+    }[]
+  > {
+    const [jfRes, kitRes, epis] = await Promise.all([
+      supabase
+        .schema('core_comercial')
+        .from('job_functions')
+        .select('id, code, name, description, risk_level, status')
+        .neq('status', 'archived')
+        .order('name'),
+      supabase
+        .schema('core_logistica')
+        .from('job_function_epis')
+        .select('id, job_function_id, epi_id, quantity, is_required, renewal_period_days')
+        .neq('status', 'archived'),
+      this.getEpis(),
+    ]);
+    if (jfRes.error) throw jfRes.error;
+
+    const episMap = new Map(epis.map((e) => [e.id, e]));
+    const kitsByJf = new Map<string, any[]>();
+    const seen = new Set<string>();
+
+    for (const row of kitRes.data || []) {
+      const epi = episMap.get(row.epi_id);
+      if (!epi) continue;
+      const dedup = `${row.job_function_id}::${row.epi_id}`;
+      if (seen.has(dedup)) continue;
+      seen.add(dedup);
+
+      const list = kitsByJf.get(row.job_function_id) || [];
+      list.push({
+        id: row.id,
+        epi_id: row.epi_id,
+        epi_name: epi.name,
+        epi_code: epi.code,
+        quantity: row.quantity || 1,
+        is_required: row.is_required ?? true,
+        renewal_period_days: row.renewal_period_days ?? null,
+      });
+      kitsByJf.set(row.job_function_id, list);
+    }
+
+    return (jfRes.data || []).map((jf: any) => ({
+      id: jf.id,
+      code: jf.code || null,
+      name: jf.name,
+      description: jf.description || null,
+      risk_level: jf.risk_level || null,
+      items: kitsByJf.get(jf.id) || [],
+    }));
+  },
+
+  async addEpiToKit(params: {
+    job_function_id: string;
+    epi_id: string;
+    quantity: number;
+    is_required: boolean;
+    renewal_period_days?: number | null;
+  }): Promise<void> {
+    const empresas = await this.getEmpresas();
+    const fallbackEmpresaId = empresas[0]?.id;
+    if (!fallbackEmpresaId) throw new Error('Nenhuma empresa ativa encontrada');
+
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('job_function_epis')
+      .insert({
+        empresa_id: fallbackEmpresaId,
+        job_function_id: params.job_function_id,
+        epi_id: params.epi_id,
+        quantity: params.quantity,
+        is_required: params.is_required,
+        renewal_period_days: params.renewal_period_days ?? null,
+        status: 'active',
+      });
+    if (error) throw error;
+  },
+
+  async updateKitItem(
+    id: string,
+    payload: { quantity?: number; is_required?: boolean; renewal_period_days?: number | null }
+  ): Promise<void> {
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('job_function_epis')
+      .update({ ...payload, updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  },
+
+  async removeKitItem(id: string): Promise<void> {
+    const { error } = await supabase
+      .schema('core_logistica')
+      .from('job_function_epis')
+      .update({ status: 'archived', updated_at: new Date().toISOString() })
+      .eq('id', id);
+    if (error) throw error;
+  },
 };
