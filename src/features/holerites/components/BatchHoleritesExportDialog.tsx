@@ -23,6 +23,7 @@ import { useTaxRules } from '@/features/taxes/hooks';
 import {
     calculateHoleriteAlta,
     calculateHoleriteRegularizacao,
+    resolveWorkerSeguridadInMonth,
     type HoleriteAltaCalculado,
     type HoleriteRegularizacaoCalculado
 } from '../utils/holeriteEngine';
@@ -59,6 +60,7 @@ export function BatchHoleritesExportDialog({
     const [exportScope, setExportScope] = useState<'all_filtered' | 'selected'>(
         selectedWorkerIds.size > 0 ? 'selected' : 'all_filtered'
     );
+    const [modeloBatch, setModeloBatch] = useState<'auto' | 'alta' | 'regularizacao'>('auto');
     const [includeDetails, setIncludeDetails] = useState(true);
     const [isGenerating, setIsGenerating] = useState(false);
     const [progress, setProgress] = useState<{ current: number; total: number; currentName?: string }>({
@@ -81,10 +83,13 @@ export function BatchHoleritesExportDialog({
         ? workers.filter(w => selectedWorkerIds.has(w.id) || Array.from(selectedWorkerIds).some(k => k.startsWith(`${w.id}_`)))
         : workers;
 
-    const totalAlta = targetWorkers.filter(w => {
-        const s = (w.status_seguridad || '').toLowerCase();
-        return s.includes('alta') || (!s.includes('regulariz') && !s.includes('baja') && !s.includes('inativ'));
-    }).length;
+    const isWorkerAltaForExport = (w: any) => {
+        if (modeloBatch === 'alta') return true;
+        if (modeloBatch === 'regularizacao') return false;
+        return resolveWorkerSeguridadInMonth(w, mesReferencia).isAlta;
+    };
+
+    const totalAlta = targetWorkers.filter(w => isWorkerAltaForExport(w)).length;
 
     const totalRegularizacao = targetWorkers.length - totalAlta;
 
@@ -104,8 +109,7 @@ export function BatchHoleritesExportDialog({
                 const w = targetWorkers[i];
                 setProgress({ current: i + 1, total: targetWorkers.length, currentName: w.nome });
 
-                const s = (w.status_seguridad || '').toLowerCase();
-                const isAlta = s.includes('alta') || (!s.includes('regulariz') && !s.includes('baja') && !s.includes('inativ'));
+                const isAlta = isWorkerAltaForExport(w);
 
                 // Horas & Tarifa (Prioridade: Ajuste Manual na Folha -> Faturamento -> Legado)
                 const workerEventos = eventos.filter(e => e.trabalhador_id === w.id);
@@ -311,8 +315,40 @@ export function BatchHoleritesExportDialog({
                     </div>
 
                     {/* Resumo da Categoria */}
-                    <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-lg border text-xs space-y-1.5">
-                        <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between">
+                    <div className="bg-slate-50 dark:bg-slate-900/60 p-3.5 rounded-lg border text-xs space-y-2.5">
+                        <div className="flex items-center justify-between">
+                            <span className="font-semibold text-slate-700 dark:text-slate-300">Modelo do Documento:</span>
+                            <div className="inline-flex rounded-md border bg-white dark:bg-slate-900 p-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setModeloBatch('auto')}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer ${
+                                        modeloBatch === 'auto' ? 'bg-indigo-600 text-white' : 'text-slate-600 dark:text-slate-300'
+                                    }`}
+                                >
+                                    Automático
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModeloBatch('alta')}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer ${
+                                        modeloBatch === 'alta' ? 'bg-emerald-600 text-white' : 'text-slate-600 dark:text-slate-300'
+                                    }`}
+                                >
+                                    Só Alta
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModeloBatch('regularizacao')}
+                                    className={`px-2 py-0.5 rounded text-[11px] font-semibold cursor-pointer ${
+                                        modeloBatch === 'regularizacao' ? 'bg-amber-500 text-white' : 'text-slate-600 dark:text-slate-300'
+                                    }`}
+                                >
+                                    Só Demonstrativo
+                                </button>
+                            </div>
+                        </div>
+                        <p className="font-semibold text-slate-700 dark:text-slate-300 flex items-center justify-between pt-1 border-t">
                             <span>Total a Processar:</span>
                             <span className="font-bold text-slate-900 dark:text-slate-100">{targetWorkers.length} holerites</span>
                         </p>

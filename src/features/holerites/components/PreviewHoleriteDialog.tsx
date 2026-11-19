@@ -18,6 +18,7 @@ import { useTaxRules } from '@/features/taxes/hooks';
 import {
     calculateHoleriteAlta,
     calculateHoleriteRegularizacao,
+    resolveWorkerSeguridadInMonth,
     type HoleriteAltaCalculado,
     type HoleriteRegularizacaoCalculado
 } from '../utils/holeriteEngine';
@@ -52,8 +53,16 @@ export function PreviewHoleriteDialog({
 }: PreviewHoleriteDialogProps) {
     const [open, setOpen] = useState(false);
     const [activeTab, setActiveTab] = useState<'recibo' | 'detalhes'>('recibo');
+    const [modeloOverride, setModeloOverride] = useState<'auto' | 'alta' | 'regularizacao'>('auto');
     const { empresas } = useEmpresa();
     const { data: taxRules } = useTaxRules();
+
+    React.useEffect(() => {
+        if (open) {
+            setModeloOverride('auto');
+            setActiveTab('recibo');
+        }
+    }, [open, mesReferencia, worker.id]);
 
     const ssTrabalhadorRule = taxRules?.find(r => r.tax_type === 'SS_TRABALHADOR' && r.is_active);
     const customParams = React.useMemo(() => {
@@ -63,9 +72,12 @@ export function PreviewHoleriteDialog({
         return {};
     }, [ssTrabalhadorRule]);
 
-    // Determina se o trabalhador é de ALTA ou EM REGULARIZAÇÃO
-    const statusSeguridad = (worker.status_seguridad || '').toLowerCase();
-    const isAlta = statusSeguridad.includes('alta') || (!statusSeguridad.includes('regulariz') && !statusSeguridad.includes('baja') && !statusSeguridad.includes('inativ'));
+    // Determina se o trabalhador era de ALTA ou EM REGULARIZAÇÃO na competência selecionada (respeitando data_alta_seguridad), com opção de alternar manualmente o modelo
+    const seguridadMonthInfo = React.useMemo(
+        () => resolveWorkerSeguridadInMonth(worker, mesReferencia),
+        [worker, mesReferencia]
+    );
+    const isAlta = modeloOverride === 'auto' ? seguridadMonthInfo.isAlta : modeloOverride === 'alta';
 
     // 1. Extração das Horas (Prioridade: Ajuste Manual na Folha -> Horas Apuradas na Folha -> Legado)
     const manualHorasEvento = eventosMensais.find(e => e.categoria === 'ajuste_manual_horas');
@@ -93,8 +105,8 @@ export function PreviewHoleriteDialog({
         ...(extraDiscounts || [])
     ];
 
-    // Executa os motores de cálculo
-    const altaData: HoleriteAltaCalculado | null = isAlta ? calculateHoleriteAlta({
+    // Executa os dois motores de cálculo para permitir alternância instantânea entre Modelo Alta e Modelo Demonstrativo (Regularização)
+    const altaData: HoleriteAltaCalculado = calculateHoleriteAlta({
         worker,
         horasTrabalhadas,
         tarifaHora,
@@ -105,9 +117,9 @@ export function PreviewHoleriteDialog({
         empresas,
         workerMonthlyActivity,
         customParams
-    }) : null;
+    });
 
-    const regularizacaoData: HoleriteRegularizacaoCalculado | null = !isAlta ? calculateHoleriteRegularizacao({
+    const regularizacaoData: HoleriteRegularizacaoCalculado = calculateHoleriteRegularizacao({
         worker,
         horasTrabalhadas,
         tarifaHora,
@@ -116,7 +128,7 @@ export function PreviewHoleriteDialog({
         mesReferencia,
         empresas,
         workerMonthlyActivity
-    }) : null;
+    });
 
     const handleDownloadPdf = () => {
         try {
@@ -155,43 +167,78 @@ export function PreviewHoleriteDialog({
             </DialogTrigger>
             <DialogContent className="max-w-4xl h-[90vh] flex flex-col p-0 overflow-hidden bg-slate-100 dark:bg-slate-950">
                 {/* Top Action Bar */}
-                <div className="bg-white dark:bg-slate-900 border-b px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shrink-0">
-                    <div className="flex items-center gap-3">
-                        <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
-                            <FileText className="h-5 w-5" />
-                        </div>
-                        <div>
-                            <div className="flex items-center gap-2">
-                                <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
-                                    {isAlta ? 'Recibo de Vencimento Oficial' : 'Demonstrativo de Serviços Prestados'}
-                                </DialogTitle>
-                                <Badge variant={isAlta ? 'default' : 'secondary'} className={isAlta ? 'bg-emerald-600 text-white text-[10px]' : 'bg-amber-100 text-amber-900 text-[10px]'}>
-                                    {isAlta ? 'Destacado / Alta' : 'Em Regularização'}
-                                </Badge>
+                <div className="bg-white dark:bg-slate-900 border-b px-6 py-3.5 flex flex-col gap-3 shrink-0">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-indigo-50 dark:bg-indigo-950/60 rounded-lg text-indigo-600 dark:text-indigo-400">
+                                <FileText className="h-5 w-5" />
                             </div>
-                            <p className="text-xs text-slate-500">
-                                {worker.nome} • {worker.cod_colab || 'Sem código'} • {mesReferencia}
-                            </p>
+                            <div>
+                                <div className="flex items-center gap-2 flex-wrap">
+                                    <DialogTitle className="text-base font-bold text-slate-900 dark:text-slate-100">
+                                        {isAlta ? 'Recibo de Vencimento Oficial' : 'Demonstrativo de Serviços Prestados'}
+                                    </DialogTitle>
+                                    <Badge variant={isAlta ? 'default' : 'secondary'} className={isAlta ? 'bg-emerald-600 text-white text-[10px]' : 'bg-amber-100 text-amber-900 text-[10px]'}>
+                                        {isAlta ? 'Destacado / Alta' : 'Em Regularização'}
+                                    </Badge>
+                                    {seguridadMonthInfo.wasBeforeAlta && seguridadMonthInfo.altaDateIso && (
+                                        <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded">
+                                            Alta em {seguridadMonthInfo.altaDateIso.split('-').reverse().join('/')}
+                                        </span>
+                                    )}
+                                </div>
+                                <p className="text-xs text-slate-500">
+                                    {worker.nome} • {worker.cod_colab || 'Sem código'} • Competência {mesReferencia}
+                                </p>
+                            </div>
                         </div>
-                    </div>
 
-                    <div className="flex items-center gap-2">
-                        {isAlta && (
-                            <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)} className="mr-2">
-                                <TabsList className="h-8">
-                                    <TabsTrigger value="recibo" className="text-xs px-3">Recibo Oficial</TabsTrigger>
-                                    <TabsTrigger value="detalhes" className="text-xs px-3">Demonstrativo Detalhado</TabsTrigger>
-                                </TabsList>
-                            </Tabs>
-                        )}
-                        <Button size="sm" variant="outline" onClick={handlePrint} className="h-8 text-xs">
-                            <Printer className="mr-1.5 h-3.5 w-3.5" />
-                            Imprimir
-                        </Button>
-                        <Button size="sm" onClick={handleDownloadPdf} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-semibold">
-                            <Download className="mr-1.5 h-3.5 w-3.5" />
-                            Baixar PDF
-                        </Button>
+                        <div className="flex items-center gap-2 flex-wrap">
+                            {/* Seletor de Modelo (Alta vs Demonstrativo Regularização) */}
+                            <div className="inline-flex items-center rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800 p-0.5">
+                                <button
+                                    type="button"
+                                    onClick={() => setModeloOverride('alta')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                                        isAlta
+                                            ? 'bg-emerald-600 text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                                    }`}
+                                    title="Visualizar e baixar no formato Recibo de Vencimento Oficial (Alta)"
+                                >
+                                    Modelo Alta
+                                </button>
+                                <button
+                                    type="button"
+                                    onClick={() => setModeloOverride('regularizacao')}
+                                    className={`px-2.5 py-1 rounded-md text-xs font-semibold transition-all cursor-pointer ${
+                                        !isAlta
+                                            ? 'bg-amber-500 text-white shadow-xs'
+                                            : 'text-slate-600 dark:text-slate-300 hover:text-slate-900'
+                                    }`}
+                                    title="Visualizar e baixar no formato Demonstrativo de Serviços Prestados (Regularização)"
+                                >
+                                    Modelo Demonstrativo
+                                </button>
+                            </div>
+
+                            {isAlta && (
+                                <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as any)}>
+                                    <TabsList className="h-8">
+                                        <TabsTrigger value="recibo" className="text-xs px-2.5">Recibo Oficial</TabsTrigger>
+                                        <TabsTrigger value="detalhes" className="text-xs px-2.5">Demonstrativo Detalhado</TabsTrigger>
+                                    </TabsList>
+                                </Tabs>
+                            )}
+                            <Button size="sm" variant="outline" onClick={handlePrint} className="h-8 text-xs">
+                                <Printer className="mr-1.5 h-3.5 w-3.5" />
+                                Imprimir
+                            </Button>
+                            <Button size="sm" onClick={handleDownloadPdf} className="h-8 text-xs bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-semibold">
+                                <Download className="mr-1.5 h-3.5 w-3.5" />
+                                Baixar PDF
+                            </Button>
+                        </div>
                     </div>
                 </div>
 

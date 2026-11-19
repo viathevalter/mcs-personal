@@ -6,6 +6,79 @@
 import type { Worker } from '@/shared/types/corePersonal';
 import type { Empresa } from '@/shared/types/coreCommon';
 
+export function formatDateToMadridIso(val: any): string {
+    if (!val) return '';
+    const str = String(val).trim();
+    if (!str) return '';
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) return str;
+
+    const slashParts = str.split('/');
+    if (slashParts.length === 3) {
+        return `${slashParts[2].substring(0, 4)}-${slashParts[1].padStart(2, '0')}-${slashParts[0].padStart(2, '0')}`;
+    }
+
+    const d = new Date(val);
+    if (isNaN(d.getTime())) return str.substring(0, 10);
+    try {
+        const formatter = new Intl.DateTimeFormat('en-CA', {
+            timeZone: 'Europe/Madrid',
+            year: 'numeric',
+            month: '2-digit',
+            day: '2-digit'
+        });
+        return formatter.format(d);
+    } catch {
+        const copy = new Date(d.getTime() + 3 * 3600 * 1000);
+        return copy.toISOString().split('T')[0];
+    }
+}
+
+export function resolveWorkerSeguridadInMonth(
+    worker: any,
+    mesReferencia: string
+): {
+    isAlta: boolean;
+    effectiveStatusLabel: string;
+    wasBeforeAlta: boolean;
+    altaDateIso?: string;
+} {
+    const cleanMonth = (mesReferencia || '').substring(0, 7);
+    const rawStatus = (worker?.status_seguridad || '').trim();
+    const statusLower = rawStatus.toLowerCase();
+
+    const altaDateIso = worker?.data_alta_seguridad ? formatDateToMadridIso(worker.data_alta_seguridad) : '';
+    const altaMonth = altaDateIso ? altaDateIso.substring(0, 7) : '';
+
+    // 1. If the worker's data_alta_seguridad is in a FUTURE month relative to mesReferencia
+    // (e.g., Alta occurred on 2026-11-05, and we are viewing 2026-10, 2026-09, or 2026-08):
+    // Then during mesReferencia the worker was still in Regularização!
+    if (altaMonth && cleanMonth && cleanMonth < altaMonth) {
+        return {
+            isAlta: false,
+            effectiveStatusLabel: 'Em Regularização',
+            wasBeforeAlta: true,
+            altaDateIso
+        };
+    }
+
+    // 2. Normal evaluation for months >= altaMonth (or when no altaMonth is set)
+    const isCurrentlyAlta =
+        (statusLower.includes('alta') && !statusLower.includes('pendente')) ||
+        (!statusLower.includes('regulariz') &&
+            !statusLower.includes('pendente') &&
+            !statusLower.includes('baja') &&
+            !statusLower.includes('baixa') &&
+            !statusLower.includes('inativ') &&
+            Boolean(rawStatus));
+
+    return {
+        isAlta: isCurrentlyAlta,
+        effectiveStatusLabel: rawStatus || (isCurrentlyAlta ? 'Alta' : 'Em Regularização'),
+        wasBeforeAlta: false,
+        altaDateIso: altaDateIso || undefined
+    };
+}
+
 export interface HoleriteParams {
     salarioBasePortugal: number;          // Padrão: 920.00
     ssTaxaTrabalhador: number;            // Padrão: 0.11 (11%)
