@@ -1093,6 +1093,19 @@ export function LeadsPage() {
       }
     });
     const priority = [
+      'CASTILLA Y LEON - Alba',
+      'Sin Correo - CASTILLA Y LEON - Alba',
+      'Sem E-mail - CASTILLA Y LEON - Alba',
+      'Mailing Alba - Castilla y León 2026',
+      'Mailing Alba Inéditos - Castilla y León 2026',
+      'Ávila - Alba',
+      'Burgos - Alba',
+      'León - Alba',
+      'Salamanca - Alba',
+      'Segovia - Alba',
+      'Soria - Alba',
+      'Valladolid - Alba',
+      'Zamora - Alba',
       'BUSCA DE CLIENTES CATALUNYA - Ayslan',
       'Sin Correo - BUSCA DE CLIENTES CATALUNYA - Ayslan',
       'Sem E-mail - BUSCA DE CLIENTES CATALUNYA - Ayslan',

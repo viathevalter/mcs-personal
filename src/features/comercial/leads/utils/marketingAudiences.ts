@@ -1244,6 +1244,47 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // ALBA (ESPANHA - TRIÂNGULO)
   // ==========================================
   {
+    id: 'aud_triangulo_alba_ineditos_castilla_y_leon_2026',
+    name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Castilla y León (134 leads)',
+    leadCount: 134,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Alba Inéditos - Castilla y León 2026',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_castilla_y_leon_completo_2026',
+    name: '🎯 🇪🇸 Alba (Triangulo) - PDF Castilla y León Completo [Tag: CASTILLA Y LEON - Alba] (231 leads)',
+    leadCount: 231,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['CASTILLA Y LEON - Alba'],
+      tagKeyword: 'CASTILLA Y LEON - Alba',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
+    id: 'aud_triangulo_alba_sin_correo_castilla_y_leon_2026',
+    name: '📞 🇪🇸 Alba (Triangulo) - Sin Correo p/ Marcador (Castilla y León - 62 leads)',
+    leadCount: 62,
+    ownerKey: 'alba',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Sin Correo - CASTILLA Y LEON - Alba'],
+      tagKeyword: 'Sin Correo - CASTILLA Y LEON - Alba',
+      excludeTagKeyword: '',
+      excludeProposals: false,
+    },
+  },
+  {
     id: 'aud_triangulo_alba_ineditos_castilla_la_mancha_2026',
     name: '🚀 🇪🇸 Alba (Triangulo) - Inéditos PDF Castilla-La Mancha (54 leads)',
     leadCount: 54,
