@@ -207,6 +207,7 @@ export interface DemandaPedidoAlmacen {
   site_contact_phone: string | null;
   expected_start_date: string | null;
   operational_status: string | null;
+  almacen_concluido?: boolean;
   workers: DemandaWorkerAlmacen[];
   pending_count: number;
   total_workers: number;
