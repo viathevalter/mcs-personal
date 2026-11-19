@@ -142,6 +142,7 @@ import { KitsPerfisAlmacenPage } from '../features/almacen/pages/KitsPerfisAlmac
 import { TamanhosAlmacenPage } from '../features/almacen/pages/TamanhosAlmacenPage';
 import { MobilePickingPage } from '../features/almacen/pages/MobilePickingPage';
 import { PublicAlmacenSignPage } from '../features/almacen/pages/PublicAlmacenSignPage';
+import { MobileAlmacenLayout } from '../features/almacen/layout/MobileAlmacenLayout';
 
 import { FaturamentoLayout } from '../features/faturamento/layout/FaturamentoLayout';
 import { FaturamentoDashboard } from '../features/faturamento/pages/FaturamentoDashboard';
@@ -610,6 +611,16 @@ export const router = createBrowserRouter([
                     },
                     {
                         path: 'mobile',
+                        element: <Navigate to="/almacen-app" replace />
+                    }
+                ]
+            },
+            {
+                path: '/almacen-app',
+                element: <MobileAlmacenLayout />,
+                children: [
+                    {
+                        index: true,
                         element: <MobilePickingPage />
                     }
                 ]

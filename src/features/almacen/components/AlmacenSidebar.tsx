@@ -107,7 +107,7 @@ export const AlmacenSidebar: React.FC = () => {
         <div>
           <SectionLabel label="Operador Móvil (Fase 2)" />
           <div className="space-y-1">
-            <NavItem to="/almacen/mobile" icon={Smartphone} label="Vista Picking Móvil" />
+            <NavItem to="/almacen-app" icon={Smartphone} label="App Móvil (/almacen-app)" />
           </div>
         </div>
       </div>
