@@ -1830,7 +1830,11 @@ export function useMutateDialer() {
       if (outcome === 'answered_rejected') {
         leadUpdatePayload.do_not_call = true;
         leadUpdatePayload.do_not_call_reason = rejectionReason || 'Recusado na prospecção telefônica';
-      } else if (outcome === 'answered_callback' || outcome === 'answered_converted') {
+      } else if (
+        outcome === 'answered_callback' ||
+        outcome === 'answered_converted' ||
+        outcome === 'answered_interested'
+      ) {
         try {
           const { data: leadRow } = await supabase
             .schema('core_comercial')
