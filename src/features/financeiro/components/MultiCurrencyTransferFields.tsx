@@ -1,13 +1,13 @@
 import React, { useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { formatCurrencyByCode, getMoedaInfo } from '../services/caixaService';
-import { ArrowRightLeft, AlertTriangle } from 'lucide-react';
+import { ArrowRightLeft } from 'lucide-react';
 
 export interface MultiCurrencyTransferValue {
-    valorEur: string;
-    taxaBancariaEur: string;
-    valorLocal: string;
-    taxaCambio: string;
+    valorEur: string;        // Valor efetivamente transferido/convertido em EUR (ex: 200.00)
+    taxaBancariaEur: string; // Taxa bancária acrescida ao desembolso (ex: 5.20) -> Total desembolsado = 205.20
+    valorLocal: string;      // Valor recebido na moeda local (ex: 891.40 PLN)
+    taxaCambio: string;      // Cotação (1 EUR = X moeda local)
 }
 
 interface MultiCurrencyTransferFieldsProps {
@@ -32,42 +32,32 @@ export const MultiCurrencyTransferFields: React.FC<MultiCurrencyTransferFieldsPr
     const feeNum = parseFloat(value.taxaBancariaEur) || 0;
     const localNum = parseFloat(value.valorLocal) || 0;
     const rateNum = parseFloat(value.taxaCambio) || 0;
-    const netEur = Math.max(0, eurNum - feeNum);
-    const effectiveRate = eurNum > 0 && localNum > 0 ? localNum / eurNum : 0;
-    const feeInvalid = eurNum > 0 && feeNum >= eurNum;
+    const totalDesembolsoEur = eurNum + feeNum;
+    const effectiveRate = totalDesembolsoEur > 0 && localNum > 0 ? localNum / totalDesembolsoEur : 0;
 
     const handleEurChange = (raw: string) => {
         const nextEur = parseFloat(raw) || 0;
-        const nextNet = Math.max(0, nextEur - feeNum);
         const next: MultiCurrencyTransferValue = { ...value, valorEur: raw };
 
-        if (lastEdited === 'local' && localNum > 0 && nextNet > 0) {
-            next.taxaCambio = (localNum / nextNet).toFixed(4);
+        if (lastEdited === 'local' && localNum > 0 && nextEur > 0) {
+            next.taxaCambio = (localNum / nextEur).toFixed(4);
         } else if (lastEdited === 'rate' && rateNum > 0) {
-            next.valorLocal = (nextNet * rateNum).toFixed(2);
+            next.valorLocal = (nextEur * rateNum).toFixed(2);
         }
         onChange(next);
     };
 
     const handleFeeChange = (raw: string) => {
-        const nextFee = parseFloat(raw) || 0;
-        const nextNet = Math.max(0, eurNum - nextFee);
-        const next: MultiCurrencyTransferValue = { ...value, taxaBancariaEur: raw };
-
-        if (lastEdited === 'local' && localNum > 0 && nextNet > 0) {
-            next.taxaCambio = (localNum / nextNet).toFixed(4);
-        } else if (lastEdited === 'rate' && rateNum > 0) {
-            next.valorLocal = (nextNet * rateNum).toFixed(2);
-        }
-        onChange(next);
+        // A taxa bancária soma ao desembolso total (despesa bancária), sem alterar o valor transferido nem o valor recebido em moeda local
+        onChange({ ...value, taxaBancariaEur: raw });
     };
 
     const handleLocalChange = (raw: string) => {
         setLastEdited('local');
         const nextLocal = parseFloat(raw) || 0;
         const next: MultiCurrencyTransferValue = { ...value, valorLocal: raw };
-        if (nextLocal > 0 && netEur > 0) {
-            next.taxaCambio = (nextLocal / netEur).toFixed(4);
+        if (nextLocal > 0 && eurNum > 0) {
+            next.taxaCambio = (nextLocal / eurNum).toFixed(4);
         } else if (!raw) {
             next.taxaCambio = '';
         }
@@ -78,8 +68,8 @@ export const MultiCurrencyTransferFields: React.FC<MultiCurrencyTransferFieldsPr
         setLastEdited('rate');
         const nextRate = parseFloat(raw) || 0;
         const next: MultiCurrencyTransferValue = { ...value, taxaCambio: raw };
-        if (nextRate > 0 && netEur > 0) {
-            next.valorLocal = (netEur * nextRate).toFixed(2);
+        if (nextRate > 0 && eurNum > 0) {
+            next.valorLocal = (eurNum * nextRate).toFixed(2);
         } else if (!raw) {
             next.valorLocal = '';
         }
@@ -101,7 +91,7 @@ export const MultiCurrencyTransferFields: React.FC<MultiCurrencyTransferFieldsPr
             <div className="grid grid-cols-2 gap-2.5">
                 <div>
                     <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                        Total Transferido (€) {required ? '*' : ''}
+                        Valor Transferido (€) {required ? '*' : ''}
                     </label>
                     <Input
                         type="number"
@@ -118,7 +108,7 @@ export const MultiCurrencyTransferFields: React.FC<MultiCurrencyTransferFieldsPr
 
                 <div>
                     <label className="text-[11px] font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                        Taxa Bancária (€) <span className="font-normal text-slate-400">(opcional)</span>
+                        + Taxa Bancária (€) <span className="font-normal text-slate-400">(opcional)</span>
                     </label>
                     <Input
                         type="number"
@@ -165,22 +155,15 @@ export const MultiCurrencyTransferFields: React.FC<MultiCurrencyTransferFieldsPr
                 </div>
             </div>
 
-            {feeInvalid && (
-                <div className="flex items-center gap-1.5 text-[11px] text-red-600 font-medium">
-                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-                    A taxa bancária deve ser menor que o valor transferido.
-                </div>
-            )}
-
-            {(eurNum > 0 || localNum > 0) && !feeInvalid && (
+            {(eurNum > 0 || localNum > 0) && (
                 <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border border-amber-200/80 dark:border-amber-900/50 text-[11px] space-y-1">
                     <div className="flex justify-between text-slate-600 dark:text-slate-300">
-                        <span>Débito no banco:</span>
+                        <span>Desembolso total no banco:</span>
                         <span className="font-mono font-semibold text-slate-900 dark:text-slate-100">
-                            {formatCurrencyByCode(eurNum, 'EUR')}
+                            {formatCurrencyByCode(totalDesembolsoEur, 'EUR')}
                             {feeNum > 0 && (
                                 <span className="text-[10px] font-normal text-slate-400 ml-1">
-                                    ({formatCurrencyByCode(netEur, 'EUR')} líq. + {formatCurrencyByCode(feeNum, 'EUR')} taxa)
+                                    ({formatCurrencyByCode(eurNum, 'EUR')} + {formatCurrencyByCode(feeNum, 'EUR')} taxa)
                                 </span>
                             )}
                         </span>
@@ -193,7 +176,7 @@ export const MultiCurrencyTransferFields: React.FC<MultiCurrencyTransferFieldsPr
                     </div>
                     {rateNum > 0 && (
                         <div className="flex justify-between text-[10px] text-slate-400 pt-1 border-t border-slate-100 dark:border-slate-800">
-                            <span>Câmbio líquido: 1 EUR = {rateNum.toFixed(4)} {moeda}</span>
+                            <span>Cotação: 1 EUR = {rateNum.toFixed(4)} {moeda}</span>
                             {feeNum > 0 && effectiveRate > 0 && (
                                 <span>Efetivo c/ taxa: {effectiveRate.toFixed(4)}</span>
                             )}
