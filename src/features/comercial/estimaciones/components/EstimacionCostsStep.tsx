@@ -38,6 +38,11 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
       cost += (Number(item.base_cost_hour) + cssh) * Number(item.total_hours);
       rev += Number(item.sell_rate_hour) * Number(item.total_hours);
     });
+
+    rev += (data.additional_revenues || []).reduce(
+      (sum: number, r: any) => sum + Number(r.amount || 0),
+      0
+    );
     
     newCosts.forEach((c: any) => {
       if (c.cost_category === 'social_security') return;
@@ -69,6 +74,11 @@ export function EstimacionCostsStep({ data, onChange }: Props) {
       cost += (Number(item.base_cost_hour) + cssh) * Number(item.total_hours);
       rev += Number(item.sell_rate_hour) * Number(item.total_hours);
     });
+
+    rev += (data.additional_revenues || []).reduce(
+      (sum: number, r: any) => sum + Number(r.amount || 0),
+      0
+    );
     
     newCosts.forEach((c: any) => {
       if (c.cost_category === 'social_security') return;

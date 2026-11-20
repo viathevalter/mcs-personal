@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
 import { supabase } from '@/shared/supabase/client';
 import { detectLeadCountry, COUNTRY_UUIDS, COUNTRY_LABELS } from '@/features/comercial/leads/utils/leadCountryUtils';
+import { countWeekdays, countTotalDays, getWeekdayCountBreakdown } from '../utils/estimationCalculations';
 
 const countryLanguageMap: Record<string, string> = {
   '2f487ab4-c7f5-4b70-9c37-995dc4cda125': 'es', // Espanha
@@ -29,69 +30,6 @@ const countryLanguageMap: Record<string, string> = {
   '86a91f2d-6e94-4085-8cce-4e17197979e2': 'it',
   '690649b9-6bab-4605-8b3e-cbe4c4af73a3': 'fr',
 };
-
-// Utility functions for date calculations
-function countWeekdays(startDateStr: string, endDateStr: string): number {
-  if (!startDateStr || !endDateStr) return 0;
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
-  if (start > end) return 0;
-  
-  let count = 0;
-  let cur = new Date(start);
-  while (cur <= end) {
-    const day = cur.getDay();
-    if (day !== 0 && day !== 6) { // 0 = Sunday, 6 = Saturday
-      count++;
-    }
-    cur.setDate(cur.getDate() + 1);
-  }
-  return count;
-}
-
-function countTotalDays(startDateStr: string, endDateStr: string): number {
-  if (!startDateStr || !endDateStr) return 0;
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 0;
-  if (start > end) return 0;
-  
-  const diffTime = Math.abs(end.getTime() - start.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1; // inclusive
-  return diffDays;
-}
-
-function getWeekdayCountBreakdown(startDateStr: string, endDateStr: string) {
-  const breakdown = {
-    lunes: 0,
-    martes: 0,
-    miercoles: 0,
-    jueves: 0,
-    viernes: 0,
-    sabado: 0,
-    domingo: 0,
-  };
-  if (!startDateStr || !endDateStr) return breakdown;
-  const start = new Date(startDateStr);
-  const end = new Date(endDateStr);
-  if (isNaN(start.getTime()) || isNaN(end.getTime())) return breakdown;
-  if (start > end) return breakdown;
-
-  let cur = new Date(start);
-  while (cur <= end) {
-    const day = cur.getDay();
-    if (day === 1) breakdown.lunes++;
-    else if (day === 2) breakdown.martes++;
-    else if (day === 3) breakdown.miercoles++;
-    else if (day === 4) breakdown.jueves++;
-    else if (day === 5) breakdown.viernes++;
-    else if (day === 6) breakdown.sabado++;
-    else if (day === 0) breakdown.domingo++;
-    cur.setDate(cur.getDate() + 1);
-  }
-  return breakdown;
-}
 
 interface Props {
   data: any;

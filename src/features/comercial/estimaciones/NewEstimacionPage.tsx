@@ -50,9 +50,15 @@ import { EstimacionCostsStep } from './components/EstimacionCostsStep';
 import { EstimacionReviewStep } from './components/EstimacionReviewStep';
 import { supabase } from '@/shared/supabase/client';
 import { calculateViability } from './utils/viabilityEngine';
+import { recalculateEstimationPayload } from './utils/estimationCalculations';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { useClientSites } from '@/features/master-data/client-sites/hooks/useClientSites';
+import { useCountries } from '@/features/master-data/locations/hooks/useLocations';
+import { useSpainProvinces } from './hooks/useSpainProvinces';
+import { useLodgingRates } from './hooks/useLodgingRates';
+import { useCountryTaxParameters } from './hooks/useCountryTaxParameters';
+import { useJobFunctions, useAllJobFunctionEpis } from './hooks/useJobFunctions';
 import { toast } from 'sonner';
 
 // Helper to parse lead notes string into key-value budget request details
@@ -160,8 +166,23 @@ export function NewEstimacionPage() {
   const [isReviewModalOpen, setIsReviewModalOpen] = useState(false);
   const [reviewJustification, setReviewJustification] = useState('');
 
-  const { data: sites = [] } = useClientSites(payload.client_id || undefined);
+  const { data: sites = [], isLoading: isLoadingSites } = useClientSites(payload.client_id || undefined);
+  const { data: countries = [], isLoading: isLoadingCountries } = useCountries();
+  const { data: spainProvinces = [], isLoading: isLoadingProvinces } = useSpainProvinces();
+  const { data: lodgingRates = [], isLoading: isLoadingLodgingRates } = useLodgingRates();
+  const { data: taxParams = [], isLoading: isLoadingTaxParams } = useCountryTaxParameters();
+  const { data: jobFunctions = [], isLoading: isLoadingJobFunctions } = useJobFunctions();
+  const { data: jobFunctionEpis = [], isLoading: isLoadingJobFunctionEpis } = useAllJobFunctionEpis();
   const { data: estimacion, isLoading } = useEstimacionDetail(id);
+
+  const allCalcRefsLoaded =
+    !isLoadingProvinces &&
+    (!payload.client_id || !isLoadingSites) &&
+    !isLoadingCountries &&
+    !isLoadingLodgingRates &&
+    !isLoadingTaxParams &&
+    !isLoadingJobFunctions &&
+    !isLoadingJobFunctionEpis;
 
   // Fetch Attached Lead from URL search parameter
   useEffect(() => {
@@ -484,6 +505,71 @@ export function NewEstimacionPage() {
     setPayload((prev: any) => ({ ...prev, ...data }));
   };
 
+  // Recalcular horas, custos automáticos e totais sempre que datas, jornada, localidade ou receitas extras mudarem em qualquer etapa
+  useEffect(() => {
+    if (!allCalcRefsLoaded || !payload.items || payload.items.length === 0) return;
+
+    const result = recalculateEstimationPayload({
+      data: payload,
+      spainProvinces,
+      sites,
+      countries,
+      lodgingRates,
+      taxParams,
+      jobFunctions,
+      jobFunctionEpis,
+      t,
+    });
+
+    const currentAutoCosts = (payload.costs || []).filter((c: any) => c.is_auto);
+    const newAutoCosts = result.costs.filter((c: any) => c.is_auto);
+
+    const needsUpdate =
+      JSON.stringify(currentAutoCosts) !== JSON.stringify(newAutoCosts) ||
+      JSON.stringify(payload.items.map((i: any) => i.total_hours)) !== JSON.stringify(result.items.map((i: any) => i.total_hours)) ||
+      JSON.stringify(payload.items.map((i: any) => i.ss_cost_hour)) !== JSON.stringify(result.items.map((i: any) => i.ss_cost_hour)) ||
+      payload.total_estimated_cost !== result.total_estimated_cost ||
+      payload.total_estimated_revenue !== result.total_estimated_revenue ||
+      payload.estimated_margin_percent !== result.estimated_margin_percent;
+
+    if (needsUpdate) {
+      setPayload((prev: any) => ({
+        ...prev,
+        items: result.items,
+        costs: result.costs,
+        total_estimated_cost: result.total_estimated_cost,
+        total_estimated_revenue: result.total_estimated_revenue,
+        estimated_margin_percent: result.estimated_margin_percent,
+      }));
+    }
+  }, [
+    allCalcRefsLoaded,
+    payload.expected_start_date,
+    payload.expected_end_date,
+    payload.items?.length,
+    payload.country_id,
+    payload.client_site_id,
+    payload.postal_code,
+    payload.estimation_type,
+    payload.includes_zentralcom,
+    payload.work_lunes,
+    payload.work_martes,
+    payload.work_miercoles,
+    payload.work_jueves,
+    payload.work_viernes,
+    payload.work_sabado,
+    payload.work_domingo,
+    payload.hours_weekday,
+    payload.hours_lunes,
+    payload.hours_martes,
+    payload.hours_miercoles,
+    payload.hours_jueves,
+    payload.hours_viernes,
+    payload.hours_sabado,
+    payload.hours_domingo,
+    payload.additional_revenues,
+  ]);
+
   const handleNext = () => {
     if (currentStep === 1) {
       if (payload.client_id) {
@@ -529,48 +615,68 @@ export function NewEstimacionPage() {
       return isUuid ? val.trim() : null;
     };
 
+    const syncedCalc =
+      allCalcRefsLoaded && payload.items && payload.items.length > 0
+        ? recalculateEstimationPayload({
+            data: payload,
+            spainProvinces,
+            sites,
+            countries,
+            lodgingRates,
+            taxParams,
+            jobFunctions,
+            jobFunctionEpis,
+            t,
+          })
+        : null;
+
+    const effectivePayload = syncedCalc ? { ...payload, ...syncedCalc } : payload;
+    const effectiveViability = syncedCalc
+      ? calculateViability(effectivePayload, selectedClientData, comercialSettings, t, jobFunctionRateMap)
+      : viability;
+
     const finalPayload = {
-      ...payload,
-      pricing_model: payload.pricing_model || 'hourly',
-      fixed_price_notes: payload.fixed_price_notes || null,
-      empresa_id: cleanUuid(payload.empresa_id || selectedEmpresaId),
+      ...effectivePayload,
+      pricing_model: effectivePayload.pricing_model || 'hourly',
+      fixed_price_notes: effectivePayload.fixed_price_notes || null,
+      empresa_id: cleanUuid(effectivePayload.empresa_id || selectedEmpresaId),
       status,
-      commercial_owner_id: cleanUuid(payload.commercial_owner_id || estimacion?.commercial_owner_id || user?.id),
-      created_by: cleanUuid(payload.created_by || estimacion?.created_by || user?.id),
+      commercial_owner_id: cleanUuid(effectivePayload.commercial_owner_id || estimacion?.commercial_owner_id || user?.id),
+      created_by: cleanUuid(effectivePayload.created_by || estimacion?.created_by || user?.id),
       user_id: cleanUuid(user?.id),
       review_justification: customJustification || reviewJustification || null,
       review_requested_at: status === 'review' ? new Date().toISOString() : null,
-      viability_reasons: viability.reasons || [],
-      client_id: cleanUuid(payload.client_id),
-      lead_id: cleanUuid(payload.lead_id),
-      client_site_id: cleanUuid(payload.client_site_id),
-      country_id: cleanUuid(payload.country_id),
-      payment_term_id: cleanUuid(payload.payment_term_id),
-      postal_code: payload.postal_code || null,
-      expected_start_date: payload.expected_start_date || null,
-      expected_end_date: payload.expected_end_date || null,
-      validity_date: payload.validity_date || null,
-      document_language: payload.document_language || 'pt',
-      work_lunes: payload.work_lunes !== false,
-      work_martes: payload.work_martes !== false,
-      work_miercoles: payload.work_miercoles !== false,
-      work_jueves: payload.work_jueves !== false,
-      work_viernes: payload.work_viernes !== false,
-      work_sabado: !!payload.work_sabado,
-      work_domingo: !!payload.work_domingo,
-      hours_weekday: Number(payload.hours_weekday ?? 8.0),
-      hours_lunes: Number(payload.hours_lunes ?? payload.hours_weekday ?? 8.0),
-      hours_martes: Number(payload.hours_martes ?? payload.hours_weekday ?? 8.0),
-      hours_miercoles: Number(payload.hours_miercoles ?? payload.hours_weekday ?? 8.0),
-      hours_jueves: Number(payload.hours_jueves ?? payload.hours_weekday ?? 8.0),
-      hours_viernes: Number(payload.hours_viernes ?? payload.hours_weekday ?? 8.0),
-      hours_sabado: Number(payload.hours_sabado ?? 0.0),
-      hours_domingo: Number(payload.hours_domingo ?? 0.0),
-      items: payload.items?.map((item: any) => ({
+      viability_reasons: effectiveViability.reasons || [],
+      client_id: cleanUuid(effectivePayload.client_id),
+      lead_id: cleanUuid(effectivePayload.lead_id),
+      client_site_id: cleanUuid(effectivePayload.client_site_id),
+      country_id: cleanUuid(effectivePayload.country_id),
+      payment_term_id: cleanUuid(effectivePayload.payment_term_id),
+      postal_code: effectivePayload.postal_code || null,
+      expected_start_date: effectivePayload.expected_start_date || null,
+      expected_end_date: effectivePayload.expected_end_date || null,
+      validity_date: effectivePayload.validity_date || null,
+      document_language: effectivePayload.document_language || 'pt',
+      work_lunes: effectivePayload.work_lunes !== false,
+      work_martes: effectivePayload.work_martes !== false,
+      work_miercoles: effectivePayload.work_miercoles !== false,
+      work_jueves: effectivePayload.work_jueves !== false,
+      work_viernes: effectivePayload.work_viernes !== false,
+      work_sabado: !!effectivePayload.work_sabado,
+      work_domingo: !!effectivePayload.work_domingo,
+      hours_weekday: Number(effectivePayload.hours_weekday ?? 8.0),
+      hours_lunes: Number(effectivePayload.hours_lunes ?? effectivePayload.hours_weekday ?? 8.0),
+      hours_martes: Number(effectivePayload.hours_martes ?? effectivePayload.hours_weekday ?? 8.0),
+      hours_miercoles: Number(effectivePayload.hours_miercoles ?? effectivePayload.hours_weekday ?? 8.0),
+      hours_jueves: Number(effectivePayload.hours_jueves ?? effectivePayload.hours_weekday ?? 8.0),
+      hours_viernes: Number(effectivePayload.hours_viernes ?? effectivePayload.hours_weekday ?? 8.0),
+      hours_sabado: Number(effectivePayload.hours_sabado ?? 0.0),
+      hours_domingo: Number(effectivePayload.hours_domingo ?? 0.0),
+      items: effectivePayload.items?.map((item: any) => ({
         ...item,
         job_function_id: cleanUuid(item.job_function_id),
       })) || [],
-      additional_revenues: payload.additional_revenues || [],
+      additional_revenues: effectivePayload.additional_revenues || [],
     };
 
     if (id) {
