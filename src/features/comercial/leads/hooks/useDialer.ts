@@ -2021,9 +2021,6 @@ export function useMutateDialer() {
       const { data: authData } = await supabase.auth.getUser();
       const effectiveUserId = authData?.user?.id || null;
 
-      const randNum = Math.floor(1000 + Math.random() * 9000);
-      const codigo = `EST-${new Date().getFullYear()}-${randNum}`;
-
       let totalRevenue = 0;
       let totalCost = 0;
 
@@ -2182,7 +2179,6 @@ export function useMutateDialer() {
         .from('estimaciones')
         .insert({
           empresa_id: selectedEmpresaId,
-          codigo,
           lead_id: payload.lead_id,
           client_id: leadClientId,
           country_id: leadCountryId,
