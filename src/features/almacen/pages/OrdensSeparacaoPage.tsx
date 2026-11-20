@@ -403,6 +403,20 @@ export const OrdensSeparacaoPage: React.FC = () => {
                   </Button>
                   <Button
                     size="sm"
+                    className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={async () => {
+                      try {
+                        await almacenService.sendOrderSignLinkViaMcsChat(selectedOrder);
+                        toast.success(`Mensagem enviada pelo canal oficial (${selectedOrder.empresa_nome || 'RH'}) no MCS-Chat!`);
+                      } catch (err: any) {
+                        toast.error(err?.message || 'Erro ao enviar pelo MCS-Chat');
+                      }
+                    }}
+                  >
+                    <Send className="h-3 w-3" /> Enviar MCS-Chat
+                  </Button>
+                  <Button
+                    size="sm"
                     variant="outline"
                     className="h-7 text-xs gap-1 text-emerald-700 border-emerald-300"
                     onClick={() => {
@@ -415,7 +429,7 @@ export const OrdensSeparacaoPage: React.FC = () => {
                       );
                     }}
                   >
-                    <Send className="h-3 w-3" /> WhatsApp
+                    <Send className="h-3 w-3" /> wa.me
                   </Button>
                 </div>
               </div>
