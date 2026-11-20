@@ -7,7 +7,9 @@ import { useSolicitudTimeline } from './hooks/useSolicitudTimeline';
 import { Layout } from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { ArrowLeft, RefreshCw, Printer, Mail, UserPlus, CheckCircle2, CalendarClock } from 'lucide-react';
+import { ArrowLeft, RefreshCw, Printer, Mail, UserPlus, CheckCircle2, CalendarClock, XCircle, Loader2, X, AlertTriangle } from 'lucide-react';
+import { supabase } from '@/shared/supabase/client';
+import { toast } from 'sonner';
 import { SolicitudOverviewTab } from './components/SolicitudOverviewTab';
 import { SolicitudTasksTab } from './components/SolicitudTasksTab';
 import { SolicitudTimelineTab } from './components/SolicitudTimelineTab';
@@ -29,6 +31,10 @@ export function SolicitudDetailPage() {
   const [isResendModalOpen, setIsResendModalOpen] = useState(false);
   const [emailDateContext, setEmailDateContext] = useState<{ oldDueDate?: string | null; newDueDate?: string | null }>({});
   const [isRequestReplacementOpen, setIsRequestReplacementOpen] = useState(false);
+  const [isCancelReemplazoOpen, setIsCancelReemplazoOpen] = useState(false);
+  const [cancelReemplazoReason, setCancelReemplazoReason] = useState('');
+  const [isCancellingReemplazo, setIsCancellingReemplazo] = useState(false);
+
   const { data: solicitud, isLoading: loadingSolicitud, isError: errorSolicitud, refetch: refetchSolicitud } = useSolicitudDetail(id);
   const { data: tasks = [], isLoading: loadingTasks, refetch: refetchTasks } = useSolicitudTasks(id);
   const { data: timeline = [], isLoading: loadingTimeline, refetch: refetchTimeline } = useSolicitudTimeline(id);
@@ -39,6 +45,31 @@ export function SolicitudDetailPage() {
     refetchTasks();
     refetchTimeline();
     refetchTargets();
+  };
+
+  const handleCancelReemplazo = async () => {
+    if (!solicitud) return;
+    setIsCancellingReemplazo(true);
+    try {
+      const { error } = await supabase
+        .schema('core_operacoes')
+        .rpc('cancelar_reemplazo', {
+          payload: {
+            solicitud_id: solicitud.id,
+            reason: cancelReemplazoReason.trim() || 'Cliente desistiu da substituição'
+          }
+        });
+      if (error) throw error;
+      toast.success(`Reemplazo ${solicitud.codigo} cancelado com sucesso!`);
+      setIsCancelReemplazoOpen(false);
+      setCancelReemplazoReason('');
+      handleRefresh();
+    } catch (err: any) {
+      console.error('Erro ao cancelar reemplazo:', err);
+      toast.error(err.message || 'Erro ao cancelar reemplazo.');
+    } finally {
+      setIsCancellingReemplazo(false);
+    }
   };
 
   const handlePrintPDF = () => {
@@ -139,6 +170,22 @@ export function SolicitudDetailPage() {
                 <Button variant="default" size="sm" onClick={handlePrintPDF} className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm flex items-center gap-1.5">
                   <Printer className="h-4 w-4" />
                   {t('solicitud_detail.print_pdf_btn')}
+                </Button>
+              )}
+              {(solicitud.tipo === 'replacement' || (solicitud.tipo === 'offboarding' && targets.some((t: any) => t.requires_replacement))) &&
+                solicitud.status !== 'cancelled' &&
+                solicitud.status !== 'completed' && (
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={() => {
+                    setCancelReemplazoReason('');
+                    setIsCancelReemplazoOpen(true);
+                  }}
+                  className="bg-rose-600 hover:bg-rose-700 text-white shadow-sm flex items-center gap-1.5 font-semibold"
+                >
+                  <XCircle className="h-4 w-4" />
+                  Cancelar Reemplazo
                 </Button>
               )}
               {solicitud.tipo === 'offboarding' && targets.some((t: any) => !t.requires_replacement) && (
@@ -247,6 +294,92 @@ export function SolicitudDetailPage() {
           target={targets.find((t: any) => t.action_type === 'offboard' && !t.requires_replacement)}
           onSuccess={handleRefresh}
         />
+      )}
+
+      {isCancelReemplazoOpen && solicitud && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    Cancelar Reemplazo ({solicitud.codigo})
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Esta ação cancela o reemplazo, encerra as tarefas abertas e remove a pendência da Contratação Inicial.
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCancelReemplazoOpen(false)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Motivo do cancelamento
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {['Cliente desistiu da substituição', 'Pedido reduzido/cancelado', 'Substituição duplicada'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setCancelReemplazoReason(preset)}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                      cancelReemplazoReason === preset
+                        ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold dark:bg-rose-950/50 dark:border-rose-800 dark:text-rose-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                rows={3}
+                value={cancelReemplazoReason}
+                onChange={(e) => setCancelReemplazoReason(e.target.value)}
+                placeholder="Descreva o motivo do cancelamento..."
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isCancellingReemplazo}
+                onClick={() => setIsCancelReemplazoOpen(false)}
+              >
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isCancellingReemplazo}
+                onClick={handleCancelReemplazo}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+              >
+                {isCancellingReemplazo ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Cancelando...
+                  </>
+                ) : (
+                  'Confirmar Cancelamento'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

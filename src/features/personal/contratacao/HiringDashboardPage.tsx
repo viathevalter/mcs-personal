@@ -98,6 +98,50 @@ export const HiringDashboardPage: React.FC = () => {
   const [allocationToCancel, setAllocationToCancel] = useState<{ id: string; workerName: string } | null>(null);
   const [isCancelPending, setIsCancelPending] = useState(false);
 
+  // Cancel Reemplazo state
+  const [reemplazoToCancel, setReemplazoToCancel] = useState<{
+    solicitudId: string;
+    solicitudTargetId?: string;
+    codigo: string;
+    workerName?: string;
+  } | null>(null);
+  const [cancelReemplazoReason, setCancelReemplazoReason] = useState('');
+  const [isCancellingReemplazo, setIsCancellingReemplazo] = useState(false);
+
+  const handleCancelReemplazo = async () => {
+    if (!reemplazoToCancel) return;
+    setIsCancellingReemplazo(true);
+    try {
+      const { error } = await supabase
+        .schema('core_operacoes')
+        .rpc('cancelar_reemplazo', {
+          payload: {
+            solicitud_id: reemplazoToCancel.solicitudId,
+            solicitud_target_id: reemplazoToCancel.solicitudTargetId || null,
+            reason: cancelReemplazoReason.trim() || 'Cliente desistiu da substituição'
+          }
+        });
+
+      if (error) throw error;
+
+      toast.success(
+        reemplazoToCancel.solicitudTargetId
+          ? `Substituição de ${reemplazoToCancel.workerName || 'trabalhador'} cancelada com sucesso!`
+          : `Reemplazo ${reemplazoToCancel.codigo} cancelado com sucesso!`
+      );
+      setReemplazoToCancel(null);
+      setCancelReemplazoReason('');
+      refetchPedidos();
+      refetchAllocations();
+      refetchReplacementTargets();
+    } catch (err: any) {
+      console.error('Erro ao cancelar reemplazo:', err);
+      toast.error(err.message || 'Erro ao cancelar o reemplazo.');
+    } finally {
+      setIsCancellingReemplazo(false);
+    }
+  };
+
   const handleCancelAllocation = async (reason: string) => {
     if (!allocationToCancel) return;
     setIsCancelPending(true);
@@ -1381,12 +1425,31 @@ LICENCIA DE CONDUCIR: ${cnh}`;
 
                             return (
                               <div className="mt-3 flex flex-col gap-2 text-xs text-purple-900 dark:text-purple-300 bg-purple-50/80 dark:bg-purple-950/25 p-3 rounded-lg border border-purple-200 dark:border-purple-900/50 shadow-sm">
-                                <div className="flex items-center justify-between font-bold text-xs text-purple-800 dark:text-purple-300">
+                                <div className="flex items-center justify-between gap-2 font-bold text-xs text-purple-800 dark:text-purple-300 flex-wrap">
                                   <div className="flex items-center gap-1.5">
                                     <AlertTriangle className="h-4 w-4 text-purple-600 shrink-0" />
                                     <span>Substituição Pendente ({solCodigo})</span>
                                   </div>
-                                  {repDate && <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-400">Início: {repDate}</span>}
+                                  <div className="flex items-center gap-2">
+                                    {repDate && <span className="text-[11px] font-semibold text-purple-700 dark:text-purple-400">Início: {repDate}</span>}
+                                    {(firstRep?.solicitud_id || selectedPedido.solicitud_id) && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setCancelReemplazoReason('');
+                                          setReemplazoToCancel({
+                                            solicitudId: firstRep?.solicitud_id || selectedPedido.solicitud_id,
+                                            codigo: solCodigo,
+                                          });
+                                        }}
+                                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 dark:bg-rose-950/50 dark:text-rose-300 dark:border-rose-800 transition-colors"
+                                        title="Cancelar este reemplazo (cliente desistiu ou pedido cancelado)"
+                                      >
+                                        <X className="h-3 w-3" />
+                                        Cancelar Reemplazo
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                                 
                                 <div className="space-y-1">
@@ -1396,14 +1459,34 @@ LICENCIA DE CONDUCIR: ${cnh}`;
                                       ? ` (Cód: ${rep.source_worker.cod_colab})`
                                       : (item.replaced_worker?.cod_colab ? ` (Cód: ${item.replaced_worker.cod_colab})` : '');
                                     return (
-                                      <p key={rep?.id || rIdx} className="text-[11px] text-slate-700 dark:text-slate-300">
-                                        {itemReplacements.length > 1 ? `${rIdx + 1}. ` : ''}Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{rWorkerName}</strong>{rWorkerCod}
-                                        {rep?.source_end_date && (
-                                          <span className="ml-1.5 inline-block px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 font-bold text-[10px]">
-                                            Trabalha até: {new Date(`${String(rep.source_end_date).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-PT')}
-                                          </span>
+                                      <div key={rep?.id || rIdx} className="flex items-center justify-between gap-2 text-[11px] text-slate-700 dark:text-slate-300">
+                                        <p>
+                                          {itemReplacements.length > 1 ? `${rIdx + 1}. ` : ''}Substituir: <strong className="text-purple-900 dark:text-purple-200 font-bold">{rWorkerName}</strong>{rWorkerCod}
+                                          {rep?.source_end_date && (
+                                            <span className="ml-1.5 inline-block px-1.5 py-0.2 rounded bg-amber-100 dark:bg-amber-950/60 text-amber-900 dark:text-amber-200 border border-amber-300 dark:border-amber-800 font-bold text-[10px]">
+                                              Trabalha até: {new Date(`${String(rep.source_end_date).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-PT')}
+                                            </span>
+                                          )}
+                                        </p>
+                                        {itemReplacements.length > 1 && rep?.id && (
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              setCancelReemplazoReason('');
+                                              setReemplazoToCancel({
+                                                solicitudId: rep.solicitud_id || firstRep?.solicitud_id || selectedPedido.solicitud_id,
+                                                solicitudTargetId: rep.id,
+                                                codigo: solCodigo,
+                                                workerName: rWorkerName,
+                                              });
+                                            }}
+                                            className="shrink-0 text-[10px] font-semibold text-rose-600 hover:text-rose-800 hover:underline"
+                                            title={`Cancelar apenas a substituição de ${rWorkerName}`}
+                                          >
+                                            Cancelar vaga
+                                          </button>
                                         )}
-                                      </p>
+                                      </div>
                                     );
                                   })}
                                 </div>
@@ -1794,6 +1877,97 @@ LICENCIA DE CONDUCIR: ${cnh}`;
         onClose={() => setIsBroadcastModalOpen(false)}
         initialData={broadcastModalData}
       />
+
+      {/* Modal de Cancelamento de Reemplazo */}
+      {reemplazoToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4">
+          <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl max-w-md w-full p-5 space-y-4">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <div className="h-9 w-9 rounded-full bg-rose-100 dark:bg-rose-950/60 flex items-center justify-center shrink-0">
+                  <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-slate-900 dark:text-white">
+                    {reemplazoToCancel.solicitudTargetId
+                      ? 'Cancelar Vaga de Reemplazo'
+                      : `Cancelar Reemplazo (${reemplazoToCancel.codigo})`}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    {reemplazoToCancel.solicitudTargetId
+                      ? `Substituição de ${reemplazoToCancel.workerName}`
+                      : 'Esta ação removerá o reemplazo pendente da fila de Contratação Inicial.'}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setReemplazoToCancel(null)}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-md"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block">
+                Motivo do cancelamento
+              </label>
+              <div className="flex flex-wrap gap-1.5">
+                {['Cliente desistiu da substituição', 'Pedido reduzido/cancelado', 'Substituição duplicada'].map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    onClick={() => setCancelReemplazoReason(preset)}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border transition-colors ${
+                      cancelReemplazoReason === preset
+                        ? 'bg-rose-50 border-rose-300 text-rose-700 font-semibold dark:bg-rose-950/50 dark:border-rose-800 dark:text-rose-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300'
+                    }`}
+                  >
+                    {preset}
+                  </button>
+                ))}
+              </div>
+              <textarea
+                rows={3}
+                value={cancelReemplazoReason}
+                onChange={(e) => setCancelReemplazoReason(e.target.value)}
+                placeholder="Descreva o motivo (ex.: cliente desistiu da vaga)..."
+                className="w-full rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950 p-2.5 text-xs focus:outline-none focus:ring-2 focus:ring-rose-500"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={isCancellingReemplazo}
+                onClick={() => setReemplazoToCancel(null)}
+              >
+                Voltar
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                disabled={isCancellingReemplazo}
+                onClick={handleCancelReemplazo}
+                className="bg-rose-600 hover:bg-rose-700 text-white font-semibold"
+              >
+                {isCancellingReemplazo ? (
+                  <>
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    Cancelando...
+                  </>
+                ) : (
+                  'Confirmar Cancelamento'
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
