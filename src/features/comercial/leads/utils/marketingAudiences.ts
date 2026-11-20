@@ -184,6 +184,41 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   // AYSLAN (ESPANHA - GÉNIO MONTAGENS)
   // ==========================================
   {
+    id: 'aud_ayslan_ineditos_contactos_caldereria_2026',
+    name: '🚀 🇪🇸 Ayslan (Génio Montagens) - Inéditos Contactos Calderería (5 leads)',
+    leadCount: 5,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      tagKeyword: 'Mailing Ayslan Inéditos - Contactos Calderería 2026',
+    },
+  },
+  {
+    id: 'aud_ayslan_contactos_caldereria_completo_2026',
+    name: '🎯 🇪🇸 Ayslan (Génio Montagens) - Planilha Contactos Calderería [Tag: contactos_caldereria - Ayslan] (8 leads)',
+    leadCount: 8,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['contactos_caldereria - Ayslan'],
+      tagKeyword: 'contactos_caldereria - Ayslan',
+    },
+  },
+  {
+    id: 'aud_ayslan_sin_correo_contactos_caldereria_2026',
+    name: '📞 🇪🇸 Ayslan (Génio Montagens) - Sin Correo p/ Marcador [Tag: Sin Correo - contactos_caldereria - Ayslan] (8 leads)',
+    leadCount: 8,
+    ownerKey: 'ayslan',
+    country: 'ES',
+    filters: {
+      selectedCountries: ['ES'],
+      selectedTags: ['Sin Correo - contactos_caldereria - Ayslan'],
+      tagKeyword: 'Sin Correo - contactos_caldereria - Ayslan',
+    },
+  },
+  {
     id: 'aud_ayslan_ineditos_catalunya_zaragoza_2026',
     name: '🚀 🇪🇸 Ayslan (Génio Montagens) - Inéditos Catalunya & Zaragoza (24 leads)',
     leadCount: 24,
@@ -220,8 +255,8 @@ export const ALL_STRATEGIC_AUDIENCES: MarketingAudiencePreset[] = [
   },
   {
     id: 'aud_ayslan_barcelona_2026',
-    name: '📍 🇪🇸 Ayslan (Génio Montagens) - Barcelona [Tag: Barcelona - Ayslan] (39 leads)',
-    leadCount: 39,
+    name: '📍 🇪🇸 Ayslan (Génio Montagens) - Barcelona [Tag: Barcelona - Ayslan] (47 leads)',
+    leadCount: 47,
     ownerKey: 'ayslan',
     country: 'ES',
     filters: {
