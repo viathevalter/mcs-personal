@@ -796,6 +796,11 @@ export function CampaignsPage() {
       }
     });
     const priorityTags = [
+      'contactos_caldereria - Ayslan',
+      'Sin Correo - contactos_caldereria - Ayslan',
+      'Sem E-mail - contactos_caldereria - Ayslan',
+      'Mailing Ayslan - Contactos Calderería 2026',
+      'Mailing Ayslan Inéditos - Contactos Calderería 2026',
       'CASTILLA Y LEON - Alba',
       'Sin Correo - CASTILLA Y LEON - Alba',
       'Sem E-mail - CASTILLA Y LEON - Alba',
