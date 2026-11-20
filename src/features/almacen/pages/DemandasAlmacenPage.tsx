@@ -839,15 +839,20 @@ export const DemandasAlmacenPage: React.FC = () => {
                                 >
                                   <Copy className="h-3 w-3" />
                                 </button>
-                                <a
-                                  href={`https://wa.me/${w.movil.replace(/[^0-9]/g, '')}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  title="Abrir WhatsApp / Chat"
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    almacenService.openWorkerInMcsChat({
+                                      workerId: w.worker_id,
+                                      workerName: w.nome,
+                                      workerPhone: w.movil,
+                                    })
+                                  }
+                                  title="Abrir conversa no MCS-Chat"
                                   className="text-emerald-600 hover:text-emerald-700"
                                 >
                                   <MessageCircle className="h-3.5 w-3.5" />
-                                </a>
+                                </button>
                               </span>
                             )}
                           </div>

@@ -354,15 +354,17 @@ export const MobilePickingPage: React.FC = () => {
                   size="sm"
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl"
                   onClick={async () => {
-                    try {
-                      await almacenService.sendOrderSignLinkViaMcsChat(activeOrder);
-                      toast.success(`Enviado pelo canal oficial (${activeOrder.empresa_nome || 'RH'}) no MCS-Chat!`);
-                    } catch {
-                      sendWhatsAppSignLink(activeOrder);
-                    }
+                    const msg = almacenService.buildOrderSignMessage(activeOrder);
+                    await almacenService.openWorkerInMcsChat({
+                      workerId: activeOrder.worker_id,
+                      workerName: activeOrder.worker_nome,
+                      workerPhone: activeOrder.worker_phone,
+                      prefillMessage: msg,
+                    });
+                    toast.success('MCS-Chat aberto e mensagem copiada para você revisar e enviar!');
                   }}
                 >
-                  <Send className="h-4 w-4" /> Enviar via MCS-Chat
+                  <Send className="h-4 w-4" /> Abrir MCS-Chat
                 </Button>
                 <Button
                   size="sm"

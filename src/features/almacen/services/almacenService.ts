@@ -1,6 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
 import { logisticsService } from '@/features/logistica/services/logisticsService';
-import { dispatchMcsChatHoursCampaign } from '@/features/worker-portal/services/workerCommunicationService';
+import { getMcsChatBaseUrl } from '@/features/worker-portal/services/workerCommunicationService';
 import type {
   AlmacenDeliveryPoint,
   AlmacenEpi,
@@ -1206,44 +1206,76 @@ export const almacenService = {
     if (error) throw error;
   },
 
-  async sendOrderSignLinkViaMcsChat(order: PickingOrder): Promise<{ success: boolean }> {
-    if (!order.worker_phone) {
-      throw new Error('Trabalhador sem telefone cadastrado.');
+  async openWorkerInMcsChat(params: {
+    workerId?: string | null;
+    workerName: string;
+    workerPhone?: string | null;
+    prefillMessage?: string;
+  }): Promise<{ url: string; foundConversation: boolean }> {
+    const baseUrl = getMcsChatBaseUrl();
+    let conversationId: string | null = null;
+
+    if (params.workerId) {
+      const { data } = await supabase
+        .from('chat_conversations')
+        .select('id')
+        .eq('worker_id', params.workerId)
+        .order('last_message_at', { ascending: false, nullsFirst: false })
+        .limit(1);
+      if (data && data.length > 0) conversationId = data[0].id;
     }
+
+    if (!conversationId && params.workerPhone) {
+      const digits = params.workerPhone.replace(/\D/g, '');
+      const tail = digits.slice(-9);
+      if (tail.length >= 7) {
+        const { data } = await supabase
+          .from('chat_conversations')
+          .select('id')
+          .ilike('contact_phone', `%${tail}%`)
+          .order('last_message_at', { ascending: false, nullsFirst: false })
+          .limit(1);
+        if (data && data.length > 0) conversationId = data[0].id;
+      }
+    }
+
+    if (params.prefillMessage && typeof navigator !== 'undefined' && navigator.clipboard) {
+      try {
+        await navigator.clipboard.writeText(params.prefillMessage);
+      } catch {
+        // ignore clipboard permission errors
+      }
+    }
+
+    const queryParts: string[] = [];
+    if (!conversationId) {
+      queryParts.push(`search=${encodeURIComponent(params.workerPhone || params.workerName)}`);
+    }
+    if (params.prefillMessage) {
+      queryParts.push(`text=${encodeURIComponent(params.prefillMessage)}`);
+    }
+    const qs = queryParts.length > 0 ? `?${queryParts.join('&')}` : '';
+
+    const url = conversationId
+      ? `${baseUrl}/inbox/${conversationId}${qs}`
+      : `${baseUrl}/inbox${qs}`;
+
+    if (typeof window !== 'undefined') {
+      window.open(url, '_blank');
+    }
+    return { url, foundConversation: Boolean(conversationId) };
+  },
+
+  buildOrderSignMessage(order: PickingOrder): string {
     const origin = typeof window !== 'undefined' ? window.location.origin : 'https://mcs-personal.vercel.app';
     const signUrl = `${origin}/public/almacen-firmar/${order.signature_token}`;
+    const firstName = (order.worker_nome || 'Trabajador').trim().split(/\s+/)[0];
     const trackingLine = order.tracking_code
-      ? `\n📦 Seguimiento (${order.delivery_method || 'NACEX'}): *${order.tracking_code}*`
+      ? `\n📦 Seguimiento (${order.delivery_method || 'NACEX'}): ${order.tracking_code}`
       : '';
     const addressLine = order.delivery_address ? `\n📍 Destino: ${order.delivery_address}` : '';
 
-    const messageTemplate = `Hola {primeiro_nome}, tu dotación / EPIS (Orden *${order.order_number}*) ha sido preparada para entrega.${trackingLine}${addressLine}\n\nPor favor, confirma y firma la recepción en este enlace:\n${signUrl}`;
-
-    const now = new Date();
-    const res = await dispatchMcsChatHoursCampaign({
-      clientName: order.client_nome || 'Almacén EPIS',
-      campaignTitle: `Entrega EPIS ${order.order_number} - ${order.worker_nome}`,
-      year: now.getFullYear(),
-      month: now.getMonth() + 1,
-      messageTemplate,
-      scheduleType: 'immediate',
-      alsoSendPortalNotification: false,
-      recipients: [
-        {
-          worker_id: order.worker_id || order.id,
-          worker_name: order.worker_nome,
-          movil: order.worker_phone,
-          contratante: order.empresa_nome || 'LUMINOUS',
-          funcion: order.job_function_name || 'Trabajador',
-          cliente: order.client_nome || 'Obra',
-        },
-      ],
-    });
-
-    if (!res?.success) {
-      throw new Error('Falha ao enfileirar envio no MCS-Chat.');
-    }
-    return { success: true };
+    return `Hola ${firstName}, tu dotación / EPIS (Orden ${order.order_number}) ha sido preparada para entrega.${trackingLine}${addressLine}\n\nPor favor, confirma y firma la recepción en este enlace:\n${signUrl}`;
   },
 
   async setPedidoAlmacenConcluido(pedidoId: string, concluido: boolean): Promise<void> {
