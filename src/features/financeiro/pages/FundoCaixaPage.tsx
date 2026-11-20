@@ -276,10 +276,6 @@ export default function FundoCaixaPage() {
         const fxRate = parseFloat(formNovoCaixa.fx.taxaCambio) || 0;
 
         if (formNovoCaixa.tipo_fundo === 'dinheiro' && isForeign) {
-            if (fxEur > 0 && fxFee >= fxEur) {
-                toast.error('A taxa bancária não pode ser maior ou igual ao valor transferido em EUR.');
-                return;
-            }
             if ((fxEur > 0 && fxLocal <= 0) || (fxLocal > 0 && fxEur <= 0)) {
                 toast.error(`Informe o valor transferido em EUR e o valor recebido em ${formNovoCaixa.moeda} (ou a cotação).`);
                 return;
@@ -297,6 +293,8 @@ export default function FundoCaixaPage() {
                 ? (isForeign ? fxLocal : (Number(formNovoCaixa.saldo_inicial) || 0))
                 : 0;
 
+            const totalDesembolsoEur = isForeign ? (fxEur + fxFee) : saldoInicialLocal;
+
             await caixaService.createCaixa({
                 nombre: formNovoCaixa.nombre.trim(),
                 trabajador_id: formNovoCaixa.trabajador_id,
@@ -305,9 +303,9 @@ export default function FundoCaixaPage() {
                 tipo_fundo: formNovoCaixa.tipo_fundo,
                 cartao_id: formNovoCaixa.tipo_fundo === 'cartao' ? formNovoCaixa.cartao_id : null,
                 moeda: formNovoCaixa.moeda,
-                taxa_cambio: isForeign ? (fxRate > 0 ? fxRate : 1) : 1,
+                taxa_cambio: isForeign ? (fxRate > 0 ? fxRate : (fxEur > 0 ? fxLocal / fxEur : 1)) : 1,
                 saldo_inicial: saldoInicialLocal,
-                saldo_inicial_eur: isForeign ? fxEur : saldoInicialLocal,
+                saldo_inicial_eur: totalDesembolsoEur,
                 taxa_bancaria_eur: isForeign ? fxFee : 0
             });
 
@@ -475,21 +473,18 @@ export default function FundoCaixaPage() {
         let rate = 1;
 
         if (isForeign) {
-            valEur = parseFloat(formRecarga.fx.valorEur) || 0;
+            const transferidoEur = parseFloat(formRecarga.fx.valorEur) || 0;
             feeEur = parseFloat(formRecarga.fx.taxaBancariaEur) || 0;
             valLocal = parseFloat(formRecarga.fx.valorLocal) || 0;
             rate = parseFloat(formRecarga.fx.taxaCambio) || 0;
 
-            if (valEur <= 0 || valLocal <= 0) {
+            if (transferidoEur <= 0 || valLocal <= 0) {
                 toast.error(`Informe o valor transferido em EUR e o valor recebido em ${selectedCaixa.moeda}.`);
                 return;
             }
-            if (feeEur >= valEur) {
-                toast.error('A taxa bancária deve ser menor que o valor transferido.');
-                return;
-            }
+            valEur = transferidoEur + feeEur;
             if (rate <= 0) {
-                rate = valLocal / Math.max(0.01, valEur - feeEur);
+                rate = valLocal / transferidoEur;
             }
         } else {
             valLocal = parseFloat(formRecarga.valor);
