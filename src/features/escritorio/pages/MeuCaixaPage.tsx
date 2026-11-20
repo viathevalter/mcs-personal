@@ -4,6 +4,8 @@ import { supabase } from '@/shared/supabase/client';
 import { useAuth } from '@/app/providers/AuthProvider';
 import { 
     caixaService, 
+    formatCurrencyByCode,
+    getMoedaInfo,
     type CaixaDespesa, 
     type MovimentoExtrato 
 } from '../../financeiro/services/caixaService';
@@ -243,9 +245,12 @@ export default function MeuCaixaPage() {
         }
     };
 
-    const formatMoney = (val: number) => {
-        return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(val);
+    const formatMoney = (val: number, moeda?: string) => {
+        return formatCurrencyByCode(val, moeda || selectedCaixa?.moeda || 'EUR');
     };
+
+    const isSelectedForeign = Boolean(selectedCaixa && selectedCaixa.moeda && selectedCaixa.moeda !== 'EUR');
+    const selectedMoedaInfo = getMoedaInfo(selectedCaixa?.moeda);
 
     if (authLoading) {
         return (
@@ -394,7 +399,7 @@ export default function MeuCaixaPage() {
                                 >
                                     {caixas.map(c => (
                                         <option key={c.id} value={c.id}>
-                                            {c.nombre} — Saldo: {formatMoney(c.saldo)}
+                                            {c.nombre} ({c.moeda || 'EUR'}) — Saldo: {formatMoney(c.saldo, c.moeda)}
                                         </option>
                                     ))}
                                 </select>
@@ -426,6 +431,11 @@ export default function MeuCaixaPage() {
                                                         Adiantamento Dinheiro
                                                     </Badge>
                                                 )}
+                                                {isSelectedForeign && (
+                                                    <Badge className="bg-amber-500/20 text-amber-200 border-amber-400/30 text-[10px]">
+                                                        {selectedMoedaInfo.flag} {selectedCaixa.moeda} · 1 EUR = {selectedCaixa.taxa_cambio.toFixed(4)}
+                                                    </Badge>
+                                                )}
                                             </div>
                                             <h2 className="text-xl font-bold text-white mt-1">
                                                 {selectedCaixa.nombre}
@@ -446,8 +456,13 @@ export default function MeuCaixaPage() {
                                         <div className="pt-2">
                                             <span className="text-xs text-slate-400 uppercase font-medium">Total Utilizado na Missão</span>
                                             <div className="text-4xl font-black tracking-tight mt-1 text-white">
-                                                {formatMoney(selectedCaixa.total_despesas)}
+                                                {formatMoney(selectedCaixa.total_despesas, selectedCaixa.moeda)}
                                             </div>
+                                            {isSelectedForeign && (
+                                                <div className="text-xs text-slate-300 mt-0.5 font-mono">
+                                                    ≈ {formatCurrencyByCode(selectedCaixa.total_despesas_eur, 'EUR')}
+                                                </div>
+                                            )}
                                             <p className="text-[11px] text-slate-400 mt-1">
                                                 Pagamentos realizados com o cartão corporativo fornecido pela empresa.
                                             </p>
@@ -455,12 +470,19 @@ export default function MeuCaixaPage() {
                                     ) : (
                                         <>
                                             <div className="pt-2">
-                                                <span className="text-xs text-slate-400 uppercase font-medium">Saldo Restante Disponível</span>
+                                                <span className="text-xs text-slate-400 uppercase font-medium">
+                                                    Saldo Restante Disponível ({selectedCaixa.moeda})
+                                                </span>
                                                 <div className={`text-4xl font-black tracking-tight mt-1 ${
                                                     selectedCaixa.saldo >= 0 ? 'text-emerald-400' : 'text-red-400'
                                                 }`}>
-                                                    {formatMoney(selectedCaixa.saldo)}
+                                                    {formatMoney(selectedCaixa.saldo, selectedCaixa.moeda)}
                                                 </div>
+                                                {isSelectedForeign && (
+                                                    <div className="text-xs text-slate-300 mt-0.5 font-mono">
+                                                        Equivalente: ≈ {formatCurrencyByCode(selectedCaixa.saldo_eur, 'EUR')}
+                                                    </div>
+                                                )}
                                             </div>
 
                                             <div className="grid grid-cols-2 gap-3 pt-3 border-t border-slate-700/60 text-xs">
@@ -470,9 +492,14 @@ export default function MeuCaixaPage() {
                                                     </div>
                                                     <div>
                                                         <span className="text-slate-400 block text-[10px]">Total Recebido</span>
-                                                        <span className="font-semibold text-white">
-                                                            {formatMoney(selectedCaixa.total_recargas)}
+                                                        <span className="font-semibold text-white block">
+                                                            {formatMoney(selectedCaixa.total_recargas, selectedCaixa.moeda)}
                                                         </span>
+                                                        {isSelectedForeign && (
+                                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                                ≈ {formatCurrencyByCode(selectedCaixa.total_recargas_eur, 'EUR')}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
 
@@ -482,9 +509,14 @@ export default function MeuCaixaPage() {
                                                     </div>
                                                     <div>
                                                         <span className="text-slate-400 block text-[10px]">Total Gasto</span>
-                                                        <span className="font-semibold text-white">
-                                                            {formatMoney(selectedCaixa.total_despesas)}
+                                                        <span className="font-semibold text-white block">
+                                                            {formatMoney(selectedCaixa.total_despesas, selectedCaixa.moeda)}
                                                         </span>
+                                                        {isSelectedForeign && (
+                                                            <span className="text-[10px] text-slate-400 font-mono">
+                                                                ≈ {formatCurrencyByCode(selectedCaixa.total_despesas_eur, 'EUR')}
+                                                            </span>
+                                                        )}
                                                     </div>
                                                 </div>
                                             </div>
@@ -559,11 +591,16 @@ export default function MeuCaixaPage() {
                                                     <span className={`font-mono font-bold text-sm block ${
                                                         m.tipo === 'entrada' ? 'text-emerald-600' : 'text-red-600'
                                                     }`}>
-                                                        {m.tipo === 'entrada' ? '+' : '-'}{formatMoney(m.valor)}
+                                                        {m.tipo === 'entrada' ? '+' : '-'}{formatMoney(m.valor, m.moeda)}
                                                     </span>
+                                                    {m.moeda && m.moeda !== 'EUR' && (
+                                                        <span className="text-[10px] text-slate-500 block font-mono">
+                                                            ≈ {m.tipo === 'entrada' ? '+' : '-'}{formatCurrencyByCode(m.valor_eur, 'EUR')}
+                                                        </span>
+                                                    )}
                                                     {m.runningBalance !== undefined && (
                                                         <span className="text-[10px] text-slate-400 block font-mono">
-                                                            Saldo: {formatMoney(m.runningBalance)}
+                                                            Saldo: {formatMoney(m.runningBalance, m.moeda)}
                                                         </span>
                                                     )}
                                                 </div>
@@ -614,7 +651,7 @@ export default function MeuCaixaPage() {
                     <form onSubmit={handleAddDespesa} className="space-y-4 py-2">
                         <div>
                             <label className="text-xs font-bold text-slate-700 block mb-1">
-                                Valor do Gasto (€) *
+                                Valor do Gasto ({selectedCaixa?.moeda || 'EUR'}) *
                             </label>
                             <Input
                                 type="number"
@@ -626,6 +663,18 @@ export default function MeuCaixaPage() {
                                 autoFocus
                                 className="text-xl font-bold h-12"
                             />
+                            {isSelectedForeign && selectedCaixa && Number(formDespesa.valor) > 0 && (
+                                <div className="mt-1.5 px-2.5 py-1.5 rounded-lg bg-slate-100 text-[11px] text-slate-600 flex items-center justify-between">
+                                    <span>
+                                        Equivalente: <strong className="text-slate-800">≈ {formatCurrencyByCode(Number(formDespesa.valor) / (selectedCaixa.taxa_cambio || 1), 'EUR')}</strong>
+                                    </span>
+                                    {selectedCaixa.tipo_fundo !== 'cartao' && (
+                                        <span>
+                                            Saldo após: <strong className="text-slate-800">{formatMoney(selectedCaixa.saldo - Number(formDespesa.valor), selectedCaixa.moeda)}</strong>
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                         </div>
 
                         <div>

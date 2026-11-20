@@ -1,10 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
     caixaService, 
+    MOEDAS_CAIXA,
+    formatCurrencyByCode,
+    getMoedaInfo,
     type CaixaDespesa, 
     type MovimentoExtrato, 
     type ColaboradorOption 
 } from '../services/caixaService';
+import {
+    MultiCurrencyTransferFields,
+    type MultiCurrencyTransferValue
+} from '../components/MultiCurrencyTransferFields';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -24,18 +31,23 @@ import {
     DialogTitle, 
     DialogFooter 
 } from '@/components/ui/dialog';
+import {
+    DropdownMenu,
+    DropdownMenuContent,
+    DropdownMenuItem,
+    DropdownMenuSeparator,
+    DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { 
     Wallet, 
     TrendingUp, 
     TrendingDown, 
-    Coins, 
     Plus, 
     Search, 
     RefreshCw, 
     ArrowUpRight, 
     ArrowDownLeft, 
     FileText, 
-    Car, 
     Building2, 
     User, 
     Copy, 
@@ -43,16 +55,18 @@ import {
     Eye, 
     Check, 
     Loader2, 
-    X,
-    Filter,
     Clock,
     Trash2,
     Edit2,
     LayoutGrid,
     List,
     CreditCard,
-    CheckSquare,
-    FileCheck
+    FileCheck,
+    ArrowUpDown,
+    MoreHorizontal,
+    Download,
+    Globe,
+    X
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { fetchCartoes, fetchCategorias, fetchObras } from '../data/loader';
@@ -98,7 +112,33 @@ export default function FundoCaixaPage() {
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<'todos' | 'Ativo' | 'Inativo'>('todos');
     const [empresaFilter, setEmpresaFilter] = useState('todas');
-    const [viewMode, setViewMode] = useState<'cards' | 'lista'>('cards');
+    const [modalidadeFilter, setModalidadeFilter] = useState<'todas' | 'dinheiro' | 'cartao'>('todas');
+    const [moedaFilter, setMoedaFilter] = useState<string>('todas');
+    const [sortBy, setSortBy] = useState<'recentes' | 'ativos_primeiro' | 'maior_saldo' | 'maior_gasto' | 'nome_asc' | 'colaborador_asc'>('ativos_primeiro');
+    const [viewMode, setViewMode] = useState<'cards' | 'lista'>(() => {
+        try {
+            const saved = localStorage.getItem('fundo_caixa_view_mode');
+            return saved === 'lista' || saved === 'cards' ? saved : 'cards';
+        } catch {
+            return 'cards';
+        }
+    });
+
+    // Filtros do Extrato Consolidado
+    const [histTipoFilter, setHistTipoFilter] = useState<'todos' | 'entrada' | 'saida'>('todos');
+    const [histCategoriaFilter, setHistCategoriaFilter] = useState<string>('todas');
+    const [histMoedaFilter, setHistMoedaFilter] = useState<string>('todas');
+    const [histDateFrom, setHistDateFrom] = useState<string>('');
+    const [histDateTo, setHistDateTo] = useState<string>('');
+
+    const handleChangeViewMode = (mode: 'cards' | 'lista') => {
+        setViewMode(mode);
+        try {
+            localStorage.setItem('fundo_caixa_view_mode', mode);
+        } catch {
+            // ignore storage errors
+        }
+    };
 
     // Modais e Item Selecionado
     const [selectedCaixa, setSelectedCaixa] = useState<CaixaDespesa | null>(null);
@@ -119,7 +159,8 @@ export default function FundoCaixaPage() {
         catDespesa: '',
         centroCusto: '',
         numDoc: '',
-        observacoes: ''
+        observacoes: '',
+        incluirTaxasBancarias: true
     });
 
     // Formulários
@@ -129,7 +170,9 @@ export default function FundoCaixaPage() {
         nombre: '',
         trabajador_id: '',
         id_empresa: '',
-        saldo_inicial: ''
+        moeda: 'EUR',
+        saldo_inicial: '',
+        fx: { valorEur: '', taxaBancariaEur: '', valorLocal: '', taxaCambio: '' } as MultiCurrencyTransferValue
     });
 
     const [formEditCaixa, setFormEditCaixa] = useState({
@@ -138,11 +181,14 @@ export default function FundoCaixaPage() {
         id_empresa: '',
         tipo_fundo: 'cartao' as 'dinheiro' | 'cartao',
         cartao_id: '',
+        moeda: 'EUR',
+        taxa_cambio: '1',
         status: 'Ativo' as 'Ativo' | 'Inativo'
     });
 
     const [formRecarga, setFormRecarga] = useState({
         valor: '',
+        fx: { valorEur: '', taxaBancariaEur: '', valorLocal: '', taxaCambio: '' } as MultiCurrencyTransferValue,
         data_recarga: new Date().toISOString().split('T')[0],
         observacoes: '',
         gerar_op: true,
@@ -165,16 +211,16 @@ export default function FundoCaixaPage() {
     const loadData = async () => {
         setLoading(true);
         try {
-            const [caixasData, colabsData, empsData, cochesData, geralData, cartoesData, catsData, obrasData] = await Promise.all([
+            const [caixasData, colabsData, empsData, cochesData, cartoesData, catsData, obrasData] = await Promise.all([
                 caixaService.getCaixas(),
                 caixaService.getColaboradores(),
                 caixaService.getEmpresas(),
                 caixaService.getCoches(),
-                caixaService.getTodosMovimentos(),
                 fetchCartoes(),
                 fetchCategorias(),
                 fetchObras()
             ]);
+            const geralData = await caixaService.getTodosMovimentos(caixasData);
 
             setCaixas(caixasData);
             setColaboradores(colabsData);
@@ -192,6 +238,24 @@ export default function FundoCaixaPage() {
         }
     };
 
+    const openRecargaModal = (cx: CaixaDespesa) => {
+        setSelectedCaixa(cx);
+        setFormRecarga({
+            valor: '',
+            fx: {
+                valorEur: '',
+                taxaBancariaEur: '',
+                valorLocal: '',
+                taxaCambio: cx.moeda !== 'EUR' && cx.taxa_cambio > 0 ? cx.taxa_cambio.toFixed(4) : ''
+            },
+            data_recarga: new Date().toISOString().split('T')[0],
+            observacoes: '',
+            gerar_op: true,
+            comprovante_url: ''
+        });
+        setIsRecargaOpen(true);
+    };
+
     // Submissão: Novo Caixa
     const handleCreateCaixa = async (e: React.FormEvent) => {
         e.preventDefault();
@@ -205,12 +269,33 @@ export default function FundoCaixaPage() {
             return;
         }
 
+        const isForeign = formNovoCaixa.moeda !== 'EUR';
+        const fxEur = parseFloat(formNovoCaixa.fx.valorEur) || 0;
+        const fxFee = parseFloat(formNovoCaixa.fx.taxaBancariaEur) || 0;
+        const fxLocal = parseFloat(formNovoCaixa.fx.valorLocal) || 0;
+        const fxRate = parseFloat(formNovoCaixa.fx.taxaCambio) || 0;
+
+        if (formNovoCaixa.tipo_fundo === 'dinheiro' && isForeign) {
+            if (fxEur > 0 && fxFee >= fxEur) {
+                toast.error('A taxa bancária não pode ser maior ou igual ao valor transferido em EUR.');
+                return;
+            }
+            if ((fxEur > 0 && fxLocal <= 0) || (fxLocal > 0 && fxEur <= 0)) {
+                toast.error(`Informe o valor transferido em EUR e o valor recebido em ${formNovoCaixa.moeda} (ou a cotação).`);
+                return;
+            }
+        }
+
         setSubmitting(true);
         try {
             const selectedCard = cartoes.find(c => c.id === formNovoCaixa.cartao_id);
             const resolvedEmpresaId = formNovoCaixa.tipo_fundo === 'dinheiro'
                 ? (formNovoCaixa.id_empresa || null)
                 : getEmpresaUuidFromCard(selectedCard, empresas);
+
+            const saldoInicialLocal = formNovoCaixa.tipo_fundo === 'dinheiro'
+                ? (isForeign ? fxLocal : (Number(formNovoCaixa.saldo_inicial) || 0))
+                : 0;
 
             await caixaService.createCaixa({
                 nombre: formNovoCaixa.nombre.trim(),
@@ -219,12 +304,25 @@ export default function FundoCaixaPage() {
                 status: 'Ativo',
                 tipo_fundo: formNovoCaixa.tipo_fundo,
                 cartao_id: formNovoCaixa.tipo_fundo === 'cartao' ? formNovoCaixa.cartao_id : null,
-                saldo_inicial: formNovoCaixa.tipo_fundo === 'dinheiro' ? (Number(formNovoCaixa.saldo_inicial) || 0) : 0
+                moeda: formNovoCaixa.moeda,
+                taxa_cambio: isForeign ? (fxRate > 0 ? fxRate : 1) : 1,
+                saldo_inicial: saldoInicialLocal,
+                saldo_inicial_eur: isForeign ? fxEur : saldoInicialLocal,
+                taxa_bancaria_eur: isForeign ? fxFee : 0
             });
 
             toast.success('Fundo de Caixa criado com sucesso!');
             setIsNovoCaixaOpen(false);
-            setFormNovoCaixa({ tipo_fundo: 'cartao', cartao_id: '', nombre: '', trabajador_id: '', id_empresa: '', saldo_inicial: '' });
+            setFormNovoCaixa({
+                tipo_fundo: 'cartao',
+                cartao_id: '',
+                nombre: '',
+                trabajador_id: '',
+                id_empresa: '',
+                moeda: 'EUR',
+                saldo_inicial: '',
+                fx: { valorEur: '', taxaBancariaEur: '', valorLocal: '', taxaCambio: '' }
+            });
             await loadData();
         } catch (err: any) {
             console.error('Erro ao criar caixa:', err);
@@ -243,7 +341,8 @@ export default function FundoCaixaPage() {
             catDespesa: despesaCat,
             centroCusto: defaultCC,
             numDoc: `FC-${cx.id.slice(0, 6).toUpperCase()}`,
-            observacoes: ''
+            observacoes: '',
+            incluirTaxasBancarias: true
         });
         setIsFechamentoOpen(true);
     };
@@ -266,7 +365,8 @@ export default function FundoCaixaPage() {
                 centroCusto: formFechamento.centroCusto,
                 numDoc: formFechamento.numDoc,
                 observacoes: formFechamento.observacoes,
-                usuarioNome: 'Financeiro'
+                usuarioNome: 'Financeiro',
+                incluirTaxasBancarias: formFechamento.incluirTaxasBancarias
             });
 
             if (res.success) {
@@ -294,6 +394,8 @@ export default function FundoCaixaPage() {
             id_empresa: cx.id_empresa || getEmpresaUuidFromCard(cx.cartao, empresas) || '',
             tipo_fundo: cx.tipo_fundo || 'dinheiro',
             cartao_id: cx.cartao_id || '',
+            moeda: cx.moeda || 'EUR',
+            taxa_cambio: cx.taxa_cambio ? cx.taxa_cambio.toFixed(4) : '1',
             status: cx.status || 'Ativo'
         });
         setIsEditCaixaOpen(true);
@@ -321,12 +423,16 @@ export default function FundoCaixaPage() {
                 ? (formEditCaixa.id_empresa || null)
                 : getEmpresaUuidFromCard(selectedCard, empresas);
 
+            const parsedRate = formEditCaixa.moeda === 'EUR' ? 1 : (parseFloat(formEditCaixa.taxa_cambio) || 1);
+
             await caixaService.updateCaixa(caixaToEdit.id, {
                 nombre: formEditCaixa.nombre.trim(),
                 trabajador_id: formEditCaixa.trabajador_id,
                 id_empresa: resolvedEmpresaId,
                 tipo_fundo: formEditCaixa.tipo_fundo,
                 cartao_id: formEditCaixa.tipo_fundo === 'cartao' ? formEditCaixa.cartao_id : null,
+                moeda: formEditCaixa.moeda,
+                taxa_cambio: parsedRate,
                 status: formEditCaixa.status
             });
 
@@ -344,7 +450,7 @@ export default function FundoCaixaPage() {
 
     // Exclusão de Caixa
     const handleDeleteCaixa = async (cx: CaixaDespesa) => {
-        const confirmMsg = `Deseja realmente excluir o Fundo de Caixa "${cx.nombre}"?\n\nColaborador: ${cx.trabajador?.Nombre || 'Não especificado'}\nTotal de Gastos: ${formatMoney(cx.total_despesas)}\n\nAtenção: Todas as recargas, despesas e lançamentos vinculados a este caixa também serão excluídos. Esta ação é irreversível.`;
+        const confirmMsg = `Deseja realmente excluir o Fundo de Caixa "${cx.nombre}"?\n\nColaborador: ${cx.trabajador?.Nombre || 'Não especificado'}\nTotal de Gastos: ${formatMoney(cx.total_despesas, cx.moeda)}\n\nAtenção: Todas as recargas, despesas e lançamentos vinculados a este caixa também serão excluídos. Esta ação é irreversível.`;
         if (!window.confirm(confirmMsg)) return;
 
         try {
@@ -361,17 +467,47 @@ export default function FundoCaixaPage() {
     const handleAddRecarga = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!selectedCaixa) return;
-        const val = parseFloat(formRecarga.valor);
-        if (isNaN(val) || val <= 0) {
-            toast.error('Informe um valor de recarga válido.');
-            return;
+
+        const isForeign = selectedCaixa.moeda !== 'EUR';
+        let valLocal = 0;
+        let valEur = 0;
+        let feeEur = 0;
+        let rate = 1;
+
+        if (isForeign) {
+            valEur = parseFloat(formRecarga.fx.valorEur) || 0;
+            feeEur = parseFloat(formRecarga.fx.taxaBancariaEur) || 0;
+            valLocal = parseFloat(formRecarga.fx.valorLocal) || 0;
+            rate = parseFloat(formRecarga.fx.taxaCambio) || 0;
+
+            if (valEur <= 0 || valLocal <= 0) {
+                toast.error(`Informe o valor transferido em EUR e o valor recebido em ${selectedCaixa.moeda}.`);
+                return;
+            }
+            if (feeEur >= valEur) {
+                toast.error('A taxa bancária deve ser menor que o valor transferido.');
+                return;
+            }
+            if (rate <= 0) {
+                rate = valLocal / Math.max(0.01, valEur - feeEur);
+            }
+        } else {
+            valLocal = parseFloat(formRecarga.valor);
+            if (isNaN(valLocal) || valLocal <= 0) {
+                toast.error('Informe um valor de recarga válido.');
+                return;
+            }
+            valEur = valLocal;
         }
 
         setSubmitting(true);
         try {
             await caixaService.addRecarga({
                 caixa_id: selectedCaixa.id,
-                valor: val,
+                valor: valLocal,
+                valor_eur: valEur,
+                taxa_bancaria_eur: feeEur,
+                taxa_cambio: rate,
                 data_recarga: formRecarga.data_recarga,
                 observacoes: formRecarga.observacoes || null,
                 gerar_op: formRecarga.gerar_op,
@@ -383,6 +519,7 @@ export default function FundoCaixaPage() {
             setIsRecargaOpen(false);
             setFormRecarga({
                 valor: '',
+                fx: { valorEur: '', taxaBancariaEur: '', valorLocal: '', taxaCambio: '' },
                 data_recarga: new Date().toISOString().split('T')[0],
                 observacoes: '',
                 gerar_op: true,
@@ -415,6 +552,8 @@ export default function FundoCaixaPage() {
             await caixaService.addDespesa({
                 caixa_id: selectedCaixa.id,
                 valor: val,
+                taxa_cambio: selectedCaixa.taxa_cambio || 1,
+                valor_eur: selectedCaixa.moeda === 'EUR' ? val : Number((val / (selectedCaixa.taxa_cambio || 1)).toFixed(2)),
                 data_despesa: formDespesa.data_despesa,
                 categoria: formDespesa.categoria,
                 coche_id: formDespesa.coche_id || null,
@@ -451,7 +590,7 @@ export default function FundoCaixaPage() {
         setIsExtratoOpen(true);
         setExtratoLoading(true);
         try {
-            const data = await caixaService.getExtratoCompleto(caixa.id);
+            const data = await caixaService.getExtratoCompleto(caixa.id, caixa);
             setExtrato(data);
         } catch (err) {
             console.error('Erro ao buscar extrato:', err);
@@ -515,23 +654,123 @@ export default function FundoCaixaPage() {
         }
     };
 
-    // Cálculos de KPIs
-    const totalSaldoCustodiado = caixas.reduce((sum, c) => sum + c.saldo, 0);
-    const totalRecarregadoGeral = caixas.reduce((sum, c) => sum + c.total_recargas, 0);
-    const totalGastoGeral = caixas.reduce((sum, c) => sum + c.total_despesas, 0);
-    const caixasAtivas = caixas.filter(c => c.status === 'Ativo').length;
+    const formatMoney = (val: number, moeda?: string) => {
+        return formatCurrencyByCode(val, moeda || 'EUR');
+    };
 
-    // Filtragem de caixas
-    const filteredCaixas = caixas.filter(c => {
-        const matchesSearch = c.nombre.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (c.trabajador?.Nombre && c.trabajador.Nombre.toLowerCase().includes(searchTerm.toLowerCase()));
-        const matchesStatus = statusFilter === 'todos' || c.status === statusFilter;
-        const matchesEmpresa = empresaFilter === 'todas' || c.id_empresa === empresaFilter;
-        return matchesSearch && matchesStatus && matchesEmpresa;
-    });
+    // Filtragem e Ordenação de caixas
+    const hasActiveCaixasFilters = Boolean(
+        searchTerm.trim() || statusFilter !== 'todos' || empresaFilter !== 'todas' || modalidadeFilter !== 'todas' || moedaFilter !== 'todas'
+    );
 
-    const formatMoney = (val: number) => {
-        return new Intl.NumberFormat('pt-PT', { style: 'currency', currency: 'EUR' }).format(val);
+    const filteredCaixas = useMemo(() => {
+        const q = searchTerm.toLowerCase().trim();
+        const list = caixas.filter(c => {
+            const matchesSearch = !q ||
+                c.nombre.toLowerCase().includes(q) ||
+                (c.trabajador?.Nombre && c.trabajador.Nombre.toLowerCase().includes(q)) ||
+                (c.empresa?.nome && c.empresa.nome.toLowerCase().includes(q)) ||
+                (c.cartao?.nome_cartao && c.cartao.nome_cartao.toLowerCase().includes(q)) ||
+                (c.moeda && c.moeda.toLowerCase().includes(q));
+            const matchesStatus = statusFilter === 'todos' || c.status === statusFilter;
+            const matchesEmpresa = empresaFilter === 'todas' || c.id_empresa === empresaFilter;
+            const matchesModalidade = modalidadeFilter === 'todas' || (c.tipo_fundo || 'dinheiro') === modalidadeFilter;
+            const matchesMoeda = moedaFilter === 'todas' || (c.moeda || 'EUR') === moedaFilter;
+            return matchesSearch && matchesStatus && matchesEmpresa && matchesModalidade && matchesMoeda;
+        });
+
+        const sorted = [...list];
+        sorted.sort((a, b) => {
+            switch (sortBy) {
+                case 'ativos_primeiro': {
+                    if (a.status !== b.status) return a.status === 'Ativo' ? -1 : 1;
+                    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+                }
+                case 'maior_saldo': {
+                    const sA = a.tipo_fundo === 'cartao' ? -Infinity : a.saldo_eur;
+                    const sB = b.tipo_fundo === 'cartao' ? -Infinity : b.saldo_eur;
+                    return sB - sA;
+                }
+                case 'maior_gasto':
+                    return b.total_despesas_eur - a.total_despesas_eur;
+                case 'nome_asc':
+                    return a.nombre.localeCompare(b.nombre, 'pt');
+                case 'colaborador_asc':
+                    return (a.trabajador?.Nombre || '').localeCompare(b.trabajador?.Nombre || '', 'pt');
+                case 'recentes':
+                default:
+                    return new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime();
+            }
+        });
+        return sorted;
+    }, [caixas, searchTerm, statusFilter, empresaFilter, modalidadeFilter, moedaFilter, sortBy]);
+
+    // Filtragem do Extrato Consolidado
+    const filteredHistorico = useMemo(() => {
+        const q = searchTerm.toLowerCase().trim();
+        return historicoGeral.filter((mov: any) => {
+            const matchesSearch = !q ||
+                (mov.caixa_nome || '').toLowerCase().includes(q) ||
+                (mov.trabalhador_nome || '').toLowerCase().includes(q) ||
+                (mov.descricao || '').toLowerCase().includes(q) ||
+                (mov.categoria || '').toLowerCase().includes(q) ||
+                (mov.moeda || '').toLowerCase().includes(q);
+            const matchesTipo = histTipoFilter === 'todos' || mov.tipo === histTipoFilter;
+            const matchesCat = histCategoriaFilter === 'todas' || (mov.categoria || '') === histCategoriaFilter;
+            const matchesMoeda = histMoedaFilter === 'todas' || (mov.moeda || 'EUR') === histMoedaFilter;
+            const matchesFrom = !histDateFrom || (mov.data && mov.data >= histDateFrom);
+            const matchesTo = !histDateTo || (mov.data && mov.data <= histDateTo);
+            return matchesSearch && matchesTipo && matchesCat && matchesMoeda && matchesFrom && matchesTo;
+        });
+    }, [historicoGeral, searchTerm, histTipoFilter, histCategoriaFilter, histMoedaFilter, histDateFrom, histDateTo]);
+
+    const exportHistoricoCsv = () => {
+        const headers = ['Data', 'Caixa / Viagem', 'Colaborador', 'Empresa', 'Tipo', 'Categoria', 'Descrição', 'Moeda', 'Valor Original', 'Cotação', 'Valor EUR', 'Taxa Bancária EUR'];
+        const escapeCsv = (v: any) => `"${String(v ?? '').replace(/"/g, '""')}"`;
+        const rows = filteredHistorico.map((m: any) => [
+            m.data || '',
+            m.caixa_nome || '',
+            m.trabalhador_nome || '',
+            m.empresa_nome || '',
+            m.tipo === 'entrada' ? 'Recarga' : 'Despesa',
+            m.categoria || '',
+            m.descricao || '',
+            m.moeda || 'EUR',
+            (m.tipo === 'entrada' ? 1 : -1) * Number(m.valor || 0),
+            Number(m.taxa_cambio || 1).toFixed(4),
+            (m.tipo === 'entrada' ? 1 : -1) * Number(m.valor_eur || m.valor || 0),
+            Number(m.taxa_bancaria_eur || 0)
+        ]);
+        const csv = '\uFEFF' + [headers.map(escapeCsv).join(';'), ...rows.map(r => r.map(escapeCsv).join(';'))].join('\n');
+        const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `extrato_fundo_caixa_${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        URL.revokeObjectURL(url);
+        toast.success(`Exportados ${filteredHistorico.length} registros em CSV.`);
+    };
+
+    // Cálculos de KPIs (padronizados em EUR, respeitando filtros ativos e sem somar cartão no saldo custodiado)
+    const kpiSource = filteredCaixas;
+    const caixasDinheiroAtivas = kpiSource.filter(c => c.status === 'Ativo' && c.tipo_fundo !== 'cartao');
+    const totalSaldoCustodiadoEur = caixasDinheiroAtivas.reduce((sum, c) => sum + c.saldo_eur, 0);
+    const totalRecarregadoEur = kpiSource.reduce((sum, c) => sum + c.total_recargas_eur, 0);
+    const totalTaxasBancariasEur = kpiSource.reduce((sum, c) => sum + c.total_taxas_bancarias_eur, 0);
+    const totalGastoEur = kpiSource.reduce((sum, c) => sum + c.total_despesas_eur, 0);
+    const totalGastoCartaoAbertoEur = kpiSource
+        .filter(c => c.status === 'Ativo' && c.tipo_fundo === 'cartao')
+        .reduce((sum, c) => sum + c.total_despesas_eur, 0);
+    const caixasAtivas = kpiSource.filter(c => c.status === 'Ativo').length;
+    const caixasEstrangeirasCount = kpiSource.filter(c => c.moeda && c.moeda !== 'EUR').length;
+
+    const clearCaixasFilters = () => {
+        setSearchTerm('');
+        setStatusFilter('todos');
+        setEmpresaFilter('todas');
+        setModalidadeFilter('todas');
+        setMoedaFilter('todas');
     };
 
     return (
@@ -566,47 +805,58 @@ export default function FundoCaixaPage() {
                     </div>
                 </div>
 
-                {/* KPIs Row */}
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                {/* KPIs Row (padronizados em EUR e sensíveis aos filtros) */}
+                <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-2">
                     <Card className="border-l-4 border-l-blue-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
-                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                Saldo em Aberto (Custodiado)
+                            <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+                                <span>Saldo Custodiado (Dinheiro)</span>
+                                {hasActiveCaixasFilters && <span className="text-[9px] text-blue-500 normal-case">filtrado</span>}
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className={`text-2xl font-black ${totalSaldoCustodiado < 0 ? 'text-red-650' : 'text-blue-650 dark:text-blue-400'}`}>
-                                {formatMoney(totalSaldoCustodiado)}
+                            <div className={`text-2xl font-black ${totalSaldoCustodiadoEur < 0 ? 'text-red-600' : 'text-blue-600 dark:text-blue-400'}`}>
+                                {formatMoney(totalSaldoCustodiadoEur, 'EUR')}
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1">Saldo total em posse dos funcionários</p>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                Em {caixasDinheiroAtivas.length} adiantamento(s) ativo(s)
+                            </p>
                         </CardContent>
                     </Card>
 
                     <Card className="border-l-4 border-l-emerald-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                Total Recarregado
+                                Total Transferido (€)
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                                {formatMoney(totalRecarregadoGeral)}
+                                {formatMoney(totalRecarregadoEur, 'EUR')}
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1">Adiantamentos transferidos aos caixas</p>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                {totalTaxasBancariasEur > 0
+                                    ? `Inclui ${formatMoney(totalTaxasBancariasEur, 'EUR')} em taxas bancárias`
+                                    : 'Adiantamentos transferidos aos caixas'}
+                            </p>
                         </CardContent>
                     </Card>
 
                     <Card className="border-l-4 border-l-red-500 rounded-2xl border-slate-100 dark:border-slate-800 shadow-sm bg-white dark:bg-slate-900/50">
                         <CardHeader className="pb-2">
                             <CardTitle className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                                Total Comprovado (Gastos)
+                                Total Comprovado (Gastos €)
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="text-2xl font-black text-red-650 dark:text-red-400">
-                                {formatMoney(totalGastoGeral)}
+                            <div className="text-2xl font-black text-red-600 dark:text-red-400">
+                                {formatMoney(totalGastoEur, 'EUR')}
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1">Despesas com comprovantes lançados</p>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                {totalGastoCartaoAbertoEur > 0
+                                    ? `Cartão em aberto: ${formatMoney(totalGastoCartaoAbertoEur, 'EUR')}`
+                                    : 'Despesas convertidas em EUR'}
+                            </p>
                         </CardContent>
                     </Card>
 
@@ -618,9 +868,13 @@ export default function FundoCaixaPage() {
                         </CardHeader>
                         <CardContent>
                             <div className="text-2xl font-black text-amber-600 dark:text-amber-400">
-                                {caixasAtivas} <span className="text-sm font-normal text-slate-400">/ {caixas.length}</span>
+                                {caixasAtivas} <span className="text-sm font-normal text-slate-400">/ {kpiSource.length}</span>
                             </div>
-                            <p className="text-[11px] text-slate-400 mt-1">Colaboradores com viagem em andamento</p>
+                            <p className="text-[11px] text-slate-400 mt-1">
+                                {caixasEstrangeirasCount > 0
+                                    ? `${caixasEstrangeirasCount} em moeda estrangeira`
+                                    : 'Colaboradores com viagem em andamento'}
+                            </p>
                         </CardContent>
                     </Card>
                 </div>
@@ -628,69 +882,48 @@ export default function FundoCaixaPage() {
 
             {/* Abas e Filtros */}
             <div className="bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 p-4 shadow-xs space-y-4">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                    <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
-                        <button
-                            onClick={() => setActiveTab('caixas')}
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                                activeTab === 'caixas'
-                                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                            }`}
-                        >
-                            Caixas por Colaborador ({caixas.length})
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('historico')}
-                            className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
-                                activeTab === 'historico'
-                                    ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
-                                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
-                            }`}
-                        >
-                            Extrato Consolidado ({historicoGeral.length})
-                        </button>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-3 w-full sm:w-auto">
-                        <div className="relative flex-1 sm:w-64">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
-                            <Input
-                                placeholder="Buscar caixa ou colaborador..."
-                                value={searchTerm}
-                                onChange={e => setSearchTerm(e.target.value)}
-                                className="pl-9 h-9 text-sm"
-                            />
+                <div className="flex flex-col gap-3">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-3">
+                        <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                            <button
+                                onClick={() => setActiveTab('caixas')}
+                                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                                    activeTab === 'caixas'
+                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                Caixas por Colaborador ({filteredCaixas.length}{hasActiveCaixasFilters ? `/${caixas.length}` : ''})
+                            </button>
+                            <button
+                                onClick={() => setActiveTab('historico')}
+                                className={`px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                                    activeTab === 'historico'
+                                        ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-xs'
+                                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                                }`}
+                            >
+                                Extrato Consolidado ({filteredHistorico.length})
+                            </button>
                         </div>
 
-                        {activeTab === 'caixas' && (
-                            <>
-                                <select
-                                    value={statusFilter}
-                                    onChange={(e: any) => setStatusFilter(e.target.value)}
-                                    className="h-9 text-xs px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
-                                >
-                                    <option value="todos">Status: Todos</option>
-                                    <option value="Ativo">Ativos</option>
-                                    <option value="Inativo">Inativos</option>
-                                </select>
+                        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+                            <div className="relative flex-1 sm:w-64">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <Input
+                                    placeholder={activeTab === 'caixas' ? 'Buscar caixa, colaborador, empresa...' : 'Buscar lançamento, caixa, descrição...'}
+                                    value={searchTerm}
+                                    onChange={e => setSearchTerm(e.target.value)}
+                                    className="pl-9 h-9 text-sm"
+                                />
+                            </div>
 
-                                <select
-                                    value={empresaFilter}
-                                    onChange={e => setEmpresaFilter(e.target.value)}
-                                    className="h-9 text-xs px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
-                                >
-                                    <option value="todas">Empresa: Todas</option>
-                                    {empresas.map(e => (
-                                        <option key={e.id} value={e.id}>{e.nome}</option>
-                                    ))}
-                                </select>
-
-                                {/* Toggle Cards vs Lista */}
+                            {activeTab === 'caixas' ? (
+                                /* Toggle Cards vs Lista */
                                 <div className="flex items-center border border-slate-200 dark:border-slate-800 rounded-xl p-0.5 bg-slate-100 dark:bg-slate-800">
                                     <button
                                         type="button"
-                                        onClick={() => setViewMode('cards')}
+                                        onClick={() => handleChangeViewMode('cards')}
                                         className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                                             viewMode === 'cards' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
                                         }`}
@@ -701,7 +934,7 @@ export default function FundoCaixaPage() {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={() => setViewMode('lista')}
+                                        onClick={() => handleChangeViewMode('lista')}
                                         className={`p-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                                             viewMode === 'lista' ? 'bg-white dark:bg-slate-900 text-blue-600 shadow-xs' : 'text-slate-500 hover:text-slate-900'
                                         }`}
@@ -711,9 +944,148 @@ export default function FundoCaixaPage() {
                                         <span className="hidden sm:inline">Lista</span>
                                     </button>
                                 </div>
-                            </>
-                        )}
+                            ) : (
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={exportHistoricoCsv}
+                                    disabled={filteredHistorico.length === 0}
+                                    className="h-9 text-xs font-semibold gap-1.5 rounded-lg"
+                                >
+                                    <Download className="h-3.5 w-3.5" />
+                                    Exportar CSV
+                                </Button>
+                            )}
+                        </div>
                     </div>
+
+                    {/* Barra secundária de filtros e ordenação */}
+                    {activeTab === 'caixas' ? (
+                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <select
+                                value={statusFilter}
+                                onChange={(e: any) => setStatusFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todos">Status: Todos</option>
+                                <option value="Ativo">Ativos</option>
+                                <option value="Inativo">Fechados / Inativos</option>
+                            </select>
+
+                            <select
+                                value={modalidadeFilter}
+                                onChange={(e: any) => setModalidadeFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todas">Modalidade: Todas</option>
+                                <option value="dinheiro">Adiantamento Dinheiro</option>
+                                <option value="cartao">Cartão Corporativo</option>
+                            </select>
+
+                            <select
+                                value={empresaFilter}
+                                onChange={e => setEmpresaFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todas">Empresa: Todas</option>
+                                {empresas.map(e => (
+                                    <option key={e.id} value={e.id}>{e.nome}</option>
+                                ))}
+                            </select>
+
+                            <select
+                                value={moedaFilter}
+                                onChange={e => setMoedaFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todas">Moeda: Todas</option>
+                                {MOEDAS_CAIXA.map(m => (
+                                    <option key={m.code} value={m.code}>{m.flag} {m.code}</option>
+                                ))}
+                            </select>
+
+                            <div className="flex items-center gap-1.5 ml-auto">
+                                <ArrowUpDown className="h-3.5 w-3.5 text-slate-400" />
+                                <select
+                                    value={sortBy}
+                                    onChange={(e: any) => setSortBy(e.target.value)}
+                                    className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium"
+                                >
+                                    <option value="ativos_primeiro">Ordenar: Ativos primeiro</option>
+                                    <option value="recentes">Ordenar: Mais recentes</option>
+                                    <option value="maior_saldo">Ordenar: Maior saldo (€)</option>
+                                    <option value="maior_gasto">Ordenar: Maior gasto (€)</option>
+                                    <option value="nome_asc">Ordenar: Nome (A–Z)</option>
+                                    <option value="colaborador_asc">Ordenar: Colaborador (A–Z)</option>
+                                </select>
+
+                                {hasActiveCaixasFilters && (
+                                    <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        onClick={clearCaixasFilters}
+                                        className="h-8 px-2 text-xs text-slate-500 hover:text-slate-900 gap-1"
+                                    >
+                                        <X className="h-3.5 w-3.5" /> Limpar
+                                    </Button>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-100 dark:border-slate-800">
+                            <select
+                                value={histTipoFilter}
+                                onChange={(e: any) => setHistTipoFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todos">Tipo: Todos</option>
+                                <option value="entrada">Recargas</option>
+                                <option value="saida">Despesas</option>
+                            </select>
+
+                            <select
+                                value={histCategoriaFilter}
+                                onChange={e => setHistCategoriaFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todas">Categoria: Todas</option>
+                                <option value="Combustível">Combustível</option>
+                                <option value="Viagem/Transporte">Viagem/Transporte</option>
+                                <option value="Alimentação">Alimentação</option>
+                                <option value="Alojamento">Alojamento</option>
+                                <option value="Manutenção">Manutenção</option>
+                                <option value="Outros">Outros</option>
+                            </select>
+
+                            <select
+                                value={histMoedaFilter}
+                                onChange={e => setHistMoedaFilter(e.target.value)}
+                                className="h-8 text-xs px-2.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300"
+                            >
+                                <option value="todas">Moeda: Todas</option>
+                                {MOEDAS_CAIXA.map(m => (
+                                    <option key={m.code} value={m.code}>{m.flag} {m.code}</option>
+                                ))}
+                            </select>
+
+                            <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                                <span>De:</span>
+                                <Input
+                                    type="date"
+                                    value={histDateFrom}
+                                    onChange={e => setHistDateFrom(e.target.value)}
+                                    className="h-8 w-36 text-xs"
+                                />
+                                <span>Até:</span>
+                                <Input
+                                    type="date"
+                                    value={histDateTo}
+                                    onChange={e => setHistDateTo(e.target.value)}
+                                    className="h-8 w-36 text-xs"
+                                />
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* Conteúdo Aba 1: Caixas */}
@@ -728,7 +1100,11 @@ export default function FundoCaixaPage() {
                             <div className="py-16 text-center text-slate-400">
                                 <Wallet className="h-10 w-10 mx-auto mb-2 stroke-1 opacity-50" />
                                 <p className="font-medium">Nenhum fundo de caixa encontrado.</p>
-                                <p className="text-xs text-slate-400 mt-1">Clique em "Novo Fundo de Caixa" para criar um novo adiantamento.</p>
+                                <p className="text-xs text-slate-400 mt-1">
+                                    {hasActiveCaixasFilters
+                                        ? 'Tente ajustar ou limpar os filtros aplicados.'
+                                        : 'Clique em "Novo Fundo de Caixa" para criar um novo adiantamento.'}
+                                </p>
                             </div>
                         ) : viewMode === 'lista' ? (
                             /* Modo Tabela / Lista */
@@ -736,184 +1112,48 @@ export default function FundoCaixaPage() {
                                 <Table>
                                     <TableHeader>
                                         <TableRow className="bg-slate-50 dark:bg-slate-800/50">
-                                            <TableHead>Caixa / Missão</TableHead>
+                                            <TableHead className="cursor-pointer select-none" onClick={() => setSortBy('nome_asc')}>
+                                                Caixa / Missão
+                                            </TableHead>
                                             <TableHead>Modalidade</TableHead>
-                                            <TableHead>Funcionário</TableHead>
+                                            <TableHead className="cursor-pointer select-none" onClick={() => setSortBy('colaborador_asc')}>
+                                                Funcionário
+                                            </TableHead>
                                             <TableHead>Empresa</TableHead>
-                                            <TableHead className="text-right">Total Gastos</TableHead>
-                                            <TableHead className="text-right">Saldo Disponível</TableHead>
-                                            <TableHead className="text-center w-28">Status</TableHead>
-                                            <TableHead className="text-center w-72">Ações</TableHead>
+                                            <TableHead className="text-right cursor-pointer select-none" onClick={() => setSortBy('maior_gasto')}>
+                                                Total Gastos
+                                            </TableHead>
+                                            <TableHead className="text-right cursor-pointer select-none" onClick={() => setSortBy('maior_saldo')}>
+                                                Saldo Disponível
+                                            </TableHead>
+                                            <TableHead className="text-center w-28 cursor-pointer select-none" onClick={() => setSortBy('ativos_primeiro')}>
+                                                Status
+                                            </TableHead>
+                                            <TableHead className="text-center w-56">Ações</TableHead>
                                         </TableRow>
                                     </TableHeader>
                                     <TableBody>
-                                        {filteredCaixas.map(cx => (
-                                            <TableRow key={cx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
-                                                <TableCell className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
-                                                    <div>{cx.nombre}</div>
-                                                    {cx.fechado_em && (
-                                                        <span className="text-[10px] text-slate-400">
-                                                            Fechado em {new Date(cx.fechado_em).toLocaleDateString()}
-                                                        </span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell>
-                                                    {cx.tipo_fundo === 'cartao' ? (
-                                                        <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 text-[10px] flex items-center gap-1 w-fit">
-                                                            <CreditCard className="w-3 h-3" />
-                                                            {cx.cartao?.nome_cartao || 'Cartão Corporativo'}
-                                                        </Badge>
-                                                    ) : (
-                                                        <Badge variant="outline" className="text-slate-600 text-[10px] flex items-center gap-1 w-fit">
-                                                            <Wallet className="w-3 h-3" />
-                                                            Adiantamento
-                                                        </Badge>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-slate-700 dark:text-slate-300">
-                                                    {cx.trabajador?.Nombre || 'Não especificado'}
-                                                </TableCell>
-                                                <TableCell className="text-xs text-slate-500">
-                                                    {cx.empresa?.nome || cx.cartao?.empresa_nome || '—'}
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono text-xs font-semibold text-red-600">
-                                                    -{formatMoney(cx.total_despesas)}
-                                                </TableCell>
-                                                <TableCell className="text-right font-mono text-sm font-bold">
-                                                    {cx.tipo_fundo === 'cartao' ? (
-                                                        <span className="text-xs font-normal text-slate-400">Cartão s/ Saldo</span>
-                                                    ) : (
-                                                        <span className={cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'}>
-                                                            {formatMoney(cx.saldo)}
-                                                        </span>
-                                                    )}
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex flex-col items-center gap-0.5">
-                                                        <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
-                                                            {cx.fechado_em ? 'Fechado' : cx.status}
-                                                        </Badge>
-                                                        {cx.conta_pagar_id && (
-                                                            <span className="text-[10px] text-emerald-600 font-mono font-medium">
-                                                                CP #{cx.conta_pagar_id} (Paga)
+                                        {filteredCaixas.map(cx => {
+                                            const isForeign = cx.moeda && cx.moeda !== 'EUR';
+                                            const mInfo = getMoedaInfo(cx.moeda);
+                                            return (
+                                                <TableRow key={cx.id} className="hover:bg-slate-50/80 dark:hover:bg-slate-800/50 transition-colors">
+                                                    <TableCell className="font-semibold text-slate-900 dark:text-slate-100 text-sm">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <span>{cx.nombre}</span>
+                                                            {isForeign && (
+                                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/30 dark:text-amber-300">
+                                                                    {mInfo.flag} {cx.moeda} · {cx.taxa_cambio.toFixed(4)}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+                                                        {cx.fechado_em && (
+                                                            <span className="text-[10px] text-slate-400">
+                                                                Fechado em {new Date(cx.fechado_em).toLocaleDateString()}
                                                             </span>
                                                         )}
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="text-center">
-                                                    <div className="flex items-center justify-center gap-1">
-                                                        {cx.status === 'Ativo' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="default"
-                                                                className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
-                                                                onClick={() => handleOpenFechamento(cx)}
-                                                                title="Finalizar Caixa e Gerar Conta Paga"
-                                                            >
-                                                                <FileCheck className="h-3.5 w-3.5 mr-1" /> Fechar
-                                                            </Button>
-                                                        )}
-                                                        {cx.tipo_fundo !== 'cartao' && cx.status === 'Ativo' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 px-2 text-xs text-emerald-700 hover:bg-emerald-50"
-                                                                onClick={() => {
-                                                                    setSelectedCaixa(cx);
-                                                                    setIsRecargaOpen(true);
-                                                                }}
-                                                                title="Recarregar Caixa"
-                                                            >
-                                                                <TrendingUp className="h-3.5 w-3.5" />
-                                                            </Button>
-                                                        )}
-                                                        {cx.status === 'Ativo' && (
-                                                            <Button
-                                                                size="sm"
-                                                                variant="outline"
-                                                                className="h-7 px-2 text-xs text-red-700 hover:bg-red-50"
-                                                                onClick={() => {
-                                                                    setSelectedCaixa(cx);
-                                                                    setIsDespesaOpen(true);
-                                                                }}
-                                                                title="Lançar Gasto"
-                                                            >
-                                                                <TrendingDown className="h-3.5 w-3.5 mr-1" /> Gasto
-                                                            </Button>
-                                                        )}
-                                                        <Button
-                                                            size="sm"
-                                                            variant="default"
-                                                            className="h-7 px-2 text-xs bg-slate-900 hover:bg-slate-800 text-white"
-                                                            onClick={() => openExtrato(cx)}
-                                                            title="Ver Extrato Completo"
-                                                        >
-                                                            <Eye className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-7 w-7 p-0 text-blue-600 hover:bg-blue-50"
-                                                            onClick={() => copyWorkerLink(cx)}
-                                                            title="Copiar Link do Funcionário"
-                                                        >
-                                                            <Copy className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50"
-                                                            onClick={() => handleOpenEditCaixa(cx)}
-                                                            title="Editar Fundo de Caixa"
-                                                        >
-                                                            <Edit2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50"
-                                                            onClick={() => handleDeleteCaixa(cx)}
-                                                            title="Excluir Fundo de Caixa"
-                                                        >
-                                                            <Trash2 className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                        <Button
-                                                            size="sm"
-                                                            variant="ghost"
-                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-slate-700"
-                                                            onClick={() => toggleCaixaStatus(cx)}
-                                                            title={cx.status === 'Ativo' ? 'Encerrar Caixa' : 'Reativar Caixa'}
-                                                        >
-                                                            <Clock className="h-3.5 w-3.5" />
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
-                        ) : (
-                            /* Modo Cards / Galeria */
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                                {filteredCaixas.map(cx => (
-                                    <div 
-                                        key={cx.id} 
-                                        className="bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-blue-400/50 transition-all flex flex-col justify-between"
-                                    >
-                                        <div>
-                                            <div className="flex items-start justify-between gap-2 mb-3">
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-2 flex-wrap">
-                                                        <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-snug">
-                                                            {cx.nombre}
-                                                        </h3>
-                                                        <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
-                                                            {cx.fechado_em ? 'Fechado' : cx.status}
-                                                        </Badge>
-                                                    </div>
-
-                                                    <div className="mt-1">
+                                                    </TableCell>
+                                                    <TableCell>
                                                         {cx.tipo_fundo === 'cartao' ? (
                                                             <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 text-[10px] flex items-center gap-1 w-fit">
                                                                 <CreditCard className="w-3 h-3" />
@@ -922,191 +1162,392 @@ export default function FundoCaixaPage() {
                                                         ) : (
                                                             <Badge variant="outline" className="text-slate-600 text-[10px] flex items-center gap-1 w-fit">
                                                                 <Wallet className="w-3 h-3" />
-                                                                Adiantamento em Dinheiro
+                                                                Adiantamento
                                                             </Badge>
                                                         )}
-                                                    </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-slate-700 dark:text-slate-300">
+                                                        {cx.trabajador?.Nombre || 'Não especificado'}
+                                                    </TableCell>
+                                                    <TableCell className="text-xs text-slate-500">
+                                                        {cx.empresa?.nome || cx.cartao?.empresa_nome || '—'}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-xs font-semibold text-red-600">
+                                                        <div>-{formatMoney(cx.total_despesas, cx.moeda)}</div>
+                                                        {isForeign && (
+                                                            <div className="text-[10px] text-slate-400 font-normal">
+                                                                ≈ -{formatMoney(cx.total_despesas_eur, 'EUR')}
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-right font-mono text-sm font-bold">
+                                                        {cx.tipo_fundo === 'cartao' ? (
+                                                            <span className="text-xs font-normal text-slate-400">Cartão s/ Saldo</span>
+                                                        ) : (
+                                                            <div>
+                                                                <span className={cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'}>
+                                                                    {formatMoney(cx.saldo, cx.moeda)}
+                                                                </span>
+                                                                {isForeign && (
+                                                                    <div className="text-[10px] text-slate-400 font-normal">
+                                                                        ≈ {formatMoney(cx.saldo_eur, 'EUR')}
+                                                                    </div>
+                                                                )}
+                                                            </div>
+                                                        )}
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex flex-col items-center gap-0.5">
+                                                            <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
+                                                                {cx.fechado_em ? 'Fechado' : cx.status}
+                                                            </Badge>
+                                                            {cx.conta_pagar_id && (
+                                                                <span className="text-[10px] text-emerald-600 font-mono font-medium">
+                                                                    CP #{cx.conta_pagar_id} (Paga)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                    </TableCell>
+                                                    <TableCell className="text-center">
+                                                        <div className="flex items-center justify-center gap-1">
+                                                            <Button
+                                                                size="sm"
+                                                                variant="default"
+                                                                className="h-7 px-2 text-xs bg-slate-900 hover:bg-slate-800 text-white"
+                                                                onClick={() => openExtrato(cx)}
+                                                                title="Ver Extrato Completo"
+                                                            >
+                                                                <Eye className="h-3.5 w-3.5 mr-1" /> Extrato
+                                                            </Button>
+                                                            {cx.status === 'Ativo' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="outline"
+                                                                    className="h-7 px-2 text-xs text-red-700 hover:bg-red-50"
+                                                                    onClick={() => {
+                                                                        setSelectedCaixa(cx);
+                                                                        setIsDespesaOpen(true);
+                                                                    }}
+                                                                    title="Lançar Gasto"
+                                                                >
+                                                                    <TrendingDown className="h-3.5 w-3.5 mr-1" /> Gasto
+                                                                </Button>
+                                                            )}
+                                                            {cx.status === 'Ativo' && (
+                                                                <Button
+                                                                    size="sm"
+                                                                    variant="default"
+                                                                    className="h-7 px-2 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-medium"
+                                                                    onClick={() => handleOpenFechamento(cx)}
+                                                                    title="Finalizar Caixa e Gerar Conta Paga"
+                                                                >
+                                                                    <FileCheck className="h-3.5 w-3.5" />
+                                                                </Button>
+                                                            )}
+                                                            <DropdownMenu>
+                                                                <DropdownMenuTrigger asChild>
+                                                                    <Button size="sm" variant="ghost" className="h-7 w-7 p-0 text-slate-500 hover:text-slate-900">
+                                                                        <MoreHorizontal className="h-4 w-4" />
+                                                                    </Button>
+                                                                </DropdownMenuTrigger>
+                                                                <DropdownMenuContent align="end" className="w-48">
+                                                                    {cx.tipo_fundo !== 'cartao' && cx.status === 'Ativo' && (
+                                                                        <DropdownMenuItem onClick={() => openRecargaModal(cx)} className="text-emerald-700 font-medium">
+                                                                            <TrendingUp className="h-3.5 w-3.5 mr-2" /> + Recarregar Saldo
+                                                                        </DropdownMenuItem>
+                                                                    )}
+                                                                    <DropdownMenuItem onClick={() => copyWorkerLink(cx)}>
+                                                                        <Copy className="h-3.5 w-3.5 mr-2 text-blue-600" /> Copiar Link do Funcionário
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem onClick={() => handleOpenEditCaixa(cx)}>
+                                                                        <Edit2 className="h-3.5 w-3.5 mr-2" /> Editar Caixa
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuItem onClick={() => toggleCaixaStatus(cx)}>
+                                                                        <Clock className="h-3.5 w-3.5 mr-2" /> {cx.status === 'Ativo' ? 'Encerrar / Arquivar' : 'Reativar Caixa'}
+                                                                    </DropdownMenuItem>
+                                                                    <DropdownMenuSeparator />
+                                                                    <DropdownMenuItem onClick={() => handleDeleteCaixa(cx)} className="text-red-600 focus:text-red-600">
+                                                                        <Trash2 className="h-3.5 w-3.5 mr-2" /> Excluir Caixa
+                                                                    </DropdownMenuItem>
+                                                                </DropdownMenuContent>
+                                                            </DropdownMenu>
+                                                        </div>
+                                                    </TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        ) : (
+                            /* Modo Cards / Galeria */
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+                                {filteredCaixas.map(cx => {
+                                    const isForeign = cx.moeda && cx.moeda !== 'EUR';
+                                    const mInfo = getMoedaInfo(cx.moeda);
+                                    const pctUsado = cx.total_recargas > 0
+                                        ? Math.min(100, Math.round((cx.total_despesas / cx.total_recargas) * 100))
+                                        : 0;
+                                    const isOverBudget = cx.total_recargas > 0 && cx.total_despesas > cx.total_recargas;
 
-                                                    <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1.5">
-                                                        <User className="h-3.5 w-3.5 text-slate-400" />
-                                                        <span className="font-medium text-slate-700 dark:text-slate-300 truncate">
-                                                            {cx.trabajador?.Nombre || 'Não especificado'}
-                                                        </span>
-                                                        {cx.trabajador?.tipo && (
-                                                            <span className="text-[10px] text-slate-400 uppercase">
-                                                                ({cx.trabajador.tipo})
+                                    return (
+                                        <div 
+                                            key={cx.id} 
+                                            className="bg-slate-50/50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 hover:border-blue-400/50 transition-all flex flex-col justify-between"
+                                        >
+                                            <div>
+                                                <div className="flex items-start justify-between gap-2 mb-3">
+                                                    <div className="flex-1 min-w-0">
+                                                        <div className="flex items-center gap-1.5 flex-wrap">
+                                                            <h3 className="font-bold text-slate-900 dark:text-slate-100 text-base leading-snug">
+                                                                {cx.nombre}
+                                                            </h3>
+                                                            <Badge variant={cx.status === 'Ativo' ? 'default' : 'secondary'} className="text-[10px]">
+                                                                {cx.fechado_em ? 'Fechado' : cx.status}
+                                                            </Badge>
+                                                        </div>
+
+                                                        <div className="mt-1.5 flex items-center gap-1.5 flex-wrap">
+                                                            {cx.tipo_fundo === 'cartao' ? (
+                                                                <Badge className="bg-indigo-50 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300 border-indigo-200 text-[10px] flex items-center gap-1 w-fit">
+                                                                    <CreditCard className="w-3 h-3" />
+                                                                    {cx.cartao?.nome_cartao || 'Cartão Corporativo'}
+                                                                </Badge>
+                                                            ) : (
+                                                                <Badge variant="outline" className="text-slate-600 text-[10px] flex items-center gap-1 w-fit">
+                                                                    <Wallet className="w-3 h-3" />
+                                                                    Adiantamento
+                                                                </Badge>
+                                                            )}
+                                                            {isForeign && (
+                                                                <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/30 dark:text-amber-300">
+                                                                    {mInfo.flag} {cx.moeda} · {cx.taxa_cambio.toFixed(4)}
+                                                                </Badge>
+                                                            )}
+                                                        </div>
+
+                                                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-1.5">
+                                                            <User className="h-3.5 w-3.5 text-slate-400" />
+                                                            <span className="font-medium text-slate-700 dark:text-slate-300 truncate">
+                                                                {cx.trabajador?.Nombre || 'Não especificado'}
                                                             </span>
+                                                        </div>
+                                                        {(cx.empresa || cx.cartao?.empresa_nome) && (
+                                                            <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
+                                                                <Building2 className="h-3.5 w-3.5" />
+                                                                <span className="truncate">{cx.empresa?.nome || cx.cartao?.empresa_nome}</span>
+                                                            </div>
                                                         )}
                                                     </div>
-                                                    {(cx.empresa || cx.cartao?.empresa_nome) && (
-                                                        <div className="flex items-center gap-1.5 text-xs text-slate-400 mt-0.5">
-                                                            <Building2 className="h-3.5 w-3.5" />
-                                                            <span className="truncate">{cx.empresa?.nome || cx.cartao?.empresa_nome}</span>
-                                                        </div>
-                                                    )}
+
+                                                    <div className="flex items-center gap-0.5 shrink-0">
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                                                            onClick={() => handleOpenEditCaixa(cx)}
+                                                            title="Editar Fundo de Caixa"
+                                                        >
+                                                            <Edit2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                                                            onClick={() => handleDeleteCaixa(cx)}
+                                                            title="Excluir Fundo de Caixa"
+                                                        >
+                                                            <Trash2 className="h-3.5 w-3.5" />
+                                                        </Button>
+                                                    </div>
                                                 </div>
 
-                                                <div className="flex items-center gap-0.5 shrink-0">
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 w-7 p-0 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
-                                                        onClick={() => handleOpenEditCaixa(cx)}
-                                                        title="Editar Fundo de Caixa"
-                                                    >
-                                                        <Edit2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 w-7 p-0 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                                                        onClick={() => handleDeleteCaixa(cx)}
-                                                        title="Excluir Fundo de Caixa"
-                                                    >
-                                                        <Trash2 className="h-3.5 w-3.5" />
-                                                    </Button>
-                                                </div>
+                                                {/* Saldo ou Gastos Destaque */}
+                                                {cx.tipo_fundo === 'cartao' ? (
+                                                    <div className="my-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                                        <div className="text-xs text-slate-400 font-medium">Total Gasto na Missão</div>
+                                                        <div className="text-2xl font-black mt-0.5 text-red-600 dark:text-red-400">
+                                                            {formatMoney(cx.total_despesas, cx.moeda)}
+                                                        </div>
+                                                        {isForeign && (
+                                                            <div className="text-[11px] font-mono text-slate-400">
+                                                                ≈ {formatMoney(cx.total_despesas_eur, 'EUR')}
+                                                            </div>
+                                                        )}
+                                                        <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
+                                                            <span className="flex items-center gap-1 text-indigo-600 font-medium truncate max-w-[170px]">
+                                                                <CreditCard className="h-3.5 w-3.5 shrink-0" />
+                                                                {cx.cartao?.nome_cartao || 'Cartão da Empresa'}
+                                                            </span>
+                                                            <span className="text-slate-400 text-[11px]">Sem saldo fixo</span>
+                                                        </div>
+                                                    </div>
+                                                ) : (
+                                                    <div className="my-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="text-xs text-slate-400 font-medium">Saldo Disponível</span>
+                                                            {cx.total_recargas > 0 && (
+                                                                <span className={`text-[10px] font-semibold ${isOverBudget ? 'text-red-600' : pctUsado >= 80 ? 'text-amber-600' : 'text-slate-400'}`}>
+                                                                    {pctUsado}% usado
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        <div className={`text-2xl font-black mt-0.5 ${
+                                                            cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'
+                                                        }`}>
+                                                            {formatMoney(cx.saldo, cx.moeda)}
+                                                        </div>
+                                                        {isForeign && (
+                                                            <div className="text-[11px] font-mono text-slate-500 mt-0.5">
+                                                                ≈ {formatMoney(cx.saldo_eur, 'EUR')}
+                                                                {cx.total_taxas_bancarias_eur > 0 && (
+                                                                    <span className="text-slate-400 ml-1">
+                                                                        · Taxas: {formatMoney(cx.total_taxas_bancarias_eur, 'EUR')}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Barra de consumo */}
+                                                        {cx.total_recargas > 0 && (
+                                                            <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden mt-2.5">
+                                                                <div
+                                                                    className={`h-full rounded-full transition-all ${
+                                                                        isOverBudget ? 'bg-red-500' : pctUsado >= 80 ? 'bg-amber-500' : 'bg-emerald-500'
+                                                                    }`}
+                                                                    style={{ width: `${pctUsado}%` }}
+                                                                />
+                                                            </div>
+                                                        )}
+
+                                                        <div className="flex justify-between items-start text-[11px] text-slate-500 mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-800 gap-2">
+                                                            <div>
+                                                                <span className="flex items-center gap-0.5 text-emerald-600 font-medium">
+                                                                    <ArrowUpRight className="h-3 w-3" />
+                                                                    {formatMoney(cx.total_recargas, cx.moeda)}
+                                                                </span>
+                                                                {isForeign && (
+                                                                    <span className="text-[10px] text-slate-400 font-mono block pl-3.5">
+                                                                        Env.: {formatMoney(cx.total_recargas_eur, 'EUR')}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className="flex items-center justify-end gap-0.5 text-red-600 font-medium">
+                                                                    <ArrowDownLeft className="h-3 w-3" />
+                                                                    {formatMoney(cx.total_despesas, cx.moeda)}
+                                                                </span>
+                                                                {isForeign && (
+                                                                    <span className="text-[10px] text-slate-400 font-mono block">
+                                                                        ≈ {formatMoney(cx.total_despesas_eur, 'EUR')}
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                )}
+
+                                                {/* Informações de Fechamento */}
+                                                {cx.fechado_em && (
+                                                    <div className="mb-3 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/30 text-xs text-slate-700 dark:text-slate-300 space-y-1">
+                                                        <div className="flex items-center justify-between">
+                                                            <span className="font-semibold text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
+                                                                <FileCheck className="w-3.5 h-3.5" /> Missão Finalizada
+                                                            </span>
+                                                            {cx.conta_pagar_id && (
+                                                                <span className="font-mono text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                                                                    CP #{cx.conta_pagar_id} (Paga)
+                                                                </span>
+                                                            )}
+                                                        </div>
+                                                        {cx.cat_despesa && (
+                                                            <div className="text-[11px] text-slate-500">
+                                                                Classificação: <span className="font-medium text-slate-700 dark:text-slate-300">{cx.cat_despesa}</span> ({cx.centro_custo || 'Geral'})
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
                                             </div>
 
-                                            {/* Saldo ou Gastos Destaque */}
-                                            {cx.tipo_fundo === 'cartao' ? (
-                                                <div className="my-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                                    <div className="text-xs text-slate-400 font-medium">Total Gasto na Missão</div>
-                                                    <div className="text-2xl font-black mt-0.5 text-red-600 dark:text-red-400">
-                                                        {formatMoney(cx.total_despesas)}
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                                        <span className="flex items-center gap-1 text-indigo-600 font-medium truncate max-w-[170px]">
-                                                            <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                                                            {cx.cartao?.nome_cartao || 'Cartão da Empresa'}
-                                                        </span>
-                                                        <span className="text-slate-400 text-[11px]">Sem saldo fixo</span>
-                                                    </div>
-                                                </div>
-                                            ) : (
-                                                <div className="my-3 p-4 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-                                                    <div className="text-xs text-slate-400 font-medium">Saldo Disponível</div>
-                                                    <div className={`text-2xl font-black mt-0.5 ${
-                                                        cx.saldo > 0 ? 'text-emerald-600' : cx.saldo < 0 ? 'text-red-600' : 'text-slate-600'
-                                                    }`}>
-                                                        {formatMoney(cx.saldo)}
-                                                    </div>
-                                                    <div className="flex justify-between items-center text-xs text-slate-500 mt-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-                                                        <span className="flex items-center gap-1 text-emerald-600">
-                                                            <ArrowUpRight className="h-3.5 w-3.5" />
-                                                            Recargas: {formatMoney(cx.total_recargas)}
-                                                        </span>
-                                                        <span className="flex items-center gap-1 text-red-600">
-                                                            <ArrowDownLeft className="h-3.5 w-3.5" />
-                                                            Gastos: {formatMoney(cx.total_despesas)}
-                                                        </span>
-                                                    </div>
-                                                </div>
-                                            )}
+                                            {/* Ações */}
+                                            <div className="space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
+                                                {cx.status === 'Ativo' && (
+                                                    <Button
+                                                        size="sm"
+                                                        className="w-full text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
+                                                        onClick={() => handleOpenFechamento(cx)}
+                                                    >
+                                                        <FileCheck className="h-3.5 w-3.5" />
+                                                        Finalizar Missão & Gerar Conta Paga
+                                                    </Button>
+                                                )}
 
-                                            {/* Informações de Fechamento */}
-                                            {cx.fechado_em && (
-                                                <div className="mb-3 p-2.5 rounded-xl bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/30 text-xs text-slate-700 dark:text-slate-300 space-y-1">
-                                                    <div className="flex items-center justify-between">
-                                                        <span className="font-semibold text-emerald-800 dark:text-emerald-400 flex items-center gap-1">
-                                                            <FileCheck className="w-3.5 h-3.5" /> Missão Finalizada
-                                                        </span>
-                                                        {cx.conta_pagar_id && (
-                                                            <span className="font-mono text-[10px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded">
-                                                                CP #{cx.conta_pagar_id} (Paga)
-                                                            </span>
-                                                        )}
-                                                    </div>
-                                                    {cx.cat_despesa && (
-                                                        <div className="text-[11px] text-slate-500">
-                                                            Classificação: <span className="font-medium text-slate-700 dark:text-slate-300">{cx.cat_despesa}</span> ({cx.centro_custo || 'Geral'})
-                                                        </div>
-                                                    )}
+                                                <div className="grid grid-cols-2 gap-2">
+                                                    {cx.tipo_fundo !== 'cartao' && cx.status === 'Ativo' ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className="w-full text-xs font-semibold gap-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
+                                                            onClick={() => openRecargaModal(cx)}
+                                                        >
+                                                            <TrendingUp className="h-3.5 w-3.5" />
+                                                            + Recarregar
+                                                        </Button>
+                                                    ) : null}
+
+                                                    {cx.status === 'Ativo' ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="outline"
+                                                            className={`text-xs font-semibold gap-1 text-red-700 hover:text-red-800 hover:bg-red-50 ${
+                                                                cx.tipo_fundo === 'cartao' ? 'col-span-2' : ''
+                                                            }`}
+                                                            onClick={() => {
+                                                                setSelectedCaixa(cx);
+                                                                setIsDespesaOpen(true);
+                                                            }}
+                                                        >
+                                                            <TrendingDown className="h-3.5 w-3.5" />
+                                                            + Lançar Gasto
+                                                        </Button>
+                                                    ) : null}
                                                 </div>
-                                            )}
-                                        </div>
 
-                                        {/* Ações */}
-                                        <div className="space-y-2 pt-2 border-t border-slate-200/60 dark:border-slate-800">
-                                            {cx.status === 'Ativo' && (
-                                                <Button
-                                                    size="sm"
-                                                    className="w-full text-xs font-semibold gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white shadow-xs"
-                                                    onClick={() => handleOpenFechamento(cx)}
-                                                >
-                                                    <FileCheck className="h-3.5 w-3.5" />
-                                                    Finalizar Missão & Gerar Conta Paga
-                                                </Button>
-                                            )}
+                                                <div className="flex items-center gap-2">
+                                                    <Button
+                                                        size="sm"
+                                                        variant="default"
+                                                        className="flex-1 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white"
+                                                        onClick={() => openExtrato(cx)}
+                                                    >
+                                                        <Eye className="h-3.5 w-3.5" />
+                                                        Ver Extrato
+                                                    </Button>
 
-                                            <div className="grid grid-cols-2 gap-2">
-                                                {cx.tipo_fundo !== 'cartao' && cx.status === 'Ativo' ? (
                                                     <Button
                                                         size="sm"
                                                         variant="outline"
-                                                        className="w-full text-xs font-semibold gap-1 text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50"
-                                                        onClick={() => {
-                                                            setSelectedCaixa(cx);
-                                                            setIsRecargaOpen(true);
-                                                        }}
+                                                        title="Copiar Link para o Trabalhador registrar no celular"
+                                                        className="text-xs px-2.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                                        onClick={() => copyWorkerLink(cx)}
                                                     >
-                                                        <TrendingUp className="h-3.5 w-3.5" />
-                                                        + Recarregar
+                                                        <Copy className="h-3.5 w-3.5" />
                                                     </Button>
-                                                ) : null}
 
-                                                {cx.status === 'Ativo' ? (
                                                     <Button
                                                         size="sm"
-                                                        variant="outline"
-                                                        className={`text-xs font-semibold gap-1 text-red-700 hover:text-red-800 hover:bg-red-50 ${
-                                                            cx.tipo_fundo === 'cartao' ? 'col-span-2' : ''
-                                                        }`}
-                                                        onClick={() => {
-                                                            setSelectedCaixa(cx);
-                                                            setIsDespesaOpen(true);
-                                                        }}
+                                                        variant="ghost"
+                                                        title={cx.status === 'Ativo' ? 'Encerrar Caixa' : 'Reativar Caixa'}
+                                                        className="text-xs px-2 text-slate-400 hover:text-slate-700"
+                                                        onClick={() => toggleCaixaStatus(cx)}
                                                     >
-                                                        <TrendingDown className="h-3.5 w-3.5" />
-                                                        + Lançar Gasto
+                                                        <Clock className="h-3.5 w-3.5" />
                                                     </Button>
-                                                ) : null}
-                                            </div>
-
-                                            <div className="flex items-center gap-2">
-                                                <Button
-                                                    size="sm"
-                                                    variant="default"
-                                                    className="flex-1 text-xs gap-1.5 bg-slate-900 hover:bg-slate-800 text-white"
-                                                    onClick={() => openExtrato(cx)}
-                                                >
-                                                    <Eye className="h-3.5 w-3.5" />
-                                                    Ver Extrato
-                                                </Button>
-
-                                                <Button
-                                                    size="sm"
-                                                    variant="outline"
-                                                    title="Copiar Link para o Trabalhador registrar no celular"
-                                                    className="text-xs px-2.5 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                                    onClick={() => copyWorkerLink(cx)}
-                                                >
-                                                    <Copy className="h-3.5 w-3.5" />
-                                                </Button>
-
-                                                <Button
-                                                    size="sm"
-                                                    variant="ghost"
-                                                    title={cx.status === 'Ativo' ? 'Encerrar Caixa' : 'Reativar Caixa'}
-                                                    className="text-xs px-2 text-slate-400 hover:text-slate-700"
-                                                    onClick={() => toggleCaixaStatus(cx)}
-                                                >
-                                                    <Clock className="h-3.5 w-3.5" />
-                                                </Button>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                ))}
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
@@ -1124,69 +1565,88 @@ export default function FundoCaixaPage() {
                                     <TableHead>Tipo & Descrição</TableHead>
                                     <TableHead>Categoria</TableHead>
                                     <TableHead className="text-right">Valor</TableHead>
-                                    <TableHead className="text-center w-24">Comprovante</TableHead>
+                                    <TableHead className="text-right">Equiv. EUR</TableHead>
+                                    <TableHead className="text-center w-20">Recibo</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
-                                {historicoGeral.length === 0 ? (
+                                {filteredHistorico.length === 0 ? (
                                     <TableRow>
-                                        <TableCell colSpan={7} className="text-center py-12 text-slate-400">
-                                            Nenhum lançamento registrado até o momento.
+                                        <TableCell colSpan={8} className="text-center py-12 text-slate-400">
+                                            Nenhum lançamento encontrado para os filtros aplicados.
                                         </TableCell>
                                     </TableRow>
                                 ) : (
-                                    historicoGeral.map((mov, idx) => (
-                                        <TableRow key={mov.id || idx}>
-                                            <TableCell className="font-mono text-xs">
-                                                {mov.data}
-                                            </TableCell>
-                                            <TableCell className="font-medium text-slate-900 dark:text-slate-100 text-xs">
-                                                {mov.caixa_nome}
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-600 dark:text-slate-400">
-                                                {mov.trabalhador_nome}
-                                            </TableCell>
-                                            <TableCell className="text-xs">
-                                                <div className="flex items-center gap-1.5">
-                                                    <Badge 
-                                                        variant="outline"
-                                                        className={`text-[10px] ${
-                                                            mov.tipo === 'entrada' 
-                                                                ? 'text-emerald-700 border-emerald-300 bg-emerald-50' 
-                                                                : 'text-red-700 border-red-300 bg-red-50'
-                                                        }`}
-                                                    >
-                                                        {mov.tipo === 'entrada' ? 'Recarga' : 'Despesa'}
-                                                    </Badge>
-                                                    <span className="text-slate-700 dark:text-slate-300 truncate max-w-[200px]">
-                                                        {mov.descricao}
-                                                    </span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-xs text-slate-500">
-                                                {mov.categoria || '—'}
-                                            </TableCell>
-                                            <TableCell className={`text-right font-mono text-xs font-bold ${
-                                                mov.tipo === 'entrada' ? 'text-emerald-600' : 'text-red-600'
-                                            }`}>
-                                                {mov.tipo === 'entrada' ? '+' : '-'}{formatMoney(mov.valor)}
-                                            </TableCell>
-                                            <TableCell className="text-center">
-                                                {mov.comprovante_url ? (
-                                                    <Button
-                                                        size="sm"
-                                                        variant="ghost"
-                                                        className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700"
-                                                        onClick={() => setLightboxImage(mov.comprovante_url)}
-                                                    >
-                                                        <FileText className="h-4 w-4" />
-                                                    </Button>
-                                                ) : (
-                                                    <span className="text-slate-300 text-xs">—</span>
-                                                )}
-                                            </TableCell>
-                                        </TableRow>
-                                    ))
+                                    filteredHistorico.map((mov: any, idx: number) => {
+                                        const isForeign = mov.moeda && mov.moeda !== 'EUR';
+                                        return (
+                                            <TableRow key={mov.id || idx}>
+                                                <TableCell className="font-mono text-xs">
+                                                    {mov.data}
+                                                </TableCell>
+                                                <TableCell className="font-medium text-slate-900 dark:text-slate-100 text-xs">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <span>{mov.caixa_nome}</span>
+                                                        {isForeign && (
+                                                            <Badge variant="outline" className="text-[9px] px-1 py-0 bg-amber-50 text-amber-800 border-amber-300">
+                                                                {mov.moeda}
+                                                            </Badge>
+                                                        )}
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-600 dark:text-slate-400">
+                                                    {mov.trabalhador_nome}
+                                                </TableCell>
+                                                <TableCell className="text-xs">
+                                                    <div className="flex items-center gap-1.5">
+                                                        <Badge 
+                                                            variant="outline"
+                                                            className={`text-[10px] ${
+                                                                mov.tipo === 'entrada' 
+                                                                    ? 'text-emerald-700 border-emerald-300 bg-emerald-50' 
+                                                                    : 'text-red-700 border-red-300 bg-red-50'
+                                                            }`}
+                                                        >
+                                                            {mov.tipo === 'entrada' ? 'Recarga' : 'Despesa'}
+                                                        </Badge>
+                                                        <span className="text-slate-700 dark:text-slate-300 truncate max-w-[220px]" title={mov.descricao}>
+                                                            {mov.descricao}
+                                                        </span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="text-xs text-slate-500">
+                                                    {mov.categoria || '—'}
+                                                </TableCell>
+                                                <TableCell className={`text-right font-mono text-xs font-bold ${
+                                                    mov.tipo === 'entrada' ? 'text-emerald-600' : 'text-red-600'
+                                                }`}>
+                                                    {mov.tipo === 'entrada' ? '+' : '-'}{formatMoney(mov.valor, mov.moeda)}
+                                                </TableCell>
+                                                <TableCell className="text-right font-mono text-xs text-slate-600 dark:text-slate-300">
+                                                    <div>{mov.tipo === 'entrada' ? '+' : '-'}{formatMoney(mov.valor_eur ?? mov.valor, 'EUR')}</div>
+                                                    {mov.taxa_bancaria_eur > 0 && (
+                                                        <div className="text-[10px] text-amber-600">
+                                                            Taxa: {formatMoney(mov.taxa_bancaria_eur, 'EUR')}
+                                                        </div>
+                                                    )}
+                                                </TableCell>
+                                                <TableCell className="text-center">
+                                                    {mov.comprovante_url ? (
+                                                        <Button
+                                                            size="sm"
+                                                            variant="ghost"
+                                                            className="h-7 w-7 p-0 text-blue-600 hover:text-blue-700"
+                                                            onClick={() => setLightboxImage(mov.comprovante_url)}
+                                                        >
+                                                            <FileText className="h-4 w-4" />
+                                                        </Button>
+                                                    ) : (
+                                                        <span className="text-slate-300 text-xs">—</span>
+                                                    )}
+                                                </TableCell>
+                                            </TableRow>
+                                        );
+                                    })
                                 )}
                             </TableBody>
                         </Table>
@@ -1302,37 +1762,69 @@ export default function FundoCaixaPage() {
 
                         {formNovoCaixa.tipo_fundo === 'dinheiro' && (
                             <>
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                        Empresa Pagadora / Vinculada
-                                    </label>
-                                    <select
-                                        value={formNovoCaixa.id_empresa}
-                                        onChange={e => setFormNovoCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
-                                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
-                                    >
-                                        <option value="">Selecione a empresa...</option>
-                                        {empresas.map(emp => (
-                                            <option key={emp.id} value={emp.id}>{emp.nome}</option>
-                                        ))}
-                                    </select>
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                            Empresa Pagadora / Vinculada
+                                        </label>
+                                        <select
+                                            value={formNovoCaixa.id_empresa}
+                                            onChange={e => setFormNovoCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
+                                            className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                        >
+                                            <option value="">Selecione a empresa...</option>
+                                            {empresas.map(emp => (
+                                                <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1 flex items-center gap-1">
+                                            <Globe className="h-3.5 w-3.5 text-amber-600" />
+                                            Moeda do Caixa *
+                                        </label>
+                                        <select
+                                            value={formNovoCaixa.moeda}
+                                            onChange={e => setFormNovoCaixa(prev => ({
+                                                ...prev,
+                                                moeda: e.target.value,
+                                                fx: { valorEur: '', taxaBancariaEur: '', valorLocal: '', taxaCambio: '' }
+                                            }))}
+                                            className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm font-medium"
+                                        >
+                                            {MOEDAS_CAIXA.map(m => (
+                                                <option key={m.code} value={m.code}>
+                                                    {m.flag} {m.label}
+                                                </option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
 
-                                <div>
-                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                        Saldo Inicial Adiantado (€)
-                                    </label>
-                                    <Input
-                                        type="number"
-                                        step="0.01"
-                                        placeholder="0.00"
-                                        value={formNovoCaixa.saldo_inicial}
-                                        onChange={e => setFormNovoCaixa(prev => ({ ...prev, saldo_inicial: e.target.value }))}
+                                {formNovoCaixa.moeda === 'EUR' ? (
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                            Saldo Inicial Adiantado (€)
+                                        </label>
+                                        <Input
+                                            type="number"
+                                            step="0.01"
+                                            placeholder="0.00"
+                                            value={formNovoCaixa.saldo_inicial}
+                                            onChange={e => setFormNovoCaixa(prev => ({ ...prev, saldo_inicial: e.target.value }))}
+                                        />
+                                        <p className="text-[11px] text-slate-400 mt-1">
+                                            O valor será lançado como recarga inicial de caixa.
+                                        </p>
+                                    </div>
+                                ) : (
+                                    <MultiCurrencyTransferFields
+                                        moeda={formNovoCaixa.moeda}
+                                        value={formNovoCaixa.fx}
+                                        onChange={fx => setFormNovoCaixa(prev => ({ ...prev, fx }))}
                                     />
-                                    <p className="text-[11px] text-slate-400 mt-1">
-                                        O valor será lançado como recarga inicial de caixa.
-                                    </p>
-                                </div>
+                                )}
                             </>
                         )}
 
@@ -1464,21 +1956,58 @@ export default function FundoCaixaPage() {
                         </div>
 
                         {formEditCaixa.tipo_fundo === 'dinheiro' && (
-                            <div>
-                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                    Empresa Pagadora / Vinculada
-                                </label>
-                                <select
-                                    value={formEditCaixa.id_empresa}
-                                    onChange={e => setFormEditCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
-                                    className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
-                                >
-                                    <option value="">Selecione a empresa...</option>
-                                    {empresas.map(emp => (
-                                        <option key={emp.id} value={emp.id}>{emp.nome}</option>
-                                    ))}
-                                </select>
-                            </div>
+                            <>
+                                <div>
+                                    <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                        Empresa Pagadora / Vinculada
+                                    </label>
+                                    <select
+                                        value={formEditCaixa.id_empresa}
+                                        onChange={e => setFormEditCaixa(prev => ({ ...prev, id_empresa: e.target.value }))}
+                                        className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                    >
+                                        <option value="">Selecione a empresa...</option>
+                                        {empresas.map(emp => (
+                                            <option key={emp.id} value={emp.id}>{emp.nome}</option>
+                                        ))}
+                                    </select>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    <div>
+                                        <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                            Moeda do Caixa
+                                        </label>
+                                        <select
+                                            value={formEditCaixa.moeda}
+                                            onChange={e => setFormEditCaixa(prev => ({
+                                                ...prev,
+                                                moeda: e.target.value,
+                                                taxa_cambio: e.target.value === 'EUR' ? '1' : prev.taxa_cambio
+                                            }))}
+                                            className="w-full h-10 px-3 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-sm"
+                                        >
+                                            {MOEDAS_CAIXA.map(m => (
+                                                <option key={m.code} value={m.code}>{m.flag} {m.code}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    {formEditCaixa.moeda !== 'EUR' && (
+                                        <div>
+                                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                                Cotação Ref. (1 EUR = {formEditCaixa.moeda})
+                                            </label>
+                                            <Input
+                                                type="number"
+                                                step="0.0001"
+                                                value={formEditCaixa.taxa_cambio}
+                                                onChange={e => setFormEditCaixa(prev => ({ ...prev, taxa_cambio: e.target.value }))}
+                                                className="font-mono"
+                                            />
+                                        </div>
+                                    )}
+                                </div>
+                            </>
                         )}
 
                         <div>
@@ -1527,26 +2056,50 @@ export default function FundoCaixaPage() {
                     </DialogHeader>
                     {selectedCaixa && (
                         <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedCaixa.nombre}</p>
+                            <div className="flex items-center justify-between">
+                                <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedCaixa.nombre}</p>
+                                {selectedCaixa.moeda !== 'EUR' && (
+                                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300">
+                                        {getMoedaInfo(selectedCaixa.moeda).flag} {selectedCaixa.moeda}
+                                    </Badge>
+                                )}
+                            </div>
                             <p className="text-slate-500">Colaborador: {selectedCaixa.trabajador?.Nombre}</p>
-                            <p className="text-slate-500 mt-1">Saldo Atual: <strong className="text-slate-800 dark:text-slate-200">{formatMoney(selectedCaixa.saldo)}</strong></p>
+                            <p className="text-slate-500 mt-1">
+                                Saldo Atual: <strong className="text-slate-800 dark:text-slate-200">{formatMoney(selectedCaixa.saldo, selectedCaixa.moeda)}</strong>
+                                {selectedCaixa.moeda !== 'EUR' && (
+                                    <span className="text-slate-400 font-mono ml-1.5">
+                                        (≈ {formatMoney(selectedCaixa.saldo_eur, 'EUR')})
+                                    </span>
+                                )}
+                            </p>
                         </div>
                     )}
                     <form onSubmit={handleAddRecarga} className="space-y-4 py-2">
-                        <div>
-                            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                Valor da Recarga (€) *
-                            </label>
-                            <Input
-                                type="number"
-                                step="0.01"
-                                placeholder="Ex: 500.00"
-                                value={formRecarga.valor}
-                                onChange={e => setFormRecarga(prev => ({ ...prev, valor: e.target.value }))}
+                        {selectedCaixa && selectedCaixa.moeda !== 'EUR' ? (
+                            <MultiCurrencyTransferFields
+                                moeda={selectedCaixa.moeda}
+                                value={formRecarga.fx}
+                                onChange={fx => setFormRecarga(prev => ({ ...prev, fx }))}
                                 required
-                                autoFocus
+                                autoFocusEur
                             />
-                        </div>
+                        ) : (
+                            <div>
+                                <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
+                                    Valor da Recarga (€) *
+                                </label>
+                                <Input
+                                    type="number"
+                                    step="0.01"
+                                    placeholder="Ex: 500.00"
+                                    value={formRecarga.valor}
+                                    onChange={e => setFormRecarga(prev => ({ ...prev, valor: e.target.value }))}
+                                    required
+                                    autoFocus
+                                />
+                            </div>
+                        )}
 
                         <div>
                             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
@@ -1642,16 +2195,30 @@ export default function FundoCaixaPage() {
                     </DialogHeader>
                     {selectedCaixa && (
                         <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-                            <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedCaixa.nombre}</p>
+                            <div className="flex items-center justify-between">
+                                <p className="font-semibold text-slate-900 dark:text-slate-100">{selectedCaixa.nombre}</p>
+                                {selectedCaixa.moeda !== 'EUR' && (
+                                    <Badge variant="outline" className="text-[10px] bg-amber-50 text-amber-800 border-amber-300">
+                                        {getMoedaInfo(selectedCaixa.moeda).flag} {selectedCaixa.moeda} · {selectedCaixa.taxa_cambio.toFixed(4)}
+                                    </Badge>
+                                )}
+                            </div>
                             <p className="text-slate-500">Colaborador: {selectedCaixa.trabajador?.Nombre}</p>
-                            <p className="text-slate-500 mt-1">Saldo Atual: <strong className="text-slate-800 dark:text-slate-200">{formatMoney(selectedCaixa.saldo)}</strong></p>
+                            <p className="text-slate-500 mt-1">
+                                Saldo Atual: <strong className="text-slate-800 dark:text-slate-200">{formatMoney(selectedCaixa.saldo, selectedCaixa.moeda)}</strong>
+                                {selectedCaixa.moeda !== 'EUR' && (
+                                    <span className="text-slate-400 font-mono ml-1.5">
+                                        (≈ {formatMoney(selectedCaixa.saldo_eur, 'EUR')})
+                                    </span>
+                                )}
+                            </p>
                         </div>
                     )}
                     <form onSubmit={handleAddDespesa} className="space-y-4 py-2">
                         <div className="grid grid-cols-2 gap-3">
                             <div>
                                 <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
-                                    Valor do Gasto (€) *
+                                    Valor do Gasto ({selectedCaixa?.moeda || 'EUR'}) *
                                 </label>
                                 <Input
                                     type="number"
@@ -1676,6 +2243,19 @@ export default function FundoCaixaPage() {
                                 />
                             </div>
                         </div>
+
+                        {selectedCaixa && selectedCaixa.moeda !== 'EUR' && Number(formDespesa.valor) > 0 && (
+                            <div className="px-3 py-2 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200/80 dark:border-amber-800/50 text-[11px] flex items-center justify-between text-amber-900 dark:text-amber-200">
+                                <span>
+                                    Equivalente: <strong className="font-mono">≈ {formatMoney(Number(formDespesa.valor) / (selectedCaixa.taxa_cambio || 1), 'EUR')}</strong>
+                                </span>
+                                {selectedCaixa.tipo_fundo !== 'cartao' && (
+                                    <span>
+                                        Saldo após: <strong className="font-mono">{formatMoney(selectedCaixa.saldo - Number(formDespesa.valor), selectedCaixa.moeda)}</strong>
+                                    </span>
+                                )}
+                            </div>
+                        )}
 
                         <div>
                             <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 block mb-1">
@@ -1787,25 +2367,47 @@ export default function FundoCaixaPage() {
                     </DialogHeader>
 
                     {selectedCaixa && (
-                        <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
-                            <div>
-                                <span className="text-slate-400 block">Colaborador:</span>
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                    {selectedCaixa.trabajador?.Nombre}
-                                </span>
+                        <div className="space-y-2">
+                            <div className="grid grid-cols-3 gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-800 text-xs">
+                                <div>
+                                    <span className="text-slate-400 block">Colaborador:</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {selectedCaixa.trabajador?.Nombre}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="text-slate-400 block">Empresa:</span>
+                                    <span className="font-semibold text-slate-800 dark:text-slate-200">
+                                        {selectedCaixa.empresa?.nome || '—'}
+                                    </span>
+                                </div>
+                                <div className="text-right">
+                                    <span className="text-slate-400 block">Saldo Atual ({selectedCaixa.moeda}):</span>
+                                    <span className={`text-base font-bold ${selectedCaixa.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
+                                        {formatMoney(selectedCaixa.saldo, selectedCaixa.moeda)}
+                                    </span>
+                                    {selectedCaixa.moeda !== 'EUR' && (
+                                        <span className="block text-[11px] font-mono text-slate-500">
+                                            ≈ {formatMoney(selectedCaixa.saldo_eur, 'EUR')}
+                                        </span>
+                                    )}
+                                </div>
                             </div>
-                            <div>
-                                <span className="text-slate-400 block">Empresa:</span>
-                                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                                    {selectedCaixa.empresa?.nome || '—'}
-                                </span>
-                            </div>
-                            <div className="text-right">
-                                <span className="text-slate-400 block">Saldo Atual:</span>
-                                <span className={`text-base font-bold ${selectedCaixa.saldo >= 0 ? 'text-emerald-600' : 'text-red-600'}`}>
-                                    {formatMoney(selectedCaixa.saldo)}
-                                </span>
-                            </div>
+
+                            {selectedCaixa.moeda !== 'EUR' && (
+                                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 rounded-xl bg-amber-50/70 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800/50 text-[11px] text-amber-900 dark:text-amber-200">
+                                    <span>
+                                        {getMoedaInfo(selectedCaixa.moeda).flag} <strong>{selectedCaixa.moeda}</strong> · Câmbio médio: <strong className="font-mono">1 EUR = {selectedCaixa.taxa_cambio.toFixed(4)} {selectedCaixa.moeda}</strong>
+                                    </span>
+                                    <span className="font-mono">
+                                        Enviado: <strong>{formatMoney(selectedCaixa.total_recargas_eur, 'EUR')}</strong>
+                                        {selectedCaixa.total_taxas_bancarias_eur > 0 && (
+                                            <> · Taxas: <strong>{formatMoney(selectedCaixa.total_taxas_bancarias_eur, 'EUR')}</strong></>
+                                        )}
+                                        <> · Gasto: <strong>{formatMoney(selectedCaixa.total_despesas_eur, 'EUR')}</strong></>
+                                    </span>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -1864,10 +2466,21 @@ export default function FundoCaixaPage() {
                                             <TableCell className={`text-right font-mono text-xs font-bold ${
                                                 m.tipo === 'entrada' ? 'text-emerald-600' : 'text-red-600'
                                             }`}>
-                                                {m.tipo === 'entrada' ? '+' : '-'}{formatMoney(m.valor)}
+                                                <div>{m.tipo === 'entrada' ? '+' : '-'}{formatMoney(m.valor, m.moeda)}</div>
+                                                {m.moeda && m.moeda !== 'EUR' && (
+                                                    <div className="text-[10px] font-normal text-slate-400">
+                                                        ≈ {m.tipo === 'entrada' ? '+' : '-'}{formatMoney(m.valor_eur, 'EUR')}
+                                                        {m.taxa_bancaria_eur ? ` (taxa ${formatMoney(m.taxa_bancaria_eur, 'EUR')})` : ''}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right font-mono text-xs font-semibold text-slate-700 dark:text-slate-300">
-                                                {m.runningBalance !== undefined ? formatMoney(m.runningBalance) : '—'}
+                                                <div>{m.runningBalance !== undefined ? formatMoney(m.runningBalance, m.moeda) : '—'}</div>
+                                                {m.moeda && m.moeda !== 'EUR' && m.runningBalanceEur !== undefined && (
+                                                    <div className="text-[10px] font-normal text-slate-400">
+                                                        ≈ {formatMoney(m.runningBalanceEur, 'EUR')}
+                                                    </div>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 <div className="flex items-center justify-center gap-1">
@@ -1938,9 +2551,39 @@ export default function FundoCaixaPage() {
                                 <div className="flex justify-between font-semibold text-slate-800 dark:text-slate-200">
                                     <span>{caixaToFechar.nombre}</span>
                                     <span className="text-emerald-600 font-mono text-sm font-bold">
-                                        {formatMoney(caixaToFechar.total_despesas)}
+                                        {formatMoney(
+                                            caixaToFechar.total_despesas_eur + (formFechamento.incluirTaxasBancarias ? caixaToFechar.total_taxas_bancarias_eur : 0),
+                                            'EUR'
+                                        )}
                                     </span>
                                 </div>
+                                {caixaToFechar.moeda !== 'EUR' && (
+                                    <div className="p-2 rounded-lg bg-amber-50/70 dark:bg-amber-950/30 border border-amber-200/70 text-[11px] text-amber-900 dark:text-amber-200 space-y-0.5">
+                                        <div className="flex justify-between">
+                                            <span>Gastos em {caixaToFechar.moeda}:</span>
+                                            <span className="font-mono font-semibold">
+                                                {formatMoney(caixaToFechar.total_despesas, caixaToFechar.moeda)} (≈ {formatMoney(caixaToFechar.total_despesas_eur, 'EUR')})
+                                            </span>
+                                        </div>
+                                        <div className="flex justify-between text-[10px] text-amber-700/80 dark:text-amber-300">
+                                            <span>Cotação média utilizada:</span>
+                                            <span className="font-mono">1 EUR = {caixaToFechar.taxa_cambio.toFixed(4)} {caixaToFechar.moeda}</span>
+                                        </div>
+                                        {caixaToFechar.total_taxas_bancarias_eur > 0 && (
+                                            <label className="flex items-center gap-1.5 pt-1 mt-1 border-t border-amber-200/60 cursor-pointer">
+                                                <input
+                                                    type="checkbox"
+                                                    checked={formFechamento.incluirTaxasBancarias}
+                                                    onChange={e => setFormFechamento(prev => ({ ...prev, incluirTaxasBancarias: e.target.checked }))}
+                                                    className="rounded border-amber-400 text-emerald-600 h-3.5 w-3.5"
+                                                />
+                                                <span>
+                                                    Incluir taxas bancárias (<strong>{formatMoney(caixaToFechar.total_taxas_bancarias_eur, 'EUR')}</strong>) na Conta a Pagar
+                                                </span>
+                                            </label>
+                                        )}
+                                    </div>
+                                )}
                                 <div className="text-slate-500">
                                     Responsável: <span className="font-medium text-slate-700 dark:text-slate-300">{caixaToFechar.trabajador?.Nombre}</span>
                                 </div>
@@ -2033,7 +2676,7 @@ export default function FundoCaixaPage() {
                             </div>
 
                             <div className="p-3 bg-emerald-50 dark:bg-emerald-950/30 rounded-xl border border-emerald-200 dark:border-emerald-800 text-[11px] text-emerald-800 dark:text-emerald-300">
-                                ✓ Ao confirmar, o fundo de caixa será <b>finalizado</b> e será gerada uma conta a pagar já com status <b>'Pago'</b> no valor total de <b>{formatMoney(caixaToFechar.total_despesas)}</b> consolidada em uma única linha no módulo Contas a Pagar.
+                                ✓ Ao confirmar, o fundo de caixa será <b>finalizado</b> e será gerada uma conta a pagar já com status <b>'Pago'</b> no valor total de <b>{formatMoney(caixaToFechar.total_despesas_eur + (formFechamento.incluirTaxasBancarias ? caixaToFechar.total_taxas_bancarias_eur : 0), 'EUR')}</b> consolidada em uma única linha no módulo Contas a Pagar.
                             </div>
 
                             <DialogFooter className="pt-2">
