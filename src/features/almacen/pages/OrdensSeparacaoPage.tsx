@@ -405,15 +405,21 @@ export const OrdensSeparacaoPage: React.FC = () => {
                     size="sm"
                     className="h-7 text-xs gap-1 bg-emerald-600 hover:bg-emerald-700 text-white"
                     onClick={async () => {
-                      try {
-                        await almacenService.sendOrderSignLinkViaMcsChat(selectedOrder);
-                        toast.success(`Mensagem enviada pelo canal oficial (${selectedOrder.empresa_nome || 'RH'}) no MCS-Chat!`);
-                      } catch (err: any) {
-                        toast.error(err?.message || 'Erro ao enviar pelo MCS-Chat');
-                      }
+                      const msg = almacenService.buildOrderSignMessage(selectedOrder);
+                      const { foundConversation } = await almacenService.openWorkerInMcsChat({
+                        workerId: selectedOrder.worker_id,
+                        workerName: selectedOrder.worker_nome,
+                        workerPhone: selectedOrder.worker_phone,
+                        prefillMessage: msg,
+                      });
+                      toast.success(
+                        foundConversation
+                          ? 'MCS-Chat aberto na conversa do trabalhador! Texto copiado (Ctrl+V) para você revisar e enviar.'
+                          : 'MCS-Chat aberto e texto copiado (Ctrl+V)! Selecione o trabalhador para revisar e enviar.'
+                      );
                     }}
                   >
-                    <Send className="h-3 w-3" /> Enviar MCS-Chat
+                    <Send className="h-3 w-3" /> Abrir MCS-Chat
                   </Button>
                   <Button
                     size="sm"
