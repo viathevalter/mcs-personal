@@ -353,9 +353,16 @@ export const MobilePickingPage: React.FC = () => {
                 <Button
                   size="sm"
                   className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 rounded-xl"
-                  onClick={() => sendWhatsAppSignLink(activeOrder)}
+                  onClick={async () => {
+                    try {
+                      await almacenService.sendOrderSignLinkViaMcsChat(activeOrder);
+                      toast.success(`Enviado pelo canal oficial (${activeOrder.empresa_nome || 'RH'}) no MCS-Chat!`);
+                    } catch {
+                      sendWhatsAppSignLink(activeOrder);
+                    }
+                  }}
                 >
-                  <Send className="h-4 w-4" /> Enviar Link WhatsApp
+                  <Send className="h-4 w-4" /> Enviar via MCS-Chat
                 </Button>
                 <Button
                   size="sm"

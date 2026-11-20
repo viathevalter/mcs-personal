@@ -1,5 +1,6 @@
 import { supabase } from '@/shared/supabase/client';
 import { logisticsService } from '@/features/logistica/services/logisticsService';
+import { dispatchMcsChatHoursCampaign } from '@/features/worker-portal/services/workerCommunicationService';
 import type {
   AlmacenDeliveryPoint,
   AlmacenEpi,
@@ -1203,6 +1204,46 @@ export const almacenService = {
       is_active: payload.is_active,
     });
     if (error) throw error;
+  },
+
+  async sendOrderSignLinkViaMcsChat(order: PickingOrder): Promise<{ success: boolean }> {
+    if (!order.worker_phone) {
+      throw new Error('Trabalhador sem telefone cadastrado.');
+    }
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://mcs-personal.vercel.app';
+    const signUrl = `${origin}/public/almacen-firmar/${order.signature_token}`;
+    const trackingLine = order.tracking_code
+      ? `\n📦 Seguimiento (${order.delivery_method || 'NACEX'}): *${order.tracking_code}*`
+      : '';
+    const addressLine = order.delivery_address ? `\n📍 Destino: ${order.delivery_address}` : '';
+
+    const messageTemplate = `Hola {primeiro_nome}, tu dotación / EPIS (Orden *${order.order_number}*) ha sido preparada para entrega.${trackingLine}${addressLine}\n\nPor favor, confirma y firma la recepción en este enlace:\n${signUrl}`;
+
+    const now = new Date();
+    const res = await dispatchMcsChatHoursCampaign({
+      clientName: order.client_nome || 'Almacén EPIS',
+      campaignTitle: `Entrega EPIS ${order.order_number} - ${order.worker_nome}`,
+      year: now.getFullYear(),
+      month: now.getMonth() + 1,
+      messageTemplate,
+      scheduleType: 'immediate',
+      alsoSendPortalNotification: false,
+      recipients: [
+        {
+          worker_id: order.worker_id || order.id,
+          worker_name: order.worker_nome,
+          movil: order.worker_phone,
+          contratante: order.empresa_nome || 'LUMINOUS',
+          funcion: order.job_function_name || 'Trabajador',
+          cliente: order.client_nome || 'Obra',
+        },
+      ],
+    });
+
+    if (!res?.success) {
+      throw new Error('Falha ao enfileirar envio no MCS-Chat.');
+    }
+    return { success: true };
   },
 
   async setPedidoAlmacenConcluido(pedidoId: string, concluido: boolean): Promise<void> {
